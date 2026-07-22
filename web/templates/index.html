@@ -1,0 +1,2213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTRA Production</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+            options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+        };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+    <style>
+    /* ── Mode toggle ──────────────────────────────────────────────────── */
+    .mode-toggle {
+        display: flex;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--border, #2a2a3a);
+        margin-bottom: 10px;
+    }
+    .mode-btn {
+        flex: 1;
+        padding: 6px 0;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        border: none;
+        background: transparent;
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active { background: var(--accent, #6d6aff); color: #fff; }
+    .mode-btn:not(.active):hover {
+        background: rgba(109,106,255,0.1);
+        color: var(--text, #e0e0f0);
+    }
+
+    /* ── Session config ───────────────────────────────────────────────── */
+    .macro-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted, #777);
+        margin-bottom: 5px;
+    }
+    .macro-textarea {
+        width: 100%;
+        min-height: 96px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+    .session-config-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 0;
+    }
+    .session-config-row label { flex: 0 0 74px; }
+    .session-config-row input[type="number"] {
+        width: 48px;
+        padding: 4px 6px;
+        background: var(--surface, #12121f);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        color: var(--text, #e0e0f0);
+        font-size: 12px;
+    }
+    .unit-label {
+        font-size: 10px;
+        color: var(--text-muted, #777);
+    }
+
+    /* ── Active session info bar ──────────────────────────────────────── */
+    .session-info-bar {
+        background: var(--surface, #0c0c18);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 5px;
+        padding: 7px 9px;
+        margin-bottom: 8px;
+    }
+    .session-info-id {
+        font-size: 9px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted, #666);
+        margin-bottom: 2px;
+    }
+    .session-info-q {
+        font-size: 11px;
+        color: var(--text, #e0e0f0);
+        line-height: 1.4;
+        margin-bottom: 4px;
+    }
+    .session-stat-row {
+        display: flex;
+        gap: 12px;
+        font-size: 10px;
+        color: var(--text-muted, #777);
+    }
+    .session-stat-val {
+        color: var(--text, #e0e0f0);
+        font-weight: 600;
+    }
+
+    /* ── Research Thread ──────────────────────────────────────────────── */
+    .thread-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding-right: 2px;
+    }
+    .thread-item {
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: var(--surface, #0c0c18);
+    }
+    .thread-item-hd {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 4px;
+    }
+    .thread-cycle-num {
+        font-size: 10px;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted, #777);
+    }
+    .thread-badge {
+        font-size: 8px;
+        font-weight: 800;
+        padding: 2px 5px;
+        border-radius: 3px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    .thread-badge.validated  { background: #0d2e0d; color: #4ade80; border: 1px solid #1a5c1a; }
+    .thread-badge.refuted    { background: #2e1e00; color: #fbbf24; border: 1px solid #5a3a00; }
+    .thread-badge.error      { background: #2e0d0d; color: #f87171; border: 1px solid #5c1a1a; }
+    .thread-badge.api-error  { background: #1a0d2e; color: #c084fc; border: 1px solid #5a2080; }
+    .thread-ts {
+        font-size: 9px;
+        color: var(--text-muted, #555);
+        margin-left: auto;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .thread-conjecture {
+        font-size: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        color: #a0a0c0;
+        line-height: 1.4;
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+    .thread-nav-lbl {
+        font-size: 8px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent, #6d6aff);
+        opacity: 0.75;
+        margin-bottom: 1px;
+    }
+    .thread-nav-dir {
+        font-size: 10px;
+        color: var(--accent, #6d6aff);
+        line-height: 1.35;
+        border-left: 2px solid var(--accent, #6d6aff);
+        padding-left: 6px;
+    }
+    .thread-empty {
+        text-align: center;
+        padding: 24px 0;
+        font-size: 12px;
+        color: var(--text-muted, #555);
+        font-style: italic;
+    }
+
+    /* ── Branch Registry ──────────────────────────────────────────────── */
+    .branch-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .branch-item {
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 5px;
+        padding: 7px 9px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .branch-item-body { flex: 1; min-width: 0; }
+    .branch-id-tag {
+        font-size: 9px;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted, #666);
+        margin-bottom: 2px;
+    }
+    .branch-dir-text {
+        font-size: 11px;
+        color: var(--text, #e0e0f0);
+        line-height: 1.3;
+    }
+    .branch-motiv-text {
+        font-size: 10px;
+        color: var(--text-muted, #666);
+        margin-top: 2px;
+        line-height: 1.3;
+    }
+    .btn-activate {
+        flex-shrink: 0;
+        padding: 3px 8px;
+        font-size: 10px;
+        font-weight: 600;
+        border-radius: 4px;
+        border: 1px solid var(--accent, #6d6aff);
+        background: transparent;
+        color: var(--accent, #6d6aff);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+        white-space: nowrap;
+    }
+    .btn-activate:hover { background: var(--accent, #6d6aff); color: #fff; }
+    .branch-status-pill {
+        flex-shrink: 0;
+        font-size: 9px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .branch-status-pill.active    { background: #2e1e00; color: #fbbf24; }
+    .branch-status-pill.completed { background: #0d2e0d; color: #4ade80; }
+
+    /* ── Navigator Proposal Modal ─────────────────────────────────────── */
+    .nav-modal-card {
+        max-width: 700px;
+        width: 95vw;
+        max-height: 88vh;
+        overflow-y: auto;
+    }
+    .nav-milestone-hd {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .milestone-badge {
+        font-size: 9px;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 3px;
+        background: #2a1040;
+        color: #c084fc;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border: 1px solid #5a2080;
+    }
+    .nav-section { margin-bottom: 14px; }
+    .nav-section-lbl {
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted, #777);
+        margin-bottom: 5px;
+    }
+    .nav-text-block {
+        font-size: 12px;
+        color: var(--text, #e0e0f0);
+        line-height: 1.55;
+        background: var(--surface, #0c0c18);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 5px;
+        padding: 9px 11px;
+    }
+    .nav-direction-hl {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--accent, #6d6aff);
+        line-height: 1.5;
+    }
+    .nav-milestone-reason-text { color: #c084fc; font-style: italic; }
+    .nav-branch-pick {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 4px;
+    }
+    .nav-branch-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 7px 9px;
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .nav-branch-btn:hover {
+        border-color: var(--accent, #6d6aff);
+        background: rgba(109,106,255,0.06);
+    }
+    .nav-branch-btn .nb-id {
+        font-size: 9px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted, #777);
+        margin-bottom: 2px;
+    }
+    .nav-branch-btn .nb-dir { font-size: 11px; color: var(--text, #e0e0f0); line-height: 1.3; }
+    .nav-actions {
+        border-top: 1px solid var(--border, #2a2a3a);
+        padding-top: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .nav-redirect-row {
+        display: flex;
+        gap: 6px;
+    }
+    .nav-redirect-row input {
+        flex: 1;
+        padding: 7px 9px;
+        background: var(--surface, #0c0c18);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        color: var(--text, #e0e0f0);
+        font-size: 12px;
+        font-family: inherit;
+    }
+    .nav-redirect-row input:focus {
+        outline: none;
+        border-color: var(--accent, #6d6aff);
+    }
+
+    /* ── Research canvas grid (2-column) ──────────────────────────────── */
+    #research-canvas-top {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 12px;
+        margin-bottom: 0;
+    }
+    @media (max-width: 1100px) {
+        #research-canvas-top { grid-template-columns: 1fr; }
+    }
+
+    /* ── Investigation modals ────────────────────────────────────────── */
+    .inv-modal-card {
+        max-width: 480px;
+        width: 95vw;
+    }
+    .inv-name-input {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 14px 0 6px;
+        padding: 8px 10px;
+        background: var(--surface, #12121f);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 5px;
+        color: var(--text, #e0e0f0);
+        font-size: 13px;
+    }
+    .inv-name-input:focus { outline: none; border-color: var(--accent, #6d6aff); }
+    .inv-note {
+        font-size: 10px;
+        color: var(--text-muted, #666);
+        margin-bottom: 18px;
+        line-height: 1.5;
+    }
+    /* History modal */
+    .history-modal-card {
+        max-width: 600px;
+        width: 95vw;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .history-list {
+        flex: 1;
+        overflow-y: auto;
+        margin: 14px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .history-empty {
+        text-align: center;
+        padding: 32px 0;
+        font-size: 12px;
+        color: var(--text-muted, #555);
+        font-style: italic;
+    }
+    .history-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 6px;
+        background: var(--surface, #0c0c18);
+        transition: border-color 0.15s;
+    }
+    .history-item:hover { border-color: var(--accent, #6d6aff); }
+    .history-item-body { flex: 1; min-width: 0; }
+    .history-item-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text, #e0e0f0);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .history-item-meta {
+        font-size: 10px;
+        color: var(--text-muted, #666);
+        margin-top: 2px;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .history-item-badges {
+        display: flex;
+        gap: 5px;
+        margin-top: 4px;
+    }
+    .history-badge {
+        font-size: 9px;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+        letter-spacing: 0.03em;
+    }
+    .history-badge.cycles   { background:#1a1a3a; color:#a0a0ff; border:1px solid #2a2a5a; }
+    .history-badge.theorems { background:#0d2e0d; color:#4ade80; border:1px solid #1a5c1a; }
+    .history-actions { display: flex; gap: 5px; flex-shrink: 0; }
+    .btn-load {
+        padding: 4px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 4px;
+        border: 1px solid var(--accent, #6d6aff);
+        background: transparent;
+        color: var(--accent, #6d6aff);
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .btn-load:hover { background: var(--accent, #6d6aff); color: #fff; }
+    .btn-del {
+        padding: 4px 7px;
+        font-size: 10px;
+        border-radius: 4px;
+        border: 1px solid var(--border, #2a2a3a);
+        background: transparent;
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-del:hover { color: var(--red, #f87171); border-color: var(--red, #f87171); }
+    .topbar-btn-accent {
+        background: rgba(109,106,255,0.12);
+        border: 1px solid rgba(109,106,255,0.35);
+        color: var(--accent, #6d6aff);
+    }
+    .topbar-btn-accent:hover { background: rgba(109,106,255,0.25); }
+
+    /* ── Settings modal ───────────────────────────────────────────────── */
+    .settings-modal-card {
+        max-width: 500px;
+        width: 95vw;
+        max-height: 86vh;
+        overflow-y: auto;
+    }
+    .settings-section { margin-bottom: 22px; }
+    .settings-section-title {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted, #777);
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border, #2a2a3a);
+    }
+    .api-key-row { margin-bottom: 11px; }
+    .api-key-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text, #e0e0f0);
+        margin-bottom: 4px;
+    }
+    .api-key-envname {
+        font-size: 9px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted, #666);
+    }
+    .api-key-status {
+        font-size: 8px;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 3px;
+        letter-spacing: 0.04em;
+        margin-left: auto;
+    }
+    .api-key-status.set   { background:#0d2e0d; color:#4ade80; border:1px solid #1a5c1a; }
+    .api-key-status.unset { background:#2a1a00; color:#fbbf24; border:1px solid #5a3a00; }
+    .api-key-input-row { display: flex; gap: 5px; }
+    .api-key-input {
+        flex: 1;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        background: var(--surface, #12121f);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        padding: 5px 8px;
+        color: var(--text, #e0e0f0);
+    }
+    .api-key-input:focus { outline: none; border-color: var(--accent, #6d6aff); }
+    .btn-eye {
+        background: transparent;
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        padding: 4px 7px;
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+    }
+    .btn-eye:hover { color: var(--text, #e0e0f0); }
+    .settings-vertex-row {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    .settings-vertex-row label {
+        font-size: 10px;
+        color: var(--text-muted, #777);
+        white-space: nowrap;
+        flex: 0 0 100px;
+    }
+    .settings-vertex-row input {
+        flex: 1;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        background: var(--surface, #12121f);
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        padding: 5px 8px;
+        color: var(--text, #e0e0f0);
+    }
+    .settings-save-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 18px;
+    }
+    .settings-note {
+        font-size: 10px;
+        color: var(--text-muted, #666);
+        margin-top: 4px;
+        line-height: 1.5;
+    }
+    .btn-clear-logs {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid var(--border, #2a2a3a);
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-muted, #777);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-clear-logs:hover { color: var(--red, #f87171); border-color: var(--red, #f87171); }
+
+    /* ── Scrollbars ──────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #5a5a8a; }
+
+    /* ── Autonomous mode toggle ──────────────────────────────────────── */
+    .autonomous-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 0;
+        margin-top: 2px;
+    }
+    .autonomous-row input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+        accent-color: var(--accent, #6d6aff);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .autonomous-row .auto-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text, #e0e0f0);
+        cursor: pointer;
+    }
+    .autonomous-row .auto-hint {
+        font-size: 9px;
+        color: var(--text-muted, #666);
+        line-height: 1.4;
+    }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- ── Topbar ─────────────────────────────────────────────────────── -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-name">ASTRA</span>
+            <span class="brand-sep">/</span>
+            <span id="brand-mode-label" class="brand-sub">Production</span>
+        </div>
+        <div class="topbar-right">
+            <div class="status-cluster">
+                <div id="status-pill" class="status-pill idle">IDLE</div>
+                <span id="cycle-label" class="cycle-label">Cycle 0</span>
+                <span id="inv-cycle-label" class="cycle-label" style="color:var(--text-muted,#777);font-size:10px;" title="Cycles in current investigation">/ Inv. 0</span>
+            </div>
+            <button class="topbar-btn topbar-btn-accent" onclick="openNewInvestigation()" title="Save current and start fresh">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/>
+                </svg>
+                New
+            </button>
+            <button class="topbar-btn" onclick="openHistory()" title="Browse previous investigations">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8.515 1.019A7 7 0 008 1V0a8 8 0 11-5.657 2.343l.707.707A7 7 0 108.515 1.019zM8 2a6 6 0 100 12A6 6 0 008 2zM7 5a1 1 0 112 0v3.5l2.146 2.146a.5.5 0 01-.707.708L8 9.207V5z"/>
+                </svg>
+                History
+            </button>
+            <button class="topbar-btn" id="settings-toggle" onclick="toggleSettings()">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 01-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 01.872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 012.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 012.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 01.872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 01-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 01-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 110-5.86 2.929 2.929 0 010 5.858z"/>
+                </svg>
+                Settings
+            </button>
+            <button class="topbar-btn" id="help-toggle" onclick="toggleHelp()">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm6.5-1.5a1.5 1.5 0 113 0v.5a.75.75 0 01-.75.75H8a.75.75 0 010-1.5h.25V6.5a1.5 1.5 0 01-1.75-1.5zM8 12a1 1 0 110-2 1 1 0 010 2z"/>
+                </svg>
+                Help
+            </button>
+        </div>
+    </header>
+
+    <div class="workspace">
+
+        <!-- ── Sidebar ────────────────────────────────────────────────── -->
+        <aside class="sidebar">
+
+            <!-- Mode toggle -->
+            <div class="mode-toggle">
+                <button id="mode-btn-single"   class="mode-btn active"  onclick="setMode('single')">Single Cycle</button>
+                <button id="mode-btn-research"  class="mode-btn"         onclick="setMode('research')">Research Loop</button>
+            </div>
+
+            <!-- ── SINGLE MODE: Intuition Input ─────────────────────── -->
+            <section id="panel-single" class="panel input-panel">
+                <div class="panel-hd"><h2>Intuition Input</h2></div>
+                <div class="panel-body">
+                    <textarea id="intuition-text"
+                        placeholder="Enter a falsifiable scientific intuition, equation, metric, or model claim.&#10;&#10;Example: Test whether the Schwarzschild metric has vanishing Ricci scalar outside r = 2M."></textarea>
+
+                    <div class="dropzone" id="doc-dropzone">
+                        <input type="file" id="doc-input" accept=".pdf,.txt" hidden>
+                        <svg class="dz-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M7.25 10.25V3.75a.75.75 0 011.5 0v6.5l2-2a.75.75 0 111.06 1.06l-3.28 3.28a.75.75 0 01-1.06 0L4.19 9.31a.75.75 0 111.06-1.06l2 2z"/>
+                        </svg>
+                        <span class="dz-label">Drop PDF / TXT or click to upload</span>
+                    </div>
+
+                    <div class="provider-config">
+                        <h3 class="provider-config-title">AI Providers</h3>
+                        <div class="provider-row">
+                            <label class="provider-label">Conjecture</label>
+                            <select id="conjecture-provider" class="provider-select">
+                                <option value="codex_cli" selected>Codex / ChatGPT (suscripción)</option>
+                                <option value="claude_cli">Claude (suscripción)</option>
+                                <option value="vertexai">Vertex AI (ADC)</option>
+                                <option value="gemini">Gemini Flash</option>
+                                <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                <option value="anthropic">Claude (Anthropic)</option>
+                                <option value="openai">OpenAI GPT-4o</option>
+                                <option value="deepseek">DeepSeek R1</option>
+                                <option value="xai">xAI Grok 3</option>
+                                <option value="qwen">Qwen2.5-Math</option>
+                                <option value="mistral">Mistral Large</option>
+                                <option value="codestral">Codestral</option>
+                                <option value="groq">Groq (Llama 3.3)</option>
+                            </select>
+                        </div>
+                        <div class="provider-row">
+                            <label class="provider-label">Translator</label>
+                            <select id="translator-provider" class="provider-select">
+                                <option value="claude_cli" selected>Claude (suscripción)</option>
+                                <option value="codex_cli">Codex / ChatGPT (suscripción)</option>
+                                <option value="vertexai">Vertex AI (ADC)</option>
+                                <option value="gemini">Gemini Flash</option>
+                                <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                <option value="anthropic">Claude (Anthropic)</option>
+                                <option value="openai">OpenAI GPT-4o</option>
+                                <option value="deepseek">DeepSeek R1</option>
+                                <option value="xai">xAI Grok 3</option>
+                                <option value="qwen">Qwen2.5-Math</option>
+                                <option value="mistral">Mistral Large</option>
+                                <option value="codestral">Codestral</option>
+                                <option value="groq">Groq (Llama 3.3)</option>
+                            </select>
+                        </div>
+                        <div class="provider-row">
+                            <label class="provider-label">Analyst</label>
+                            <select id="analyst-provider" class="provider-select">
+                                <option value="claude_cli" selected>Claude (suscripción)</option>
+                                <option value="codex_cli">Codex / ChatGPT (suscripción)</option>
+                                <option value="vertexai">Vertex AI (ADC)</option>
+                                <option value="gemini">Gemini Flash</option>
+                                <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                <option value="anthropic">Claude (Anthropic)</option>
+                                <option value="openai">OpenAI GPT-4o</option>
+                                <option value="deepseek">DeepSeek R1</option>
+                                <option value="xai">xAI Grok 3</option>
+                                <option value="qwen">Qwen2.5-Math</option>
+                                <option value="mistral">Mistral Large</option>
+                                <option value="codestral">Codestral</option>
+                                <option value="groq">Groq (Llama 3.3)</option>
+                            </select>
+                        </div>
+                        <div class="provider-row">
+                            <label class="provider-label">Oráculo</label>
+                            <select id="oracle-mode" class="provider-select">
+                                <option value="remote" selected>ASTRUM (GPU remoto)</option>
+                                <option value="local">Local solamente</option>
+                                <option value="auto">Auto (deciden los modelos)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="btn-launch" class="btn-primary" onclick="startDiscovery()">
+                            <span id="btn-label">Launch Cycle</span>
+                            <span id="btn-spinner" class="btn-spinner hidden" aria-hidden="true"></span>
+                        </button>
+                        <button id="btn-stop" class="btn-stop" onclick="stopDiscovery()" disabled>Stop</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── RESEARCH MODE: Session Panel ─────────────────────── -->
+            <section id="panel-research" class="panel input-panel hidden">
+                <div class="panel-hd"><h2>Research Session</h2></div>
+                <div class="panel-body">
+
+                    <!-- Active session summary (hidden until session starts) -->
+                    <div id="session-info-bar" class="session-info-bar hidden">
+                        <div id="session-info-id" class="session-info-id"></div>
+                        <div id="session-info-q"  class="session-info-q"></div>
+                        <div class="session-stat-row">
+                            <span>Cycles: <span id="stat-cycles" class="session-stat-val">0</span></span>
+                            <span>Branches: <span id="stat-branches" class="session-stat-val">0</span></span>
+                            <span>Milestones: <span id="stat-milestones" class="session-stat-val">0</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Session start form -->
+                    <div id="session-start-form">
+                        <div class="macro-label">Macro Research Question</div>
+                        <textarea id="macro-question" class="macro-textarea"
+                            placeholder="State the overarching scientific question guiding the session.&#10;&#10;Example: Determine whether the Alcubierre warp metric requires strictly negative energy density everywhere within the bubble, or whether geometric modifications can localise or reduce the exotic matter requirements."></textarea>
+
+                        <div class="dropzone" id="research-doc-dropzone" style="margin-top:6px;">
+                            <input type="file" id="research-doc-input" accept=".pdf,.txt" hidden>
+                            <svg class="dz-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                <path d="M7.25 10.25V3.75a.75.75 0 011.5 0v6.5l2-2a.75.75 0 111.06 1.06l-3.28 3.28a.75.75 0 01-1.06 0L4.19 9.31a.75.75 0 111.06-1.06l2 2z"/>
+                            </svg>
+                            <span class="dz-label">Drop PDF / TXT to use as research question</span>
+                        </div>
+
+                        <div class="provider-config" style="margin-top:10px;">
+                            <h3 class="provider-config-title">AI Providers</h3>
+                            <div class="provider-row">
+                                <label class="provider-label">Conjecture</label>
+                                <select id="r-conjecture-provider" class="provider-select">
+                                    <option value="codex_cli" selected>Codex / ChatGPT (suscripción)</option>
+                                    <option value="claude_cli">Claude (suscripción)</option>
+                                    <option value="vertexai">Vertex AI (ADC)</option>
+                                    <option value="gemini">Gemini Flash</option>
+                                    <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                    <option value="anthropic">Claude (Anthropic)</option>
+                                    <option value="openai">OpenAI GPT-4o</option>
+                                    <option value="deepseek">DeepSeek R1</option>
+                                    <option value="xai">xAI Grok 3</option>
+                                    <option value="qwen">Qwen2.5-Math</option>
+                                    <option value="mistral">Mistral Large</option>
+                                    <option value="codestral">Codestral</option>
+                                    <option value="groq">Groq (Llama 3.3)</option>
+                                </select>
+                            </div>
+                            <div class="provider-row">
+                                <label class="provider-label">Translator</label>
+                                <select id="r-translator-provider" class="provider-select">
+                                    <option value="claude_cli" selected>Claude (suscripción)</option>
+                                    <option value="codex_cli">Codex / ChatGPT (suscripción)</option>
+                                    <option value="vertexai">Vertex AI (ADC)</option>
+                                    <option value="gemini">Gemini Flash</option>
+                                    <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                    <option value="anthropic">Claude (Anthropic)</option>
+                                    <option value="openai">OpenAI GPT-4o</option>
+                                    <option value="deepseek">DeepSeek R1</option>
+                                    <option value="xai">xAI Grok 3</option>
+                                    <option value="qwen">Qwen2.5-Math</option>
+                                    <option value="mistral">Mistral Large</option>
+                                    <option value="codestral">Codestral</option>
+                                    <option value="groq">Groq (Llama 3.3)</option>
+                                </select>
+                            </div>
+                            <div class="provider-row">
+                                <label class="provider-label">Analyst</label>
+                                <select id="r-analyst-provider" class="provider-select">
+                                    <option value="claude_cli" selected>Claude (suscripción)</option>
+                                    <option value="codex_cli">Codex / ChatGPT (suscripción)</option>
+                                    <option value="vertexai">Vertex AI (ADC)</option>
+                                    <option value="gemini">Gemini Flash</option>
+                                    <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                    <option value="anthropic">Claude (Anthropic)</option>
+                                    <option value="openai">OpenAI GPT-4o</option>
+                                    <option value="deepseek">DeepSeek R1</option>
+                                    <option value="xai">xAI Grok 3</option>
+                                    <option value="qwen">Qwen2.5-Math</option>
+                                    <option value="mistral">Mistral Large</option>
+                                    <option value="codestral">Codestral</option>
+                                    <option value="groq">Groq (Llama 3.3)</option>
+                                </select>
+                            </div>
+                            <div class="provider-row">
+                                <label class="provider-label">Navigator</label>
+                                <select id="r-navigator-provider" class="provider-select">
+                                    <option value="codex_cli" selected>Codex / ChatGPT (suscripción)</option>
+                                    <option value="claude_cli">Claude (suscripción)</option>
+                                    <option value="vertexai">Vertex AI (ADC)</option>
+                                    <option value="gemini">Gemini Flash</option>
+                                    <option value="agy_cli">agy / Gemini 3 Pro (Antigravity)</option>
+                                    <option value="anthropic">Claude (Anthropic)</option>
+                                    <option value="openai">OpenAI GPT-4o</option>
+                                    <option value="deepseek">DeepSeek R1</option>
+                                    <option value="xai">xAI Grok 3</option>
+                                    <option value="qwen">Qwen2.5-Math</option>
+                                    <option value="mistral">Mistral Large</option>
+                                    <option value="codestral">Codestral</option>
+                                    <option value="groq">Groq (Llama 3.3)</option>
+                                </select>
+                            </div>
+                            <div class="provider-row">
+                                <label class="provider-label">Oráculo</label>
+                                <select id="r-oracle-mode" class="provider-select">
+                                    <option value="remote" selected>ASTRUM (GPU remoto)</option>
+                                    <option value="local">Local solamente</option>
+                                    <option value="auto">Auto (deciden los modelos)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="session-config-row" style="margin-top:8px;">
+                            <label class="provider-label">Heartbeat</label>
+                            <input type="number" id="heartbeat-interval" value="5" min="1" max="20">
+                            <span class="unit-label" title="Number of cycles between mandatory human-review pauses. Not a stop — a pause interval.">cycles/pause</span>
+                        </div>
+
+                        <div class="autonomous-row">
+                            <input type="checkbox" id="autonomous-mode">
+                            <label for="autonomous-mode" class="auto-label">Autonomous Mode</label>
+                            <span class="auto-hint" title="When ON, ASTRA auto-continues at every milestone without pausing. Stops only when the Navigator declares the macro question resolved.">— skips human pauses, stops when macro is resolved</span>
+                        </div>
+
+                        <div class="session-config-row">
+                            <label class="provider-label">Max runtime</label>
+                            <input type="number" id="max-runtime" value="" min="1" max="480" placeholder="∞">
+                            <span class="unit-label" title="Maximum session duration in minutes. Leave empty to run until macro is resolved or you stop manually.">min (empty = unlimited)</span>
+                        </div>
+                    </div>
+
+                    <div class="action-row" style="margin-top:10px;">
+                        <button id="btn-launch-research" class="btn-primary" onclick="startResearch()">
+                            <span id="btn-research-label">Launch Session</span>
+                            <span id="btn-research-spinner" class="btn-spinner hidden" aria-hidden="true"></span>
+                        </button>
+                        <button id="btn-stop-research" class="btn-stop" onclick="stopResearch()" disabled>Stop</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- System log (always visible) -->
+            <section class="panel log-panel">
+                <div class="panel-hd">
+                    <h2>System Log</h2>
+                    <span id="phase-chip" class="phase-chip">Idle</span>
+                    <button class="btn-clear-logs" onclick="clearLogs()" title="Clear log">
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z"/>
+                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 01-1-1V2a1 1 0 011-1H6a1 1 0 011-1h2a1 1 0 011 1h3.5a1 1 0 011 1v1zM4.118 4L4 4.059V13a1 1 0 001 1h6a1 1 0 001-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                        </svg>
+                        Clear
+                    </button>
+                </div>
+                <div class="panel-body">
+                    <div class="progress-track">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div id="logs-stream" class="logs-stream"></div>
+                </div>
+            </section>
+
+        </aside>
+
+        <!-- ── Canvas ─────────────────────────────────────────────────── -->
+        <main class="canvas">
+
+            <!-- Research Thread + Branch Registry (research mode only) -->
+            <div id="research-canvas-top" class="hidden">
+
+                <!-- Research Thread -->
+                <section class="panel" style="min-width:0;">
+                    <div class="panel-hd">
+                        <h2>Research Thread</h2>
+                        <span id="thread-cycle-count" class="phase-chip">0 cycles</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="thread-list" class="thread-list">
+                            <div class="thread-empty">Research thread will populate as cycles complete.</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Branch Registry -->
+                <section class="panel" style="min-width:0;">
+                    <div class="panel-hd">
+                        <h2>Branch Registry</h2>
+                        <span id="branch-count" class="phase-chip">0 pending</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="branch-list" class="branch-list">
+                            <div class="thread-empty">Parallel branches proposed by the Navigator will appear here.</div>
+                        </div>
+                    </div>
+                </section>
+
+            </div><!-- #research-canvas-top -->
+
+            <!-- Hypothesis (always) -->
+            <section class="panel">
+                <div class="panel-hd">
+                    <h2>Hypothesis</h2>
+                    <button class="btn-ghost-sm" onclick="copyMath()">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
+                            <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="panel-body">
+                    <div id="math-board" class="math-board">
+                        <span class="placeholder-text">Hypothesis will render here after the Conjecture phase...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Validation Script (always) -->
+            <section class="panel">
+                <div class="panel-hd">
+                    <h2>Validation Script</h2>
+                    <button class="btn-ghost-sm" onclick="copyCode()">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
+                            <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="panel-body">
+                    <pre class="code-wrap"><code id="code-board" class="language-python">Validation script will appear here after the Translation phase...</code></pre>
+                </div>
+            </section>
+
+            <!-- Cycle Reports + Axiomatic Base -->
+            <div class="canvas-grid">
+                <section class="panel">
+                    <div class="panel-hd"><h2>Cycle Reports</h2></div>
+                    <div class="panel-body">
+                        <div id="reports-board" class="reports-list">
+                            <span class="placeholder-text">Reports will appear after each completed cycle.</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-hd"><h2>Axiomatic Base</h2></div>
+                    <div class="panel-body">
+                        <div id="axioms-board" class="axioms-board"></div>
+                    </div>
+                </section>
+            </div>
+
+        </main>
+    </div><!-- workspace -->
+</div><!-- app-shell -->
+
+
+<!-- ── Help drawer ─────────────────────────────────────────────────────── -->
+<aside id="help-drawer" class="help-drawer" aria-label="Help" aria-hidden="true">
+    <div class="help-inner">
+        <div class="help-hd">
+            <h2>Help &amp; Examples</h2>
+            <button class="topbar-btn" onclick="toggleHelp()" title="Close help">&#x2715;</button>
+        </div>
+        <div class="help-body">
+
+            <div class="help-section">
+                <h3>Quick Start — Single Cycle</h3>
+                <ol class="quickstart-steps">
+                    <li><strong>Enter</strong> a falsifiable scientific intuition in the Input box, or upload a PDF/TXT document.</li>
+                    <li><strong>Launch Cycle</strong> — ASTRA formalizes it into a hypothesis, writes a validation script, and runs it.</li>
+                    <li><strong>Review</strong> the validated theorem and approve or reject adding it to the Axiomatic Base.</li>
+                </ol>
+            </div>
+
+            <div class="help-section">
+                <h3>Quick Start — Research Loop</h3>
+                <ol class="quickstart-steps">
+                    <li><strong>Switch</strong> to Research Loop mode using the toggle at the top of the sidebar.</li>
+                    <li><strong>Enter a macro question</strong> — the overarching scientific question guiding the session. You can also upload a PDF or TXT as the question.</li>
+                    <li><strong>Set Heartbeat</strong> — how many cycles run between human-review pauses (not a stop, just a pause).</li>
+                    <li><strong>Autonomous Mode</strong> — enable to skip all human pauses. ASTRA will run continuously and only stop when the Navigator declares the macro question resolved.</li>
+                    <li><strong>Launch Session</strong> — ASTRA autonomously generates hypotheses, validates them, and navigates to the next direction.</li>
+                    <li>At <strong>milestones</strong> (manual mode only), review the Navigator Proposal: continue, redirect with a custom direction, or activate a parallel branch from the registry.</li>
+                    <li>When the session ends, the reports folder opens automatically.</li>
+                </ol>
+            </div>
+
+            <div class="help-section">
+                <h3>Investigation Management</h3>
+                <p class="help-text"><strong>New</strong> — saves the current investigation and resets ASTRA for a fresh start. The Axiomatic Base and all reports are cleared.</p>
+                <p class="help-text"><strong>History</strong> — browse, load, or delete past investigations. Each is saved with its cycle count and validated theorems.</p>
+                <p class="help-text">The <strong>Inv. N</strong> counter in the status bar shows how many cycles have run in the current investigation (resets on New).</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Provider Guide</h3>
+                <p class="help-text">Each phase uses a different LLM. At least one API key is required. Configure keys in <strong>Settings ⚙</strong>.</p>
+                <table class="provider-table">
+                    <tr><td>Conjecture</td><td>Formalizes intuition into hypothesis</td><td class="rec">Gemini</td></tr>
+                    <tr><td>Translator</td><td>Writes validation code</td><td class="rec">Claude</td></tr>
+                    <tr><td>Analyst</td><td>Interprets execution results</td><td class="rec">OpenAI</td></tr>
+                    <tr><td>Navigator</td><td>Directs next research direction</td><td class="rec">Gemini</td></tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Status Badges</h3>
+                <p class="help-text">Thread cards show cycle results with colored badges:</p>
+                <p class="help-text"><strong style="color:#4ade80;">VALIDATED</strong> — hypothesis confirmed mathematically.<br>
+                <strong style="color:#fbbf24;">REFUTED</strong> — hypothesis disproved; reasoning added to Axiomatic Base.<br>
+                <strong style="color:#f87171;">CODE_ERROR</strong> — validation script failed after retries.<br>
+                <strong style="color:#c084fc;">API_ERROR</strong> — provider API quota/error; cycle skipped, will retry.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Example Intuitions</h3>
+                <p class="help-text">Click any example to load it into the input box.</p>
+                <div class="examples-grid">
+                    <button class="example-btn" onclick="loadExample('gr')">
+                        <span class="ex-label">GR Curvature</span>
+                        <span class="ex-desc">Ricci scalar outside r = 2M</span>
+                    </button>
+                    <button class="example-btn" onclick="loadExample('ode')">
+                        <span class="ex-label">ODE Residual</span>
+                        <span class="ex-desc">Harmonic oscillator solution</span>
+                    </button>
+                    <button class="example-btn" onclick="loadExample('fluid')">
+                        <span class="ex-label">Fluid Law</span>
+                        <span class="ex-desc">Hagen-Poiseuille scaling</span>
+                    </button>
+                    <button class="example-btn" onclick="loadExample('logic')">
+                        <span class="ex-label">Inequality</span>
+                        <span class="ex-desc">AM-GM for two variables</span>
+                    </button>
+                    <button class="example-btn" onclick="loadExample('tensor')">
+                        <span class="ex-label">Tensor Identity</span>
+                        <span class="ex-desc">Abstract Bianchi-like condition</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="help-section">
+                <h3>Troubleshooting</h3>
+                <details class="faq-item">
+                    <summary>Cycle stuck on IDLE after clicking Launch</summary>
+                    <p>Ensure at least one API key is configured in Settings ⚙. Keys are saved to your local <code>.env</code> file.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>API_ERROR badge appears on every cycle</summary>
+                    <p>Your API quota is exhausted or the provider is down. ASTRA detects this cleanly and retries the same direction. Wait a few minutes or switch provider in Settings.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>CODE_ERROR repeating on every retry</summary>
+                    <p>The translator is generating invalid code. Try narrowing your intuition to a more specific and concrete claim. Avoid ambiguous or overly abstract phrasing.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Server shows OFFLINE</summary>
+                    <p>The Flask server has stopped. Relaunch from the terminal or the desktop shortcut (launch_astra.bat).</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Heartbeat vs. Autonomous Mode</summary>
+                    <p><strong>Heartbeat N</strong> means ASTRA pauses every N cycles for human review — it is not a stop. In <strong>Autonomous Mode</strong>, these pauses are skipped entirely; ASTRA runs until the macro question is resolved.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Research Loop paused at WAITING_DIRECTION</summary>
+                    <p>A milestone was reached. The Navigator Proposal modal will appear automatically. Choose to continue, redirect with a custom direction, or activate a saved branch. Enable Autonomous Mode before launching to skip these pauses.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>External CAS not found (SageMath / Maxima)</summary>
+                    <p>These are optional. Run <code>install_windows_wsl.ps1</code> to install via WSL. Python-only validation works for most use cases.</p>
+                </details>
+            </div>
+
+        </div>
+    </div>
+</aside>
+
+
+<!-- ── Approval modal ──────────────────────────────────────────────────── -->
+<div id="approval-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+        <div class="modal-status-icon" aria-hidden="true"></div>
+        <h2 class="modal-title" id="modal-title">Hypothesis Validated</h2>
+        <p class="modal-desc">The mathematical engine confirmed this hypothesis. Add it to the Axiomatic Base?</p>
+        <div id="theorem-preview" class="theorem-preview"></div>
+        <div class="modal-actions">
+            <button class="btn-approve" onclick="approveTheorem()">Approve &amp; Add</button>
+            <button class="btn-reject-ghost" onclick="rejectTheorem()">Reject</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ── Navigator Proposal modal ───────────────────────────────────────── -->
+<div id="nav-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="nav-modal-title">
+    <div class="modal-card nav-modal-card">
+
+        <div class="nav-milestone-hd">
+            <span class="milestone-badge">Milestone</span>
+            <h2 class="modal-title" id="nav-modal-title">Research Checkpoint</h2>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-lbl">Checkpoint Reason</div>
+            <div id="nav-milestone-reason" class="nav-text-block nav-milestone-reason-text"></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-lbl">Progress Assessment</div>
+            <div id="nav-progress-assessment" class="nav-text-block"></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-lbl">Proposed Next Direction</div>
+            <div id="nav-next-direction" class="nav-text-block nav-direction-hl"></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-lbl">Navigator Rationale</div>
+            <div id="nav-rationale" class="nav-text-block"></div>
+        </div>
+
+        <div class="nav-section" id="nav-branches-section" style="display:none;">
+            <div class="nav-section-lbl">Activate a Pending Branch Instead</div>
+            <div id="nav-branch-pick" class="nav-branch-pick"></div>
+        </div>
+
+        <div class="nav-actions">
+            <button class="btn-approve" onclick="continueResearch()">
+                Continue with Proposed Direction
+            </button>
+            <div class="nav-redirect-row">
+                <input type="text" id="redirect-input"
+                    placeholder="Or enter a custom direction and click Redirect…">
+                <button class="btn-ghost-sm" style="padding:6px 12px;flex-shrink:0;" onclick="redirectResearch()">
+                    Redirect
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<!-- ── New Investigation modal ────────────────────────────────────────── -->
+<div id="new-inv-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card inv-modal-card">
+        <h2 class="modal-title">New Investigation</h2>
+        <p class="modal-desc">The current investigation will be saved automatically before resetting.</p>
+        <input type="text" id="new-inv-name" class="inv-name-input"
+            placeholder="Investigation name (optional)…" maxlength="120"
+            onkeydown="if(event.key==='Enter') confirmNewInvestigation()">
+        <p class="inv-note">Leave blank to auto-name with the current timestamp. All cycle reports, hypotheses, and theorems will be archived and retrievable from History.</p>
+        <div class="modal-actions">
+            <button class="btn-approve" onclick="confirmNewInvestigation()">Save &amp; Start Fresh</button>
+            <button class="btn-reject-ghost" onclick="closeModal('new-inv-modal')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ── History modal ──────────────────────────────────────────────────── -->
+<div id="history-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card history-modal-card">
+        <h2 class="modal-title">Previous Investigations</h2>
+        <div id="history-list" class="history-list">
+            <div class="history-empty">Loading…</div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-reject-ghost" onclick="closeModal('history-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ── Settings modal ─────────────────────────────────────────────────── -->
+<div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-card settings-modal-card">
+        <h2 class="modal-title" id="settings-title" style="margin-bottom:18px;">Settings</h2>
+
+        <!-- API Keys -->
+        <div class="settings-section">
+            <div class="settings-section-title">API Keys</div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    Gemini Flash
+                    <span class="api-key-envname">GEMINI_API_KEY</span>
+                    <span id="status-GEMINI_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-GEMINI_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('GEMINI_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    Anthropic Claude
+                    <span class="api-key-envname">ANTHROPIC_API_KEY</span>
+                    <span id="status-ANTHROPIC_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-ANTHROPIC_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('ANTHROPIC_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    OpenAI GPT-4o
+                    <span class="api-key-envname">OPENAI_API_KEY</span>
+                    <span id="status-OPENAI_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-OPENAI_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('OPENAI_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    DeepSeek R1
+                    <span class="api-key-envname">DEEPSEEK_API_KEY</span>
+                    <span id="status-DEEPSEEK_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-DEEPSEEK_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('DEEPSEEK_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    xAI Grok 3
+                    <span class="api-key-envname">XAI_API_KEY</span>
+                    <span id="status-XAI_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-XAI_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('XAI_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    Qwen2.5-Math (Alibaba)
+                    <span class="api-key-envname">DASHSCOPE_API_KEY</span>
+                    <span id="status-DASHSCOPE_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-DASHSCOPE_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('DASHSCOPE_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    Mistral / Codestral
+                    <span class="api-key-envname">MISTRAL_API_KEY</span>
+                    <span id="status-MISTRAL_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-MISTRAL_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('MISTRAL_API_KEY')">👁</button>
+                </div>
+            </div>
+
+            <div class="api-key-row">
+                <div class="api-key-label">
+                    Groq (Llama 3.3)
+                    <span class="api-key-envname">GROQ_API_KEY</span>
+                    <span id="status-GROQ_API_KEY" class="api-key-status unset">Not set</span>
+                </div>
+                <div class="api-key-input-row">
+                    <input type="password" id="input-GROQ_API_KEY" class="api-key-input" placeholder="Enter new key to update…">
+                    <button class="btn-eye" onclick="toggleKeyVisibility('GROQ_API_KEY')">👁</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vertex AI (ADC) -->
+        <div class="settings-section">
+            <div class="settings-section-title">Vertex AI (Application Default Credentials)</div>
+            <div class="settings-vertex-row">
+                <label>GCP Project ID</label>
+                <input type="text" id="input-VERTEX_PROJECT" placeholder="your-gcp-project-id">
+            </div>
+            <div class="settings-vertex-row">
+                <label>Location</label>
+                <input type="text" id="input-VERTEX_LOCATION" placeholder="us-central1">
+            </div>
+        </div>
+
+        <div class="settings-save-row">
+            <button class="btn-approve" style="flex:1;" onclick="saveConfig()">Save API Keys</button>
+            <button class="btn-reject-ghost" onclick="toggleSettings()">Cancel</button>
+        </div>
+        <p class="settings-note">Keys are saved to your local <code>.env</code> file and never leave your machine. Leave a field blank to keep the existing value. Changes take effect on the next ASTRA restart.</p>
+    </div>
+</div>
+
+
+<!-- ── Toast container ────────────────────────────────────────────────── -->
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+
+<script>
+// ── Config ───────────────────────────────────────────────────────────────
+const PHASE_PROGRESS = {
+    IDLE: 0,
+    CONJECTURING: 20,
+    TRANSLATING: 45,
+    VALIDATING: 68,
+    ANALYZING: 88,
+    NAVIGATING: 95,
+    WAITING_APPROVAL: 100,
+    WAITING_DIRECTION: 100,
+    API_ERROR: 0,
+};
+
+const EXAMPLES = {
+    gr:     `Test whether a static spherically symmetric metric with f(r) = 1 - 2M/r has vanishing Ricci scalar outside r = 2M, and produce a symbolic residual that can refute the claim.`,
+    ode:    `Given y'' + ω²y = 0 with y(0) = 1 and y'(0) = 0, validate that the proposed solution y = cos(ωt) satisfies the equation and boundary conditions.`,
+    fluid:  `For incompressible laminar pipe flow, test whether pressure drop is proportional to viscosity, length, and mean velocity, and inversely proportional to radius squared under Hagen-Poiseuille assumptions.`,
+    logic:  `Check whether the claim "for all positive real x and y, x + y ≥ 2√(xy)" can be refuted by bounded numerical sampling or symbolic inequality reasoning.`,
+    tensor: `Test an abstract tensor identity involving antisymmetric F_ab and the Bianchi-like condition dF = 0. Prefer an indexed symbolic engine if available.`
+};
+
+// ── UI State ──────────────────────────────────────────────────────────────
+let prevStatus      = 'IDLE';
+let helpOpen        = false;
+let offlineCount    = 0;
+let currentMode     = 'single';
+let activeSessionId = null;
+let navModalOpen    = false;
+
+// ── Mode management ───────────────────────────────────────────────────────
+function setMode(mode) {
+    currentMode = mode;
+
+    document.getElementById('mode-btn-single').classList.toggle('active', mode === 'single');
+    document.getElementById('mode-btn-research').classList.toggle('active', mode === 'research');
+    document.getElementById('brand-mode-label').textContent =
+        mode === 'research' ? 'Research Loop' : 'Production';
+
+    // Panel visibility
+    document.getElementById('panel-single').classList.toggle('hidden', mode !== 'single');
+    document.getElementById('panel-research').classList.toggle('hidden', mode !== 'research');
+
+    // Research canvas top — needs display:grid, not display:block
+    const rct = document.getElementById('research-canvas-top');
+    if (mode === 'research') {
+        rct.classList.remove('hidden');
+        rct.style.display = 'grid';
+    } else {
+        rct.classList.add('hidden');
+        rct.style.display = '';
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function truncate(s, n) {
+    s = String(s || '');
+    return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function fmtTime(ts) {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+    catch { return String(ts).slice(11, 19); }
+}
+
+function loadExample(name) {
+    const text = EXAMPLES[name];
+    if (text) document.getElementById('intuition-text').value = text;
+    if (helpOpen) toggleHelp();
+}
+
+function toggleHelp() {
+    helpOpen = !helpOpen;
+    const drawer = document.getElementById('help-drawer');
+    drawer.classList.toggle('open', helpOpen);
+    drawer.setAttribute('aria-hidden', String(!helpOpen));
+    document.getElementById('help-toggle').classList.toggle('active', helpOpen);
+}
+
+function toast(msg, type = 'info', duration = 3500) {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('visible'));
+    setTimeout(() => {
+        t.classList.remove('visible');
+        setTimeout(() => t.remove(), 250);
+    }, duration);
+}
+
+function copyMath() {
+    const el = document.getElementById('math-board');
+    navigator.clipboard.writeText(el.getAttribute('data-raw') || el.innerText)
+        .then(() => toast('Hypothesis copied'));
+}
+
+function copyCode() {
+    const el = document.getElementById('code-board');
+    navigator.clipboard.writeText(el.getAttribute('data-raw') || el.textContent)
+        .then(() => toast('Code copied'));
+}
+
+function reportUrl(path) {
+    if (!path) return '';
+    const parts = path.replace(/\\/g,'/').split('/');
+    return '/reports/' + encodeURIComponent(parts[parts.length - 1]);
+}
+
+// ── Single-cycle API ──────────────────────────────────────────────────────
+let documentLoaded = false;   // set to true after a successful doc upload
+
+async function startDiscovery() {
+    const intuition = document.getElementById('intuition-text').value.trim();
+    if (!intuition && !documentLoaded) {
+        toast('Please enter an intuition or upload a document first.', 'warn');
+        document.getElementById('intuition-text').focus();
+        return;
+    }
+    const providers = {
+        conjecture: document.getElementById('conjecture-provider').value,
+        translator: document.getElementById('translator-provider').value,
+        analyst:    document.getElementById('analyst-provider').value
+    };
+    const oracle_mode = document.getElementById('oracle-mode').value;
+    documentLoaded = false;
+    await fetch('/api/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({intuition, providers, oracle_mode})
+    });
+    toast('Cycle started', 'success');
+}
+
+async function stopDiscovery() {
+    await fetch('/api/stop', {method: 'POST'});
+    toast('Stop requested', 'info');
+}
+
+async function approveTheorem() {
+    await fetch('/api/approve', {method: 'POST'});
+    document.getElementById('approval-modal').classList.add('hidden');
+    toast('Theorem approved and added to Axiomatic Base', 'success', 5000);
+}
+
+async function rejectTheorem() {
+    await fetch('/api/reject', {method: 'POST'});
+    document.getElementById('approval-modal').classList.add('hidden');
+    toast('Theorem rejected', 'info');
+}
+
+// ── Research Loop API ─────────────────────────────────────────────────────
+async function startResearch() {
+    const q = document.getElementById('macro-question').value.trim();
+    if (!q) {
+        toast('Please enter a macro research question.', 'warn');
+        document.getElementById('macro-question').focus();
+        return;
+    }
+    const providers = {
+        conjecture: document.getElementById('r-conjecture-provider').value,
+        translator: document.getElementById('r-translator-provider').value,
+        analyst:    document.getElementById('r-analyst-provider').value,
+        navigator:  document.getElementById('r-navigator-provider').value,
+    };
+    const oracle_mode    = document.getElementById('r-oracle-mode').value;
+    const heartbeat      = parseInt(document.getElementById('heartbeat-interval').value) || 5;
+    const autonomous     = document.getElementById('autonomous-mode').checked;
+    const maxRuntimeRaw  = document.getElementById('max-runtime').value.trim();
+    const maxRuntime     = maxRuntimeRaw ? (parseInt(maxRuntimeRaw) || 0) : 0;
+
+    setResearchButtons(true);
+    const res = await fetch('/api/session/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            macro_question: q, heartbeat_interval: heartbeat,
+            providers, autonomous_mode: autonomous, max_runtime_minutes: maxRuntime, oracle_mode
+        })
+    });
+    if (res.ok) {
+        toast('Research session launched', 'success');
+        document.getElementById('session-start-form').style.display = 'none';
+        document.getElementById('session-info-bar').classList.remove('hidden');
+    } else {
+        toast('Failed to start session — check server logs', 'error');
+        setResearchButtons(false);
+    }
+}
+
+async function stopResearch() {
+    await fetch('/api/session/stop', {method: 'POST'});
+    toast('Stop requested', 'info');
+}
+
+async function continueResearch() {
+    closeNavModal();
+    await fetch('/api/session/continue', {method: 'POST'});
+    toast('Research thread continuing…', 'info');
+}
+
+async function redirectResearch() {
+    const dir = document.getElementById('redirect-input').value.trim();
+    if (!dir) {
+        toast('Enter a direction before redirecting.', 'warn');
+        document.getElementById('redirect-input').focus();
+        return;
+    }
+    closeNavModal();
+    await fetch('/api/session/redirect', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({direction: dir})
+    });
+    toast('Research redirected', 'info');
+}
+
+async function switchBranch(branchId) {
+    closeNavModal();
+    await fetch('/api/session/switch_branch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({branch_id: branchId})
+    });
+    toast('Activating branch: ' + branchId, 'info');
+}
+
+function setResearchButtons(running) {
+    document.getElementById('btn-launch-research').disabled  = running;
+    document.getElementById('btn-stop-research').disabled    = !running;
+    document.getElementById('btn-research-spinner').classList.toggle('hidden', !running);
+    document.getElementById('btn-research-label').classList.toggle('hidden', running);
+}
+
+// ── UI updaters ───────────────────────────────────────────────────────────
+function updateStatusBar(status, phase, cycle, invCycle) {
+    const pill = document.getElementById('status-pill');
+    pill.className = 'status-pill ' + status.toLowerCase().replace(/_/g,'-');
+    pill.textContent = status.replace(/_/g,' ');
+    document.getElementById('cycle-label').textContent = 'Cycle ' + (cycle || 0);
+    document.getElementById('inv-cycle-label').textContent = '/ Inv. ' + (invCycle || 0);
+    document.getElementById('phase-chip').textContent  = phase || 'Idle';
+    document.getElementById('progress-fill').style.width = (PHASE_PROGRESS[status] || 0) + '%';
+}
+
+function updateButtonState(status) {
+    if (currentMode !== 'single') return;
+    const running = status !== 'IDLE' && status !== 'OFFLINE';
+    document.getElementById('btn-launch').disabled = running;
+    document.getElementById('btn-spinner').classList.toggle('hidden', !running);
+    document.getElementById('btn-label').classList.toggle('hidden', running);
+    document.getElementById('btn-stop').disabled = !running;
+}
+
+function updateLogs(logs) {
+    const el = document.getElementById('logs-stream');
+    const atBottom = el.scrollHeight - el.clientHeight <= el.scrollTop + 12;
+    el.innerHTML = (logs || []).map(l => `<div class="log-line">${escHtml(l)}</div>`).join('');
+    if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
+function updateMath(conjecture) {
+    if (!conjecture) return;
+    const el = document.getElementById('math-board');
+    if (el.getAttribute('data-raw') === conjecture) return;
+    el.setAttribute('data-raw', conjecture);
+    el.textContent = conjecture;
+    if (window.MathJax) MathJax.typesetPromise([el]).catch(() => {});
+}
+
+function updateCode(code) {
+    if (!code) return;
+    const el = document.getElementById('code-board');
+    if (el.getAttribute('data-raw') === code) return;
+    el.setAttribute('data-raw', code);
+    el.textContent = code;
+    if (window.Prism) Prism.highlightElement(el);
+}
+
+function updateReports(reports) {
+    if (!reports || !reports.length) return;
+    const STATUS_TAG = {
+        VALIDATED_APPROVED: 'tag-validated',
+        VALIDATED_REJECTED: 'tag-rejected',
+        REFUTED:            'tag-refuted',
+        CODE_ERROR:         'tag-error',
+    };
+    document.getElementById('reports-board').innerHTML = reports.map(r => {
+        const links = [
+            r.html ? `<a href="${reportUrl(r.html)}" target="_blank">HTML</a>` : '',
+            r.md   ? `<a href="${reportUrl(r.md)}"   target="_blank">MD</a>`   : '',
+            r.pdf  ? `<a href="${reportUrl(r.pdf)}"  target="_blank">PDF</a>`  : ''
+        ].filter(Boolean).join('<span class="sep"> · </span>');
+        const tagCls = STATUS_TAG[r.status] || 'tag-default';
+        return `<div class="report-row">
+            <span class="report-cycle">Cycle ${r.cycle}</span>
+            <span class="report-tag ${tagCls}">${escHtml(r.status || '—')}</span>
+            <span class="report-links">${links}</span>
+        </div>`;
+    }).join('');
+}
+
+function updateAxioms(axioms) {
+    const el = document.getElementById('axioms-board');
+    const raw = axioms || '';
+    if (el.getAttribute('data-raw') === raw) return;
+    el.setAttribute('data-raw', raw);
+    if (!raw) {
+        el.innerHTML = '<span class="placeholder-text">Axiomatic Base is empty. Validated theorems will appear here.</span>';
+    } else {
+        el.textContent = raw;
+        if (window.MathJax) MathJax.typesetPromise([el]).catch(() => {});
+    }
+}
+
+function handleApprovalModal(status, conjecture) {
+    const modal   = document.getElementById('approval-modal');
+    const preview = document.getElementById('theorem-preview');
+    if (status === 'WAITING_APPROVAL') {
+        if (conjecture && preview.getAttribute('data-raw') !== conjecture) {
+            preview.setAttribute('data-raw', conjecture);
+            preview.textContent = conjecture;
+            if (window.MathJax) MathJax.typesetPromise([preview]).catch(() => {});
+        }
+        modal.classList.remove('hidden');
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+// ── Research thread renderer ──────────────────────────────────────────────
+function updateResearchThread(session) {
+    if (!session) return;
+
+    // Sidebar info bar
+    if (session.session_id) {
+        document.getElementById('session-info-id').textContent = 'Session ' + session.session_id;
+        document.getElementById('session-info-q').textContent  = truncate(session.macro_question, 120);
+        const thread   = session.thread || [];
+        const branches = session.branch_registry || [];
+        const pending  = branches.filter(b => b.status === 'PENDING').length;
+        document.getElementById('stat-cycles').textContent    = thread.length;
+        document.getElementById('stat-branches').textContent  = pending;
+        document.getElementById('stat-milestones').textContent = (session.milestones || []).length;
+        activeSessionId = session.session_id;
+    }
+
+    const thread = session.thread || [];
+    document.getElementById('thread-cycle-count').textContent =
+        thread.length + ' cycle' + (thread.length !== 1 ? 's' : '');
+
+    const threadEl = document.getElementById('thread-list');
+    if (!thread.length) {
+        threadEl.innerHTML = '<div class="thread-empty">Research thread will populate as cycles complete.</div>';
+    } else {
+        // Newest first so the most recent cycle is always visible without scrolling
+        threadEl.innerHTML = [...thread].reverse().map(item => {
+            const s = (item.status || '').toUpperCase();
+            const badgeCls = s === 'VALIDATED' ? 'validated'
+                           : s === 'REFUTED'   ? 'refuted'
+                           : s === 'API_ERROR' ? 'api-error'
+                           :                     'error';
+            const conj = escHtml(truncate(item.conjecture || '', 180));
+            const navDir = item.nav_direction
+                ? `<div class="thread-nav-lbl">Navigator →</div>
+                   <div class="thread-nav-dir">${escHtml(truncate(item.nav_direction, 200))}</div>`
+                : '';
+            return `<div class="thread-item">
+                <div class="thread-item-hd">
+                    <span class="thread-cycle-num">C${item.cycle}</span>
+                    <span class="thread-badge ${badgeCls}">${escHtml(s)}</span>
+                    <span class="thread-ts">${fmtTime(item.timestamp)}</span>
+                </div>
+                <div class="thread-conjecture">${conj}</div>
+                ${navDir}
+            </div>`;
+        }).join('');
+    }
+
+    updateBranchRegistry(session.branch_registry || []);
+}
+
+function updateBranchRegistry(branches) {
+    const pending  = branches.filter(b => b.status === 'PENDING');
+    const others   = branches.filter(b => b.status !== 'PENDING');
+    const all      = [...pending, ...others];
+
+    document.getElementById('branch-count').textContent =
+        pending.length + ' pending';
+
+    const el = document.getElementById('branch-list');
+    if (!all.length) {
+        el.innerHTML = '<div class="thread-empty">Parallel branches proposed by the Navigator will appear here.</div>';
+        return;
+    }
+    el.innerHTML = all.map(b => {
+        let ctrl = '';
+        if (b.status === 'PENDING') {
+            ctrl = `<button class="btn-activate" onclick="switchBranch('${escHtml(b.id)}')">Activate</button>`;
+        } else {
+            const pc = b.status === 'ACTIVE' ? 'active' : 'completed';
+            ctrl = `<span class="branch-status-pill ${pc}">${escHtml(b.status)}</span>`;
+        }
+        return `<div class="branch-item">
+            <div class="branch-item-body">
+                <div class="branch-id-tag">${escHtml(b.id)}</div>
+                <div class="branch-dir-text">${escHtml(truncate(b.direction || '', 160))}</div>
+                ${b.motivation ? `<div class="branch-motiv-text">${escHtml(truncate(b.motivation, 110))}</div>` : ''}
+            </div>
+            ${ctrl}
+        </div>`;
+    }).join('');
+}
+
+// ── Navigator Proposal modal ──────────────────────────────────────────────
+function openNavModal(proposal, pendingBranches) {
+    navModalOpen = true;
+
+    document.getElementById('nav-milestone-reason').textContent =
+        proposal.milestone_reason || 'Navigator-triggered research checkpoint.';
+    document.getElementById('nav-progress-assessment').textContent =
+        proposal.progress_assessment || '';
+    document.getElementById('nav-next-direction').textContent =
+        proposal.next_direction || '';
+    document.getElementById('nav-rationale').textContent =
+        proposal.rationale || '';
+    document.getElementById('redirect-input').value = '';
+
+    const branchSec  = document.getElementById('nav-branches-section');
+    const branchPick = document.getElementById('nav-branch-pick');
+    if (pendingBranches && pendingBranches.length) {
+        branchSec.style.display = '';
+        branchPick.innerHTML = pendingBranches.map(b =>
+            `<button class="nav-branch-btn" onclick="switchBranch('${escHtml(b.id)}')">
+                <span class="nb-id">${escHtml(b.id)}</span>
+                <span class="nb-dir">${escHtml(truncate(b.direction || '', 200))}</span>
+            </button>`
+        ).join('');
+    } else {
+        branchSec.style.display = 'none';
+        branchPick.innerHTML = '';
+    }
+
+    document.getElementById('nav-modal').classList.remove('hidden');
+}
+
+function closeNavModal() {
+    navModalOpen = false;
+    document.getElementById('nav-modal').classList.add('hidden');
+}
+
+function handleNavProposal(status, proposal, session) {
+    if (status === 'WAITING_DIRECTION') {
+        if (!navModalOpen && proposal && proposal.next_direction) {
+            const pending = session
+                ? (session.branch_registry || []).filter(b => b.status === 'PENDING')
+                : [];
+            openNavModal(proposal, pending);
+        }
+    } else {
+        if (navModalOpen) closeNavModal();
+    }
+}
+
+// ── Status transition callbacks ───────────────────────────────────────────
+function handleStatusTransition(from, to) {
+    if (from !== 'IDLE' && to === 'IDLE')
+        toast('Cycle complete', 'success');
+    if (to === 'WAITING_APPROVAL')
+        toast('Hypothesis validated — approval required', 'success', 7000);
+    if (to === 'WAITING_DIRECTION')
+        toast('Research milestone reached — Navigator proposal ready', 'info', 7000);
+    if (to === 'NAVIGATING')
+        toast('Navigator determining next direction…', 'info', 2500);
+    if (to === 'OFFLINE')
+        toast('Server disconnected', 'error', 0);
+    if (from === 'WAITING_DIRECTION' && to !== 'WAITING_DIRECTION' && to !== 'IDLE' && to !== 'OFFLINE')
+        toast('Research thread resumed', 'success');
+}
+
+// ── Dropzone helpers ──────────────────────────────────────────────────────
+function _setupDropzone(dzId, inputId, onFile) {
+    const dz    = document.getElementById(dzId);
+    const input = document.getElementById(inputId);
+    if (!dz || !input) return;
+    dz.addEventListener('click', () => input.click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dz-active'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dz-active'));
+    dz.addEventListener('drop', e => {
+        e.preventDefault();
+        dz.classList.remove('dz-active');
+        if (e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+    });
+    input.addEventListener('change', () => { if (input.files.length) onFile(input.files[0]); });
+}
+
+// Single-cycle dropzone
+_setupDropzone('doc-dropzone', 'doc-input', uploadDoc);
+
+function uploadDoc(file) {
+    const dz   = document.getElementById('doc-dropzone');
+    const orig = dz.innerHTML;
+    dz.innerHTML = '<span class="dz-label">Uploading…</span>';
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch('/api/upload_doc', {method: 'POST', body: fd})
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                dz.innerHTML = `<span class="dz-label dz-success">${escHtml(file.name)} loaded</span>`;
+                toast(file.name + ' loaded into context', 'success');
+                documentLoaded = true;
+            } else {
+                toast('Upload failed: ' + d.error, 'error');
+                dz.innerHTML = orig;
+            }
+        })
+        .catch(() => { toast('Upload failed', 'error'); dz.innerHTML = orig; });
+}
+
+// Research-loop dropzone — text is injected into the macro-question textarea
+_setupDropzone('research-doc-dropzone', 'research-doc-input', uploadResearchDoc);
+
+function uploadResearchDoc(file) {
+    const dz   = document.getElementById('research-doc-dropzone');
+    const orig = dz.innerHTML;
+    dz.innerHTML = '<span class="dz-label">Uploading…</span>';
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch('/api/upload_doc', {method: 'POST', body: fd})
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                document.getElementById('macro-question').value = d.text || '';
+                dz.innerHTML = `<span class="dz-label dz-success">${escHtml(file.name)} loaded</span>`;
+                toast(file.name + ' loaded as research question', 'success');
+            } else {
+                toast('Upload failed: ' + d.error, 'error');
+                dz.innerHTML = orig;
+            }
+        })
+        .catch(() => { toast('Upload failed', 'error'); dz.innerHTML = orig; });
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (helpOpen) toggleHelp();
+        if (settingsOpen) toggleSettings();
+        closeModal('new-inv-modal');
+        closeModal('history-modal');
+    }
+});
+
+// ── Investigation management ──────────────────────────────────────────────
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+}
+
+function openNewInvestigation() {
+    document.getElementById('new-inv-name').value = '';
+    document.getElementById('new-inv-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('new-inv-name').focus(), 50);
+}
+
+function confirmNewInvestigation() {
+    const name = document.getElementById('new-inv-name').value.trim();
+    closeModal('new-inv-modal');
+    documentLoaded = false;
+    fetch('/api/investigation/new', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name}),
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            document.getElementById('logs-stream').innerHTML = '';
+            toast('New investigation started', 'success');
+        } else {
+            toast('Failed to start new investigation', 'error');
+        }
+    })
+    .catch(() => toast('Failed to start new investigation', 'error'));
+}
+
+function openHistory() {
+    document.getElementById('history-modal').classList.remove('hidden');
+    loadHistory();
+}
+
+function loadHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '<div class="history-empty">Loading…</div>';
+    fetch('/api/investigation/list')
+        .then(r => r.json())
+        .then(d => {
+            if (!d.investigations || d.investigations.length === 0) {
+                list.innerHTML = '<div class="history-empty">No saved investigations yet.</div>';
+                return;
+            }
+            list.innerHTML = d.investigations.map(inv => {
+                const date = inv.saved_at ? inv.saved_at.replace('T', ' ').slice(0, 16) : '';
+                return `
+                <div class="history-item">
+                    <div class="history-item-body">
+                        <div class="history-item-name">${escHtml(inv.name)}</div>
+                        <div class="history-item-meta">${escHtml(date)}</div>
+                        <div class="history-item-badges">
+                            <span class="history-badge cycles">${inv.cycle_count} cycles</span>
+                            ${inv.theorems > 0 ? `<span class="history-badge theorems">${inv.theorems} theorem${inv.theorems !== 1 ? 's' : ''}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="history-actions">
+                        <button class="btn-load" onclick="loadInvestigation('${escHtml(inv.id)}', '${escHtml(inv.name).replace(/'/g,"\\'")}')">Load</button>
+                        <button class="btn-del" onclick="deleteInvestigation('${escHtml(inv.id)}')" title="Delete">✕</button>
+                    </div>
+                </div>`;
+            }).join('');
+        })
+        .catch(() => { list.innerHTML = '<div class="history-empty">Failed to load history.</div>'; });
+}
+
+function loadInvestigation(id, name) {
+    if (!confirm(`Load "${name}"? The current state will be replaced.`)) return;
+    fetch('/api/investigation/load', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id}),
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            closeModal('history-modal');
+            document.getElementById('logs-stream').innerHTML = '';
+            toast(`Loaded: ${d.name}`, 'success');
+        } else {
+            toast('Failed to load investigation', 'error');
+        }
+    })
+    .catch(() => toast('Failed to load investigation', 'error'));
+}
+
+function deleteInvestigation(id) {
+    if (!confirm('Delete this investigation? This cannot be undone.')) return;
+    fetch('/api/investigation/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id}),
+    })
+    .then(r => r.json())
+    .then(d => { if (d.success) loadHistory(); })
+    .catch(() => toast('Failed to delete', 'error'));
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────
+let settingsOpen = false;
+
+const SETTINGS_PROVIDERS = [
+    'GEMINI_API_KEY','ANTHROPIC_API_KEY','OPENAI_API_KEY',
+    'DEEPSEEK_API_KEY','XAI_API_KEY','DASHSCOPE_API_KEY',
+    'MISTRAL_API_KEY','GROQ_API_KEY',
+];
+
+function toggleSettings() {
+    settingsOpen = !settingsOpen;
+    document.getElementById('settings-modal').classList.toggle('hidden', !settingsOpen);
+    document.getElementById('settings-toggle').classList.toggle('active', settingsOpen);
+    if (settingsOpen) loadConfig();
+}
+
+function loadConfig() {
+    fetch('/api/config')
+        .then(r => r.json())
+        .then(cfg => {
+            SETTINGS_PROVIDERS.forEach(env => {
+                const info = cfg[env] || {};
+                const statusEl = document.getElementById(`status-${env}`);
+                const inputEl  = document.getElementById(`input-${env}`);
+                if (statusEl) {
+                    statusEl.textContent = info.set ? 'Configured' : 'Not set';
+                    statusEl.className = `api-key-status ${info.set ? 'set' : 'unset'}`;
+                }
+                if (inputEl) {
+                    inputEl.placeholder = info.set ? info.masked + ' (leave blank to keep)' : 'Enter new key to update…';
+                    inputEl.value = '';
+                }
+            });
+            const vp = cfg['VERTEX_PROJECT'] || {};
+            const vpEl = document.getElementById('input-VERTEX_PROJECT');
+            if (vpEl) vpEl.value = vp.masked || '';
+            const vl = cfg['VERTEX_LOCATION'] || {};
+            const vlEl = document.getElementById('input-VERTEX_LOCATION');
+            if (vlEl) vlEl.value = vl.masked || '';
+        })
+        .catch(() => toast('Could not load configuration', 'error'));
+}
+
+function saveConfig() {
+    const allKeys = [...SETTINGS_PROVIDERS, 'VERTEX_PROJECT', 'VERTEX_LOCATION'];
+    const data = {};
+    allKeys.forEach(env => {
+        const el = document.getElementById(`input-${env}`);
+        if (el && el.value.trim()) data[env] = el.value.trim();
+    });
+    if (Object.keys(data).length === 0) {
+        toast('No changes to save', 'info');
+        return;
+    }
+    fetch('/api/config/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            toast(`Saved: ${d.saved.join(', ')}`, 'success');
+            loadConfig();
+        } else {
+            toast('Save failed', 'error');
+        }
+    })
+    .catch(() => toast('Save failed', 'error'));
+}
+
+function toggleKeyVisibility(env) {
+    const el = document.getElementById(`input-${env}`);
+    if (el) el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Clear Logs ────────────────────────────────────────────────────────────
+function clearLogs() {
+    fetch('/api/clear_logs', {method: 'POST'})
+        .then(() => {
+            document.getElementById('logs-stream').innerHTML = '';
+            toast('Logs cleared', 'success');
+        })
+        .catch(() => toast('Failed to clear logs', 'error'));
+}
+
+// ── Open Reports Folder ───────────────────────────────────────────────────
+function openReportsFolder() {
+    fetch('/api/open_reports', {method: 'POST'}).catch(() => {});
+}
+
+// ── Autonomous Mode (live toggle during session) ──────────────────────────
+async function setAutonomousMode(enabled) {
+    await fetch('/api/session/set_autonomous', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled})
+    });
+    toast(enabled ? 'Autonomous mode enabled' : 'Autonomous mode disabled', 'info');
+}
+
+// ── Polling loop ──────────────────────────────────────────────────────────
+setInterval(async () => {
+    let s;
+    try {
+        const res = await fetch('/api/state');
+        if (!res.ok) throw new Error();
+        s = await res.json();
+    } catch {
+        offlineCount++;
+        if (offlineCount === 3) {
+            updateStatusBar('OFFLINE', 'Server disconnected', 0);
+            updateButtonState('OFFLINE');
+            document.getElementById('progress-fill').style.cssText = 'width:100%;background:var(--red)';
+            handleStatusTransition(prevStatus, 'OFFLINE');
+            prevStatus = 'OFFLINE';
+        }
+        return;
+    }
+
+    if (offlineCount >= 3) {
+        document.getElementById('progress-fill').style.cssText = '';
+        toast('Server reconnected', 'success');
+    }
+    offlineCount = 0;
+
+    if (s.status !== prevStatus) {
+        handleStatusTransition(prevStatus, s.status);
+        prevStatus = s.status;
+    }
+
+    updateStatusBar(s.status, s.current_phase, s.current_cycle || s.cycle_count, s.investigation_cycle_count || 0);
+    updateButtonState(s.status);
+    updateLogs(s.logs);
+    updateMath(s.current_conjecture);
+    updateCode(s.last_python_code);
+    updateReports(s.reports);
+    updateAxioms(s.axiomatic_base);
+    handleApprovalModal(s.status, s.current_conjecture);
+
+    // Research Loop panel updates
+    if (s.research_session) {
+        updateResearchThread(s.research_session);
+        handleNavProposal(s.status, s.navigator_proposal || {}, s.research_session);
+        const running = s.status !== 'IDLE' && s.status !== 'OFFLINE';
+        setResearchButtons(running);
+    } else if (activeSessionId) {
+        // Session ended — reset sidebar and open reports
+        activeSessionId = null;
+        document.getElementById('session-start-form').style.display = '';
+        document.getElementById('session-info-bar').classList.add('hidden');
+        setResearchButtons(false);
+        toast('Research session complete — opening reports folder…', 'success', 6000);
+        openReportsFolder();
+    }
+
+}, 1000);
+</script>
+</body>
+</html>

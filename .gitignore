@@ -1,0 +1,54 @@
+# Environments
+venv/
+env/
+.astra-wsl-venv/
+.env
+.env.*
+!.env.example
+
+# Execution Workspace
+workspace/*.py
+workspace/*.sage
+workspace/*.mac
+workspace/*.cdb
+workspace/*.lean
+workspace/uploads/
+workspace/assets/
+workspace/reports/
+workspace/state.json
+!workspace/.keep
+
+# Runtime logs / output
+astra_out.txt
+*.log
+
+# Release artifacts
+dist/
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+
+# Service account keys
+*-key.json
+*-sa-key.json
+
+# Local working copies and machine-specific variants
+*-local.*
+local-*
+
+# Runtime session & benchmark data (personal run history)
+workspace/sessions/
+workspace/benchmark_runs/
+workspace/research_runs/
+workspace/investigations/
+mcp_server/venv/
+
+# Mathematica bridge queues and other generated oracle traffic
+bridge/commands/
+bridge/response-*.json
