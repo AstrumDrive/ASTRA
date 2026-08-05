@@ -6,9 +6,31 @@ procesos EXTERNOS (p.ej. el servidor MCP en Python 3.12) usen el core de ASTRA
 sin compartir su entorno Python — igual que el worker remoto: "JSON entra -> JSON sale".
 
 Acciones:
+  {"action":"cycle","intuition":"current direction",
+   "objective":"shared final goal (optional)","oracle":"local|astrum|auto",
+   "exec_timeout":180}
+      -> delibera (Codex+agy), sintetiza (Codex), programa (Claude), revisa y
+         analiza (Codex), y propone el siguiente paso (agy).
+
   {"action":"execute","code":"...","oracle":"astrum|local|auto","timeout":180}
       -> ejecuta el codigo via core.executor (respeta local/ASTRUM/auto) y
          devuelve {stdout, stderr, exit_code, engine, verdict, oracle_used}.
+
+  {"action":"review","objective":"...","conjecture":"...","code":"...",
+   "provider":"codex_cli"}
+      -> audita la estrategia del validador sin ejecutarlo.
+
+  {"action":"client_validate","case_id":"optional","oracle":"local|astrum|both|auto",
+   "timeout":300}
+      -> enruta y ejecuta la validacion minima orientada a clientes, devolviendo
+         paquetes de evidencia con hashes, supuestos, limites y reproducibilidad.
+
+  {"action":"cycle_submit","intuition":"...","max_seconds":7200}
+      -> encola un ciclo deliberativo completo y persistente; consultar con
+         {"action":"job","job_id":"cycle_..."}.
+
+  {"action":"capacity"}
+      -> informa cores/threads visibles y la politica segura de paralelismo.
 
 Uso:  echo '{"action":"execute","code":"print(1)"}' | python astra_tool.py
 """
@@ -24,6 +46,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.preflight import load_project_env
 load_project_env()  # carga .env (proveedores + config ASTRA_REMOTE_* para ASTRUM)
 
+from core.architecture_contract import (
+    CACHE_SCHEMA_VERSION,
+    production_manifest,
+)
+
+_ACTIVE_CYCLE_CHECKPOINT = None
+
 
 def _verdict(stdout: str) -> str:
     up = (stdout or "").upper()
@@ -32,6 +61,102 @@ def _verdict(stdout: str) -> str:
     if "VERDICT: FAIL" in up:
         return "FAIL"
     return "NONE"
+
+
+_DEFERRED_SECTION_RE = re.compile(
+    r"(?ims)^\s*\[Deferred(?:\s+Items|\s+Claims)?\]\s*:?\s*"
+    r"(.*?)(?=^\s*\[[^\]]+\]\s*:?|\Z)"
+)
+
+
+def _normalize_deferred_items(value) -> list:
+    """Return a bounded, de-duplicated list of explicitly deferred work."""
+    if isinstance(value, str):
+        candidates = re.split(r"(?:\r?\n\s*[-*]\s+)|(?:;\s+)", value)
+    elif isinstance(value, (list, tuple, set)):
+        candidates = list(value)
+    else:
+        candidates = []
+    items = []
+    seen = set()
+    for candidate in candidates:
+        item = re.sub(r"^\s*[-*]\s*", "", str(candidate or "")).strip()
+        item = re.sub(r"\s+", " ", item)
+        if not item:
+            continue
+        key = item.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(item[:1000])
+        if len(items) >= 20:
+            break
+    return items
+
+
+def _extract_deferred_items(conjecture: str) -> list:
+    items = []
+    for match in _DEFERRED_SECTION_RE.finditer(str(conjecture or "")):
+        items.extend(_normalize_deferred_items(match.group(1)))
+    return _normalize_deferred_items(items)
+
+
+def _goal_coverage(
+    shared_goal: str,
+    intuition: str,
+    conjecture: str,
+    analysis: dict,
+    navigation: dict,
+) -> dict:
+    """Separate an atomic scientific verdict from whole-goal completion.
+
+    ASTRA deliberately validates one bounded conjecture per cycle.  A PASS or
+    FAIL for that conjecture is not automatically a verdict on a broader paper,
+    research programme, or multi-deliverable objective.
+    """
+    analysis = analysis if isinstance(analysis, dict) else {}
+    navigation = navigation if isinstance(navigation, dict) else {}
+    deferred = _normalize_deferred_items(
+        [
+            *_extract_deferred_items(conjecture),
+            *_normalize_deferred_items(analysis.get("deferred_items")),
+        ]
+    )
+    declared = str(analysis.get("goal_coverage") or "").strip().upper()
+    analyst_resolved = analysis.get("goal_resolved") is True
+    navigator_resolved = navigation.get("macro_resolved") is True
+    normalize = lambda value: re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    same_goal = bool(normalize(shared_goal)) and normalize(shared_goal) == normalize(intuition)
+
+    if deferred:
+        status = "partial"
+        reason = "The atomic cycle explicitly deferred broader claims or deliverables."
+    elif declared == "PARTIAL":
+        status = "partial"
+        reason = "The evidence analyst marked whole-goal coverage as partial."
+    elif declared == "COMPLETE" or analyst_resolved or navigator_resolved:
+        status = "complete"
+        reason = "The cycle explicitly resolved the shared objective."
+    elif same_goal:
+        status = "complete"
+        reason = "The request and shared objective are the same bounded claim."
+    else:
+        status = "partial"
+        reason = "The cycle decided an atomic direction inside a broader objective."
+
+    atomic_status = str(analysis.get("status") or "UNKNOWN").upper()
+    scientific_status = atomic_status
+    if status != "complete" and atomic_status in {"VALIDATED", "REFUTED"}:
+        scientific_status = f"ATOMIC_{atomic_status}"
+    return {
+        "status": status,
+        "scope": "full_goal" if status == "complete" else "atomic",
+        "goal_resolved": status == "complete",
+        "reason": reason,
+        "deferred_items": deferred,
+        "atomic_status": atomic_status,
+        "scientific_status": scientific_status,
+    }
 
 
 def _progress_path(pid=None):
@@ -56,8 +181,12 @@ def _progress(stage, **extra):
                         os.remove(fp)
                 except OSError:
                     pass
+        checkpoint = _ACTIVE_CYCLE_CHECKPOINT
+        payload = {"pid": os.getpid(), "stage": stage, "ts": time.time(), **extra}
+        if checkpoint:
+            payload["checkpoint"] = checkpoint
         with open(p, "w", encoding="utf-8") as f:
-            json.dump({"pid": os.getpid(), "stage": stage, "ts": time.time(), **extra}, f)
+            json.dump(payload, f)
     except Exception:
         pass                             # la observabilidad nunca tumba el ciclo
 
@@ -120,6 +249,105 @@ def _do_submit(req: dict) -> dict:
             "max_seconds": max_s}
 
 
+def _do_submit_cycle(req: dict) -> dict:
+    """Launch a complete deliberative cycle outside the synchronous MCP wall."""
+    import subprocess
+    import uuid
+
+    intuition = str(req.get("intuition") or "").strip()
+    if not intuition:
+        return {"error": "intuition vacia"}
+    try:
+        max_s = max(300, int(req.get("max_seconds") or 7200))
+    except (TypeError, ValueError):
+        max_s = 7200
+
+    job_id = time.strftime("cycle_%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:4]
+    jobdir = os.path.join(_jobs_root(), job_id)
+    os.makedirs(jobdir, exist_ok=True)
+    request = {
+        key: value
+        for key, value in req.items()
+        if key not in {"action", "max_seconds"}
+    }
+    request["wait_for_cycle_slot_seconds"] = max_s
+    request["persistent_cycle"] = True
+    with open(os.path.join(jobdir, "request.json"), "w", encoding="utf-8") as f:
+        json.dump(request, f, ensure_ascii=False, indent=2)
+    meta = {
+        "id": job_id,
+        "kind": "deliberative_cycle",
+        "status": "queued",
+        "oracle": str(req.get("oracle") or "local").strip().lower(),
+        "max_seconds": max_s,
+        "created_ts": time.time(),
+        "ts": time.time(),
+    }
+    with open(os.path.join(jobdir, "job.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+
+    runner = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "astra_cycle_job_runner.py",
+    )
+    flags = 0x00000008 | 0x00000200
+    runner_err = open(os.path.join(jobdir, "runner.err"), "w")
+    kwargs = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": runner_err,
+        "cwd": os.path.dirname(runner),
+        "close_fds": True,
+    }
+    try:
+        try:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir],
+                creationflags=flags | 0x01000000,
+                **kwargs,
+            )
+        except OSError:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir],
+                creationflags=flags,
+                **kwargs,
+            )
+    finally:
+        runner_err.close()
+    return {
+        "job_id": job_id,
+        "kind": "deliberative_cycle",
+        "runner_pid": process.pid,
+        "oracle": meta["oracle"],
+        "max_seconds": max_s,
+        "poll_with": "astra_job",
+    }
+
+
+def _do_capacity() -> dict:
+    from core.runtime_resources import (
+        detect_compute_capacity,
+        recommended_parallelism,
+    )
+
+    capacity = detect_compute_capacity()
+    return {
+        "capacity": capacity,
+        "parallelism": recommended_parallelism(capacity),
+        "already_parallel": [
+            "independent conjecture proposals",
+            "cross-critiques",
+            "independent evidence analyses",
+        ],
+        "kept_serial": [
+            "consensus synthesis after proposals",
+            "validator authoring after conjecture",
+            "review after validator authoring",
+            "oracle execution after approval",
+        ],
+    }
+
+
 def _job_summary(jobdir: str, tail_chars: int = 0):
     try:
         with open(os.path.join(jobdir, "job.json"), encoding="utf-8") as f:
@@ -158,8 +386,9 @@ def _do_job(req: dict) -> dict:
                 m = _job_summary(d)
                 if m:
                     jobs.append({k: m.get(k) for k in
-                                 ("id", "status", "oracle", "verdict",
-                                  "elapsed_s", "heartbeat_age_s")})
+                                 ("id", "kind", "status", "oracle", "verdict",
+                                  "scientific_status", "phase", "elapsed_s",
+                                  "heartbeat_age_s")})
         return {"jobs": jobs}
     jobdir = os.path.join(root, job_id)
     if not os.path.isdir(jobdir):
@@ -177,15 +406,53 @@ def _do_job(req: dict) -> dict:
 
 
 def _cli_meta(agents):
-    """Junta los avisos de cuota (escalera de cli_backend) y que modelo CLI
-    respondio cada fase, para exponerlos en el JSON del ciclo."""
-    warnings, models = [], {}
+    """Junta los avisos de cuota (escalera de cli_backend), que modelo CLI
+    respondio cada fase y el coste proxy acumulado (solo el CLI de claude lo
+    reporta; codex/agy devuelven 0), para exponerlos en el JSON del ciclo."""
+    warnings, models, costs = [], {}, {}
     for name, ag in agents:
         warnings.extend(getattr(ag, "cli_warnings", []) or [])
         m = getattr(ag, "cli_last_model", None)
         if m:
             models[name] = m
-    return warnings, models
+        c = getattr(ag, "cli_cost_usd", 0.0) or 0.0
+        if c:
+            costs[name] = round(c, 4)
+    return warnings, models, costs
+
+
+def _escalate_agent_models(agent):
+    """Escalada POR CALIDAD de la escalera de modelos de un agente.
+
+    La escalera de cli_backend solo DESCIENDE por errores de cuota. Esta sube
+    por calidad: si el verdict_guard rechazo el resultado del peldano actual
+    (WEAK_PASS / CODE_ERROR), el reintento debe arrancar en el peldano
+    siguiente (mas capaz), no repetir con el mismo modelo que ya fallo.
+    Muta agent.cli_models quitando el primer peldano. Devuelve el nuevo peldano
+    inicial, o None si no habia adonde escalar (escalera de un solo tramo)."""
+    raw = (getattr(agent, "cli_models", None) or "").strip().strip("'\"")
+    rungs = [t.strip() for t in raw.split(",") if t.strip()]
+    if len(rungs) < 2:
+        return None
+    # Phase ladders used for quality escalation are normally ordered from the
+    # cheaper model to the stronger model.  Refuse an obvious downgrade when a
+    # user supplied a quota-fallback ladder in the opposite direction.
+    def _known_rank(model):
+        name = model.lower()
+        if "opus" in name:
+            return 30
+        if "sonnet" in name:
+            return 20
+        if "haiku" in name:
+            return 10
+        return 0
+
+    current_rank = _known_rank(rungs[0])
+    next_rank = _known_rank(rungs[1])
+    if current_rank and next_rank and next_rank <= current_rank:
+        return None
+    agent.cli_models = ",".join(rungs[1:])
+    return rungs[1]
 
 
 def _apply_guard(analysis: dict, exec_result: dict) -> dict:
@@ -218,10 +485,124 @@ async def _do_execute(req: dict) -> dict:
     timeout = int(req.get("timeout", 180))
 
     res = await execute_python_code(code, timeout=timeout)
-    res["verdict"] = _verdict(res.get("stdout", ""))
+    verdict = _verdict(res.get("stdout", ""))
+    if verdict == "NONE" and res.get("engine") == "lean4":
+        formal_status = str(res.get("status") or "").upper()
+        if formal_status == "PASS":
+            verdict = "PASS"
+        elif formal_status in {"FAIL", "REJECTED"}:
+            verdict = "FAIL"
+    res["verdict"] = verdict
     res["guard"] = assess_verdict(code, res)   # auditoria informativa del PASS
     res["oracle_used"] = os.environ.get("ASTRA_ORACLE_MODE", "local")
     return res
+
+
+async def _do_engines(_req: dict) -> dict:
+    """Discover ASTRUM engines through its authoritative registry."""
+    from core.remote_executor import list_remote_engines
+
+    result = await list_remote_engines(timeout=30)
+    result["available"] = int(result.get("exit_code", -1)) == 0
+    return result
+
+
+async def _do_review(req: dict) -> dict:
+    """Public subprocess boundary for adversarial validator-audit benchmarks."""
+    from core.llm_client import ASTRAIntelligence
+    from core.preflight import phase_provider_map
+
+    code = req.get("code", "")
+    if not code.strip():
+        return {"error": "code vacio"}
+    provider = (
+        req.get("provider")
+        or os.environ.get("ASTRA_REVIEWER_PROVIDER")
+        or phase_provider_map()["analyst"]
+    )
+    reviewer = ASTRAIntelligence(provider=str(provider))
+    review = await reviewer.review_validation_code(
+        shared_goal=str(req.get("objective") or req.get("conjecture") or ""),
+        conjecture=str(req.get("conjecture") or req.get("objective") or ""),
+        code=code,
+    )
+    warnings, models, _costs = _cli_meta([("reviewer", reviewer)])
+    out = {"review": review, "provider": provider}
+    if warnings:
+        out["warnings"] = warnings
+    if models:
+        out["cli_models"] = models
+    return out
+
+
+async def _do_client_validate(req: dict) -> dict:
+    """Run one or all deterministic client evidence cases through the router."""
+    from core.client_validation import (
+        load_client_validation_cases,
+        run_client_validation_case,
+        select_oracles,
+    )
+
+    cases = load_client_validation_cases(
+        include_optional=bool(req.get("include_optional", False))
+    )
+    case_id = str(req.get("case_id") or "").strip()
+    if case_id:
+        wanted = {item.strip() for item in case_id.split(",") if item.strip()}
+        cases = [case for case in cases if case.id in wanted]
+        missing = wanted - {case.id for case in cases}
+        if missing:
+            return {"error": f"casos de cliente desconocidos: {sorted(missing)}"}
+    oracle = str(req.get("oracle") or "auto").strip().lower()
+    timeout = int(req.get("timeout") or 300)
+    bundles = []
+    skipped = []
+    for case in cases:
+        oracles = select_oracles(case, oracle)
+        if not oracles:
+            skipped.append(case.id)
+            continue
+        for selected in oracles:
+            bundles.append(
+                await run_client_validation_case(
+                    case,
+                    oracle=selected,
+                    timeout=timeout,
+                )
+            )
+
+    grouped = {}
+    for bundle in bundles:
+        grouped.setdefault(bundle["case"]["id"], []).append(bundle)
+    passing_cases = sum(
+        bool(items)
+        and all(item["validation"]["status"] == "PASS" for item in items)
+        for items in grouped.values()
+    )
+    comparable = [items for items in grouped.values() if len(items) > 1]
+    agreements = [
+        len({item["validation"]["claim_verdict"] for item in items}) == 1
+        for items in comparable
+    ]
+    return {
+        "schema_version": "1.0",
+        "summary": {
+            "registered_cases": len(cases),
+            "executed_cases": len(grouped),
+            "bundles": len(bundles),
+            "passing_bundles": sum(
+                item["validation"]["status"] == "PASS" for item in bundles
+            ),
+            "passing_cases": passing_cases,
+            "cross_oracle_cases": len(comparable),
+            "cross_oracle_agreement": (
+                round(sum(agreements) / len(agreements), 6)
+                if agreements else None
+            ),
+            "skipped": skipped,
+        },
+        "bundles": bundles,
+    }
 
 
 # ============================================================================
@@ -238,26 +619,27 @@ async def _do_execute(req: dict) -> dict:
 #     CONSERVADOR: gana el veredicto mas prudente (REFUTED > CODE_ERROR >
 #     WEAK_PASS > VALIDATED). El guard determinista (pint/sympy) sigue mandando.
 # OJO LATENCIA: un ciclo ensemble encadena ~8 llamadas CLI (2 conjeturas + 2
-# criticas + 1 merge + codigo + 2 analisis); aun con las paralelas, supera de
-# largo el presupuesto SINCRONO del MCP (~800-900s). Correrlo por _do_cycle DIRECTO
-# fuera del MCP (sin muro de timeout):
-#   echo '{"action":"cycle","intuition":"...","oracle":"local"}' | python astra_tool.py
-# o subir los presupuestos del MCP. NO sirve astra_submit: solo ejecuta CODIGO,
-# no ciclos. Un solo proveedor por fase => camino lineal clasico, sin coste extra.
+# criticas + 1 merge + codigo + 2 analisis). Las ramas independientes corren en
+# paralelo, pero las dependencias siguen siendo seriales. Para auditorias largas
+# usar cycle_submit/astra_cycle_submit; astra_submit queda reservado a codigo ya
+# escrito. Un solo proveedor por fase => camino lineal clasico, sin coste extra.
 # ============================================================================
 
 _CRITIQUE_SYSTEM = (
     "Eres un fisico-matematico adversarial. Tu trabajo es REFUTAR: busca errores "
     "dimensionales, algebraicos o de limite, supuestos no justificados y claims que no "
     "sean verificables numerica o simbolicamente. Se conciso y especifico; no elogies. "
-    "Si algo esta bien, dilo en una linea y sigue con el siguiente punto debil.")
+    "Si algo esta bien, dilo en una linea y sigue con el siguiente punto debil. "
+    "Mantente orientado al OBJETIVO FINAL compartido, no a defender tu propuesta.")
 
 _MERGE_SYSTEM = (
     "Eres un sintetizador cientifico riguroso. Recibes varias conjeturas independientes "
     "y sus criticas cruzadas. Produce UNA sola conjetura de consenso: integra lo mas "
     "solido, descarta lo que las criticas refutaron y deja EXPLICITOS y VERIFICABLES los "
-    "2-4 claims decisivos (con la forma exacta a comprobar). Devuelve SOLO la conjetura "
-    "final, sin preambulo ni meta-comentario.")
+    "2-4 claims decisivos (con la forma exacta a comprobar). La conjetura debe mantener "
+    "trazabilidad con el OBJETIVO FINAL compartido, pedir evidencia equilibrada de prueba "
+    "y refutacion, y admitir que una estrategia no es decidible si esa es la conclusion "
+    "honesta. Devuelve SOLO la conjetura final, sin preambulo ni meta-comentario.")
 
 # Prioridad del consenso conservador: gana el status de mayor rango.
 _ANALYST_RANK = {"REFUTED": 4, "CODE_ERROR": 3, "WEAK_PASS": 2, "VALIDATED": 1}
@@ -315,12 +697,63 @@ def _combine_verdicts(verdicts):
     return merged
 
 
-async def _ensemble_conjecture(providers, axiomatic_base, intuition, phase_timeout,
-                               synth_provider):
+def _cycle_cache_payload(req, shared_goal, providers_resolved):
+    """Return every non-secret input that can change a deliberative cycle.
+
+    Navigation is deliberately context-sensitive.  A repeated local direction
+    in a deeper research thread must not replay an earlier navigator decision
+    merely because the immediate intuition text happens to be identical.
+    """
+    runtime_keys = (
+        "ASTRA_ORACLE_MODE",
+        "ASTRA_ORACLE_TIMEOUT",
+        "ASTRA_CLI_TIMEOUT",
+        "ASTRA_CONJECTURE_TIMEOUT",
+        "ASTRA_SYNTH_TIMEOUT",
+        "ASTRA_TRANSLATOR_TIMEOUT",
+        "ASTRA_REVIEWER_TIMEOUT",
+        "ASTRA_ANALYST_TIMEOUT",
+        "ASTRA_NAVIGATOR_TIMEOUT",
+        "ASTRA_MAX_RETRIES",
+        "ASTRA_REVIEW_MAX_REVISIONS",
+        "ASTRA_VNEXT_REVIEW_MAX_REVISIONS",
+        "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS",
+    )
+    return {
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "intuition": req.get("intuition", ""),
+        "shared_goal": shared_goal,
+        "axiomatic_base": req.get("axiomatic_base", ""),
+        "thread_summary": req.get("thread_summary", ""),
+        "cycles_since_milestone": req.get("cycles_since_milestone", 1),
+        "exec_timeout": req.get("exec_timeout", 0),
+        "providers": providers_resolved,
+        "architecture": production_manifest(),
+        "runtime": {
+            key: str(os.environ.get(key, "") or "").strip().strip("'\"")
+            for key in runtime_keys
+        },
+    }
+
+
+async def _ensemble_conjecture(
+    providers,
+    axiomatic_base,
+    intuition,
+    phase_timeout,
+    synth_provider,
+    synth_models=None,
+    timeout_for_phase=None,
+):
     """Conjetura multi-modelo: propuestas en paralelo -> critica cruzada -> merge.
     Devuelve (conjetura_final, [(label, ASTRAIntelligence)] para _cli_meta)."""
     from core.llm_client import ASTRAIntelligence
-    ais = [ASTRAIntelligence(provider=p, cli_models=None, cli_timeout=phase_timeout)
+    current_timeout = (
+        timeout_for_phase("CONJECTURE")
+        if timeout_for_phase
+        else phase_timeout
+    )
+    ais = [ASTRAIntelligence(provider=p, cli_models=None, cli_timeout=current_timeout)
            for p in providers]
     gens = await asyncio.gather(
         *[a.generate_conjecture(axiomatic_base=axiomatic_base, intuition=intuition)
@@ -329,12 +762,38 @@ async def _ensemble_conjecture(providers, axiomatic_base, intuition, phase_timeo
     surv = [(p, _clean_text(g), a) for p, a, g in zip(providers, ais, gens)]
     surv = [(p, t, a) for (p, t, a) in surv if t]
     if not surv:
-        return "API_ERROR: todas las conjeturas del ensemble fallaron", used
+        failures = []
+        for provider, result in zip(providers, gens):
+            if isinstance(result, Exception):
+                detail = f"{type(result).__name__}: {result}"
+            elif isinstance(result, str):
+                detail = result.strip() or "respuesta vacia"
+            else:
+                detail = f"respuesta no textual: {type(result).__name__}"
+            failures.append(
+                f"{provider}={detail.replace(chr(10), ' ')[:500]}"
+            )
+        return (
+            "API_ERROR: todas las conjeturas del ensemble fallaron; "
+            + " | ".join(failures),
+            used,
+            {"proposals": [], "critiques": [], "synthesis_provider": synth_provider},
+        )
     if len(surv) == 1:
-        return surv[0][1], used
+        return (
+            surv[0][1],
+            used,
+            {
+                "proposals": [{"provider": surv[0][0], "text": surv[0][1][:6000]}],
+                "critiques": [],
+                "synthesis_provider": surv[0][0],
+            },
+        )
 
     async def _crit(i):
         p_i, t_i, a_i = surv[i]
+        if timeout_for_phase:
+            a_i.cli_timeout = timeout_for_phase("CONJECTURE")
         rivals = "\n\n".join("=== RIVAL %s (%s) ===\n%s" % (chr(65 + j), surv[j][0], surv[j][1])
                              for j in range(len(surv)) if j != i)
         return await a_i._call_api(
@@ -344,8 +803,13 @@ async def _ensemble_conjecture(providers, axiomatic_base, intuition, phase_timeo
 
     crits = await asyncio.gather(*[_crit(i) for i in range(len(surv))],
                                  return_exceptions=True)
-    synth = ASTRAIntelligence(provider=synth_provider, cli_models=None,
-                              cli_timeout=phase_timeout)
+    synth_timeout = (
+        timeout_for_phase("SYNTH")
+        if timeout_for_phase
+        else phase_timeout
+    )
+    synth = ASTRAIntelligence(provider=synth_provider, cli_models=synth_models,
+                              cli_timeout=synth_timeout)
     used.append(("conjecture_merge:%s" % synth_provider, synth))
     blocks = []
     for i, (p, t, _a) in enumerate(surv):
@@ -360,17 +824,28 @@ async def _ensemble_conjecture(providers, axiomatic_base, intuition, phase_timeo
         # reconcilia igual, solo sin conjetura de consenso previa).
         merged = "\n\n".join("=== CONJETURA %s (%s) ===\n%s" % (chr(65 + i), p, t)
                              for i, (p, t, _a) in enumerate(surv))
-    return merged, used
+    deliberation = {
+        "proposals": [{"provider": p, "text": t[:6000]} for p, t, _a in surv],
+        "critiques": [
+            {
+                "provider": surv[i][0],
+                "text": (_clean_text(crits[i]) or "")[:4000],
+            }
+            for i in range(len(surv))
+        ],
+        "synthesis_provider": synth_provider,
+    }
+    return merged, used, deliberation
 
 
-async def _ensemble_analysis(providers, conjecture, exec_result, phase_timeout):
+async def _ensemble_analysis(providers, shared_goal, conjecture, exec_result, phase_timeout):
     """Analisis multi-modelo con CONSENSO CONSERVADOR (_combine_verdicts).
     Devuelve (analysis_dict, [(label, ASTRAIntelligence)])."""
     from core.llm_client import ASTRAIntelligence
     ais = [ASTRAIntelligence(provider=p, cli_models=None, cli_timeout=phase_timeout)
            for p in providers]
     res = await asyncio.gather(
-        *[a.analyze_results(conjecture, exec_result) for a in ais],
+        *[a.analyze_results(conjecture, exec_result, shared_goal=shared_goal) for a in ais],
         return_exceptions=True)
     used = [("analyst:%s" % p, a) for p, a in zip(providers, ais)]
     verdicts = []
@@ -381,9 +856,9 @@ async def _ensemble_analysis(providers, conjecture, exec_result, phase_timeout):
     return _combine_verdicts(verdicts), used
 
 
-async def _do_cycle(req: dict) -> dict:
-    """Pipeline completo de un ciclo: conjetura -> codigo -> ejecuta -> analiza.
-    Usa los proveedores por fase del .env (Codex conjetura, Claude codigo/analisis)."""
+async def _do_cycle_impl(req: dict) -> dict:
+    """Goal-driven multi-model cycle with deliberation, review and navigation."""
+    from core.cycle_budget import CycleBudget
     from core.preflight import phase_provider_map
     from core.llm_client import ASTRAIntelligence
     from core.executor import execute_python_code
@@ -399,18 +874,48 @@ async def _do_cycle(req: dict) -> dict:
     intuition = req.get("intuition", "")
     if not intuition.strip():
         return {"error": "intuition vacia"}
+    shared_goal = (
+        req.get("objective")
+        or req.get("macro_question")
+        or req.get("shared_goal")
+        or intuition
+    ).strip()
+    validator_repair_vnext = (
+        os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
+        .strip()
+        .strip("'\"")
+        .lower()
+        in ("1", "true", "on", "yes")
+    )
+    validator_repair_strategy = (
+        os.environ.get("ASTRA_VALIDATOR_REPAIR_STRATEGY", "local-patch")
+        .strip()
+        .strip("'\"")
+        .lower()
+    )
+    validator_repair_vnext1 = (
+        validator_repair_vnext
+        and validator_repair_strategy
+        in ("local-patch", "local_patch", "vnext1", "vnext.1", "production")
+    )
 
     pmap = phase_provider_map()
     # Ensemble multi-modelo: ASTRA_<FASE>_PROVIDER puede ser lista (comas). El
-    # sintetizador de conjeturas por defecto = el traductor (Opus). Se resuelve
+    # sintetizador de conjeturas por defecto = el traductor. Se resuelve
     # ANTES del cache key para que providers distintos no colisionen en cache.
     conj_providers = _phase_providers("CONJECTURE", pmap["conjecture"])
     an_providers = _phase_providers("ANALYST", pmap["analyst"])
     synth_provider = ((os.environ.get("ASTRA_SYNTH_PROVIDER") or "").strip().strip("'\"")
                       or pmap["translator"])
+    reviewer_provider = ((os.environ.get("ASTRA_REVIEWER_PROVIDER") or "").strip().strip("'\"")
+                         or pmap["analyst"])
+    navigator_provider = ((os.environ.get("ASTRA_NAVIGATOR_PROVIDER") or "").strip().strip("'\"")
+                          or pmap["analyst"])
     providers_resolved = dict(pmap)
     providers_resolved["conjecture"] = conj_providers if len(conj_providers) > 1 else conj_providers[0]
     providers_resolved["analyst"] = an_providers if len(an_providers) > 1 else an_providers[0]
+    providers_resolved["reviewer"] = reviewer_provider
+    providers_resolved["navigator"] = navigator_provider
     if len(conj_providers) > 1:
         providers_resolved["conjecture_synth"] = synth_provider
     ensemble_agents = []   # instancias extra de los ensembles, para _cli_meta
@@ -422,10 +927,14 @@ async def _do_cycle(req: dict) -> dict:
                  not in ("0", "off", "false"))
     cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "workspace", "cycle_cache")
-    ckey = hashlib.sha256(json.dumps(
-        {"intuition": intuition, "ax": req.get("axiomatic_base", ""),
-         "providers": providers_resolved, "oracle": os.environ.get("ASTRA_ORACLE_MODE", "local")},
-        sort_keys=True).encode("utf-8")).hexdigest()[:24]
+    cache_payload = _cycle_cache_payload(
+        req,
+        shared_goal,
+        providers_resolved,
+    )
+    ckey = hashlib.sha256(
+        json.dumps(cache_payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:24]
     cpath = os.path.join(cache_dir, ckey + ".json")
     if use_cache and os.path.exists(cpath):
         try:
@@ -439,11 +948,65 @@ async def _do_cycle(req: dict) -> dict:
     # --- Observabilidad: cronometro por fase + hitos al archivo de progreso.
     t_start = time.monotonic()
     timings = {}
+    cycle_wall = (
+        None
+        if req.get("persistent_cycle")
+        else req.get("cycle_timeout_seconds") or 1500
+    )
+    budget = CycleBudget(
+        cycle_wall,
+        return_buffer_seconds=req.get("cycle_return_buffer_seconds") or 60,
+    )
+    checkpoint_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "workspace",
+        "cycle_checkpoints",
+    )
+    checkpoint_path = os.path.join(
+        checkpoint_dir,
+        f"{ckey}_{os.getpid()}.json",
+    )
+    global _ACTIVE_CYCLE_CHECKPOINT
+    _ACTIVE_CYCLE_CHECKPOINT = checkpoint_path
+    checkpoint_state = {
+        "schema_version": "1.0",
+        "pid": os.getpid(),
+        "cache_key": ckey,
+        "shared_goal": shared_goal,
+        "intuition": intuition,
+        "providers": providers_resolved,
+        "created_ts": time.time(),
+    }
+
+    def _save_cycle_checkpoint(stage, **artifacts):
+        checkpoint_state.update(artifacts)
+        checkpoint_state.update(
+            {
+                "stage": stage,
+                "updated_ts": time.time(),
+                "timings": dict(timings),
+                "budget": budget.snapshot(),
+            }
+        )
+        try:
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            temporary = checkpoint_path + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as stream:
+                json.dump(checkpoint_state, stream, ensure_ascii=False, indent=2)
+            os.replace(temporary, checkpoint_path)
+        except Exception:
+            pass
+        return checkpoint_path
 
     def _mark(name, t0):
         timings[name] = round(timings.get(name, 0.0) + (time.monotonic() - t0), 2)
 
-    _progress("start", oracle=os.environ.get("ASTRA_ORACLE_MODE", "local"))
+    _save_cycle_checkpoint("start")
+    _progress(
+        "start",
+        oracle=os.environ.get("ASTRA_ORACLE_MODE", "local"),
+        budget=budget.snapshot(),
+    )
 
     def _phase_models(phase):
         # Escalera de modelos POR FASE (ASTRA_TRANSLATOR_MODELS='sonnet,default');
@@ -452,15 +1015,31 @@ async def _do_cycle(req: dict) -> dict:
              or os.environ.get(f"ASTRA_{phase}_MODEL") or "")
         return v.strip().strip("'\"") or None
 
-    def _phase_timeout(phase):
+    def _configured_phase_timeout(phase):
         # Presupuesto por llamada especifico de la fase (p.ej. el TRADUCTOR
         # genera scripts de fisica largos: ASTRA_TRANSLATOR_TIMEOUT=480);
         # sin variable, cli_backend usa ASTRA_CLI_TIMEOUT (240).
         v = (os.environ.get(f"ASTRA_{phase}_TIMEOUT") or "").strip().strip("'\"")
         try:
-            return int(v) if v else None
+            if v:
+                return int(v)
+            return int(
+                str(os.environ.get("ASTRA_CLI_TIMEOUT", "240"))
+                .strip()
+                .strip("'\"")
+            )
         except ValueError:
-            return None
+            return 240
+
+    def _phase_timeout(phase):
+        return budget.phase_timeout(
+            _configured_phase_timeout(phase),
+            default_seconds=240,
+        )
+
+    def _prepare_agent(agent, phase):
+        agent.cli_timeout = _phase_timeout(phase)
+        return agent.cli_timeout
 
     conj = ASTRAIntelligence(provider=pmap["conjecture"],
                              cli_models=_phase_models("CONJECTURE"),
@@ -471,18 +1050,72 @@ async def _do_cycle(req: dict) -> dict:
     analyst = ASTRAIntelligence(provider=pmap["analyst"],
                                 cli_models=_phase_models("ANALYST"),
                                 cli_timeout=_phase_timeout("ANALYST"))
-    agents = [("conjecture", conj), ("translator", trans), ("analyst", analyst)]
+    reviewer = ASTRAIntelligence(provider=reviewer_provider,
+                                 cli_models=_phase_models("REVIEWER"),
+                                 cli_timeout=_phase_timeout("REVIEWER"))
+    navigator = ASTRAIntelligence(provider=navigator_provider,
+                                  cli_models=_phase_models("NAVIGATOR"),
+                                  cli_timeout=_phase_timeout("NAVIGATOR"))
+    agents = [
+        ("conjecture", conj),
+        ("translator", trans),
+        ("reviewer", reviewer),
+        ("analyst", analyst),
+        ("navigator", navigator),
+    ]
+    quality_escalations = []
+
+    def _escalate_for_quality(stage, status):
+        new_rung = _escalate_agent_models(trans)
+        if not new_rung:
+            return None
+        record = {
+            "stage": stage,
+            "status": status,
+            "translator_now": new_rung,
+        }
+        quality_escalations.append(record)
+        _progress(
+            "quality_escalation",
+            quality_stage=stage,
+            status=status,
+            model=new_rung,
+            timings=timings,
+        )
+        return new_rung
 
     async def _run_analysis(cj, ex):
         # Un solo analista => camino lineal clasico. >=2 => consenso conservador.
         if len(an_providers) > 1:
-            a, used = await _ensemble_analysis(an_providers, cj, ex, _phase_timeout("ANALYST"))
+            a, used = await _ensemble_analysis(
+                an_providers, shared_goal, cj, ex, _phase_timeout("ANALYST")
+            )
             ensemble_agents.extend(used)
             return a
-        return await analyst.analyze_results(cj, ex)
+        _prepare_agent(analyst, "ANALYST")
+        return await analyst.analyze_results(cj, ex, shared_goal=shared_goal)
 
     def _fail(msg, phase, conjecture_text=None):
-        out = {"error": msg, "phase": phase}
+        deadline_limited = (
+            budget.total_seconds is not None
+            and (
+                "timeout tras" in str(msg).lower()
+                or "time budget" in str(msg).lower()
+                or not budget.can_start()
+            )
+        )
+        out = {
+            "status": "PARTIAL" if deadline_limited else "TOOL_ERROR",
+            "error": msg,
+            "phase": phase,
+            "budget": budget.snapshot(),
+            "checkpoint": checkpoint_path,
+            "resume_available": True,
+            "resume_hint": (
+                "Submit the same request with astra_cycle_submit for a persistent "
+                "cycle, or use the checkpoint's conjecture/code with astra_execute."
+            ),
+        }
         if conjecture_text:
             # SALVAVIDAS: si murio el traductor, devolver la conjetura ya pagada
             # para que el agente llamador la traduzca el mismo y use astra_execute.
@@ -490,42 +1123,349 @@ async def _do_cycle(req: dict) -> dict:
         if timings:
             timings["total"] = round(time.monotonic() - t_start, 2)
             out["timings"] = timings
-        warnings, _ = _cli_meta(agents + ensemble_agents)
+        warnings, cli_models, cli_costs = _cli_meta(agents + ensemble_agents)
         if warnings:
             out["warnings"] = warnings
+        if cli_models:
+            out["cli_models"] = cli_models
+        if cli_costs:
+            out["cli_cost_usd"] = {**cli_costs,
+                                   "total": round(sum(cli_costs.values()), 4)}
+        if quality_escalations:
+            out["quality_escalations"] = list(quality_escalations)
+        _save_cycle_checkpoint(
+            "partial" if deadline_limited else "failed",
+            error=str(msg),
+            failed_phase=phase,
+        )
         _progress("failed", phase=phase, timings=timings)
         return out
 
+    review_history = []
+    preflight_history = []
+    local_repair_history = []
+    model_patch_history = []
+
+    async def _request_model_patch(
+        current_code,
+        translation_input,
+        instructions,
+        source,
+    ):
+        """Request and audit a bounded exact-edit patch from the code author."""
+        before_sha = hashlib.sha256(current_code.encode("utf-8")).hexdigest()
+        _progress(
+            "model_patch",
+            source=source,
+            patch=len(model_patch_history) + 1,
+            timings=timings,
+            budget=budget.snapshot(),
+        )
+        t0 = time.monotonic()
+        _prepare_agent(trans, "TRANSLATOR")
+        patch_result = await trans.repair_validation_code(
+            translation_input,
+            current_code,
+            instructions,
+        )
+        _mark("translate_patch", t0)
+        patched_code = patch_result.get("code") or current_code
+        record = {
+            key: value
+            for key, value in patch_result.items()
+            if key != "code"
+        }
+        record.update(
+            {
+                "source": source,
+                "before_sha256": before_sha,
+                "after_sha256": hashlib.sha256(
+                    patched_code.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+        model_patch_history.append(record)
+        if patch_result.get("status") != "APPLIED":
+            return (
+                current_code,
+                "Bounded model patch was not applicable: "
+                f"{patch_result.get('reason') or patch_result.get('status')}",
+            )
+        return patched_code, None
+
+    async def _review_or_revise(current_code, conjecture_text, translation_input):
+        """Codex audits; Claude remains the sole generative code author."""
+        enabled = (
+            os.environ.get("ASTRA_CODE_REVIEW", "1").strip().strip("'\"").lower()
+            not in ("0", "off", "false")
+        )
+        if not enabled:
+            review = {
+                "status": "APPROVED",
+                "reasoning": "Independent code review disabled by ASTRA_CODE_REVIEW.",
+                "revision_instructions": "",
+                "coverage": [],
+            }
+            return current_code, review, None
+        try:
+            if validator_repair_vnext1:
+                revision_env = "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS"
+                revision_default = "1"
+            elif validator_repair_vnext:
+                revision_env = "ASTRA_VNEXT_REVIEW_MAX_REVISIONS"
+                revision_default = "2"
+            else:
+                revision_env = "ASTRA_REVIEW_MAX_REVISIONS"
+                revision_default = "1"
+            max_revisions = max(
+                0,
+                int(
+                    os.environ.get(revision_env, revision_default)
+                    .strip()
+                    .strip("'\"")
+                ),
+            )
+        except ValueError:
+            max_revisions = 1 if validator_repair_vnext1 else (
+                2 if validator_repair_vnext else 1
+            )
+
+        model_revisions = 0
+        review_round = 0
+        seen_code = set()
+        while True:
+            code_sha = hashlib.sha256(current_code.encode("utf-8")).hexdigest()
+            _progress(
+                "review",
+                revision=model_revisions,
+                review_round=review_round,
+                timings=timings,
+            )
+            t0 = time.monotonic()
+            if validator_repair_vnext:
+                from core.validator_preflight import (
+                    audit_validation_code,
+                    preflight_as_review,
+                    repair_validation_code,
+                    smoke_validation_code,
+                )
+
+                preflight = audit_validation_code(current_code)
+                smoke = smoke_validation_code(current_code)
+                preflight_record = {
+                    **preflight,
+                    "smoke": smoke,
+                    "revision": model_revisions,
+                    "review_round": review_round,
+                    "code_sha256": code_sha,
+                }
+                preflight_history.append(preflight_record)
+                if (
+                    validator_repair_vnext1
+                    and preflight.get("status") != "APPROVED"
+                    and code_sha not in seen_code
+                ):
+                    seen_code.add(code_sha)
+                    local_result = repair_validation_code(current_code, preflight)
+                    repaired_code = local_result.get("code") or current_code
+                    if local_result.get("changed"):
+                        after_sha = hashlib.sha256(
+                            repaired_code.encode("utf-8")
+                        ).hexdigest()
+                        local_repair_history.append(
+                            {
+                                "source": "deterministic_local_patch",
+                                "review_round": review_round,
+                                "before_sha256": code_sha,
+                                "after_sha256": after_sha,
+                                "repairs": local_result.get("repairs") or [],
+                            }
+                        )
+                        current_code = repaired_code
+                        review_round += 1
+                        _mark("review", t0)
+                        continue
+                if preflight.get("status") != "APPROVED":
+                    review = preflight_as_review(preflight)
+                else:
+                    _prepare_agent(reviewer, "REVIEWER")
+                    review = await reviewer.review_validation_code(
+                        shared_goal=shared_goal,
+                        conjecture=conjecture_text,
+                        code=current_code,
+                        static_context=smoke,
+                    )
+                    review["source"] = "model_reviewer"
+            else:
+                _prepare_agent(reviewer, "REVIEWER")
+                review = await reviewer.review_validation_code(
+                    shared_goal=shared_goal,
+                    conjecture=conjecture_text,
+                    code=current_code,
+                )
+                review["source"] = "model_reviewer"
+            _mark("review", t0)
+            review_history.append(
+                {
+                    **dict(review),
+                    "revision": model_revisions,
+                    "review_round": review_round,
+                    "code_sha256": code_sha,
+                }
+            )
+            status = str(review.get("status") or "").upper()
+            if status == "APPROVED":
+                return current_code, review, None
+            if status == "API_ERROR":
+                return current_code, review, review.get("reasoning") or "reviewer API error"
+            if model_revisions >= max_revisions:
+                return (
+                    current_code,
+                    review,
+                    "Independent reviewer did not approve the validation strategy "
+                    f"after {model_revisions} model revision(s): "
+                    f"{review.get('reasoning', '')}",
+                )
+
+            model_revisions += 1
+            instructions = (
+                review.get("revision_instructions")
+                or review.get("reasoning")
+                or "Regenerate a falsifiable validator with independent checks."
+            )
+            _progress(
+                "review_revision",
+                revision=model_revisions,
+                timings=timings,
+            )
+            patch_instructions = (
+                "Independent Codex review returned "
+                f"{status}. Revise the validation script without changing the "
+                f"scientific claim. Instructions:\n{instructions}"
+            )[:3500]
+            _escalate_for_quality("pre_oracle_review", status)
+            defect_labels = {
+                str(item).lower()
+                for item in (review.get("defect_labels") or [])
+            }
+            requires_regeneration = (
+                status == "REJECT"
+                or "syntax_error" in defect_labels
+                or current_code.strip().lower()
+                in {
+                    "write operation completed",
+                    "file written successfully",
+                    "operation completed",
+                }
+            )
+            if validator_repair_vnext1 and not requires_regeneration:
+                current_code, patch_error = await _request_model_patch(
+                    current_code,
+                    translation_input,
+                    patch_instructions,
+                    "model_reviewer",
+                )
+                if patch_error:
+                    # The bounded patch guard may correctly reject a model reply
+                    # that rewrites too much source.  That is a strategy signal,
+                    # not a terminal tool failure: regenerate once with the
+                    # already quality-escalated author, then re-run preflight and
+                    # independent review inside the same revision budget.
+                    _progress(
+                        "review_regeneration",
+                        reason=patch_error[:500],
+                        revision=model_revisions,
+                        timings=timings,
+                    )
+                    t0 = time.monotonic()
+                    _prepare_agent(trans, "TRANSLATOR")
+                    current_code = await trans.translate_to_code(
+                        translation_input,
+                        is_correction=True,
+                        previous_error=patch_instructions,
+                        previous_code=current_code,
+                    )
+                    _mark("translate", t0)
+                    if (
+                        isinstance(current_code, str)
+                        and current_code.startswith("API_ERROR:")
+                    ):
+                        return current_code, review, current_code
+            else:
+                t0 = time.monotonic()
+                _prepare_agent(trans, "TRANSLATOR")
+                current_code = await trans.translate_to_code(
+                    translation_input,
+                    is_correction=True,
+                    previous_error=patch_instructions,
+                    previous_code=current_code,
+                )
+                _mark("translate", t0)
+                if (
+                    isinstance(current_code, str)
+                    and current_code.startswith("API_ERROR:")
+                ):
+                    return current_code, review, current_code
+            review_round += 1
+
     _progress("conjecture", timings=timings)
     t0 = time.monotonic()
+    goal_directed_intuition = (
+        "SHARED FINAL OBJECTIVE:\n"
+        f"{shared_goal}\n\nCURRENT RESEARCH DIRECTION:\n{intuition}\n\n"
+        "For this single cycle, select exactly one bounded, high-information "
+        "falsifiable proposition that advances the direction and can be checked "
+        "by a compact validator. Develop evidence for both proof and refutation. "
+        "Do not combine all program deliverables into one conjecture; state "
+        "explicitly what remains deferred or cannot yet be decided."
+    )
+    deliberation = {}
     if len(conj_providers) > 1:
-        conjecture, _cu = await _ensemble_conjecture(
-            conj_providers, req.get("axiomatic_base", ""), intuition,
-            _phase_timeout("CONJECTURE"), synth_provider)
+        conjecture, _cu, deliberation = await _ensemble_conjecture(
+            conj_providers, req.get("axiomatic_base", ""), goal_directed_intuition,
+            _phase_timeout("CONJECTURE"), synth_provider,
+            _phase_models("SYNTH"),
+            timeout_for_phase=_phase_timeout,
+        )
         ensemble_agents.extend(_cu)
     else:
+        _prepare_agent(conj, "CONJECTURE")
         conjecture = await conj.generate_conjecture(
-            axiomatic_base=req.get("axiomatic_base", ""), intuition=intuition)
+            axiomatic_base=req.get("axiomatic_base", ""), intuition=goal_directed_intuition)
+        deliberation = {
+            "proposals": [{"provider": conj_providers[0], "text": conjecture[:6000]}],
+            "critiques": [],
+            "synthesis_provider": conj_providers[0],
+        }
     _mark("conjecture", t0)
     if isinstance(conjecture, str) and conjecture.startswith("API_ERROR:"):
         return _fail(conjecture, "conjecture")
+    _save_cycle_checkpoint(
+        "conjecture_complete",
+        conjecture=conjecture,
+        deliberation=deliberation,
+    )
 
+    translation_input = (
+        "SHARED FINAL OBJECTIVE:\n"
+        f"{shared_goal}\n\nCONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
+    )
     _progress("translate", timings=timings)
     t0 = time.monotonic()
-    code = await trans.translate_to_code(conjecture)
+    _prepare_agent(trans, "TRANSLATOR")
+    code = await trans.translate_to_code(translation_input)
     _mark("translate", t0)
     if isinstance(code, str) and code.startswith("API_ERROR:") and "timeout tras" in code:
         # Timeout de GENERACION (scripts de fisica enormes): un reintento
         # pidiendo script MINIMO antes de rendirse — verificar los claims
         # decisivos, no transcribir el formalismo completo.
         _progress("translate_retry_minimal", timings=timings)
-        # El reintento pide un script MINIMO (<150 lineas): medido ~350s para
-        # ~190 lineas => 360s bastan y el peor caso del ciclo cabe en la pared
-        # del cliente (240+720+360+180+analisis < 1800).
-        trans.cli_timeout = min(trans.cli_timeout or 360, 360)
+        # El reintento pide un script MINIMO (<150 lineas); su timeout tambien
+        # se recorta contra el presupuesto global restante.
+        trans.cli_timeout = min(_phase_timeout("TRANSLATOR"), 360)
         t0 = time.monotonic()
         code = await trans.translate_to_code(
-            conjecture, is_correction=True,
+            translation_input, is_correction=True,
             previous_error=("Your previous translation attempt exceeded its time budget "
                             "(the generated script was too long). Produce a MINIMAL "
                             "script (<150 lines): verify only the 2-4 DECISIVE claims "
@@ -534,6 +1474,43 @@ async def _do_cycle(req: dict) -> dict:
         _mark("translate", t0)
     if isinstance(code, str) and code.startswith("API_ERROR:"):
         return _fail(code, "translator", conjecture_text=conjecture)
+    _save_cycle_checkpoint(
+        "translation_complete",
+        conjecture=conjecture,
+        deliberation=deliberation,
+        code=code,
+    )
+    code, code_review, review_error = await _review_or_revise(
+        code, conjecture, translation_input
+    )
+    if review_error:
+        out = _fail(review_error, "reviewer", conjecture_text=conjecture)
+        out["code"] = code
+        out["code_review"] = code_review
+        out["code_review_history"] = review_history
+        out["validator_preflight_history"] = preflight_history
+        out["validator_local_repair_history"] = local_repair_history
+        out["validator_model_patch_history"] = model_patch_history
+        out["deliberation"] = deliberation
+        _save_cycle_checkpoint(
+            out["status"].lower(),
+            code=code,
+            code_review=code_review,
+            code_review_history=review_history,
+            validator_preflight_history=preflight_history,
+            validator_local_repair_history=local_repair_history,
+            validator_model_patch_history=model_patch_history,
+        )
+        return out
+    _save_cycle_checkpoint(
+        "review_complete",
+        code=code,
+        code_review=code_review,
+        code_review_history=review_history,
+        validator_preflight_history=preflight_history,
+        validator_local_repair_history=local_repair_history,
+        validator_model_patch_history=model_patch_history,
+    )
     # exec_timeout opcional del request: calculos pesados legitimos (sweeps,
     # GPU en ASTRUM) pueden necesitar mas que el ASTRA_ORACLE_TIMEOUT del .env.
     try:
@@ -541,17 +1518,46 @@ async def _do_cycle(req: dict) -> dict:
     except (TypeError, ValueError):
         exec_t = None
 
-    _progress("execute", timings=timings)
+    requested_exec_t = exec_t
+    if requested_exec_t is None:
+        try:
+            requested_exec_t = int(
+                str(os.environ.get("ASTRA_ORACLE_TIMEOUT", "180"))
+                .strip()
+                .strip("'\"")
+            )
+        except ValueError:
+            requested_exec_t = 180
+    effective_exec_t = budget.phase_timeout(
+        requested_exec_t,
+        default_seconds=180,
+    )
+    _progress(
+        "execute",
+        timings=timings,
+        budget=budget.snapshot(),
+        timeout=effective_exec_t,
+    )
     t0 = time.monotonic()
-    exec_result = await execute_python_code(code, timeout=exec_t)
+    exec_result = await execute_python_code(code, timeout=effective_exec_t)
     _mark("execute", t0)
+    exec_result["validation_code"] = code
+    exec_result["code_review"] = code_review
     exec_result["verdict"] = _verdict(exec_result.get("stdout", ""))
     exec_result["guard"] = assess_verdict(code, exec_result)
+    _save_cycle_checkpoint(
+        "execution_complete",
+        execution=exec_result,
+    )
     _progress("analyze", timings=timings)
     t0 = time.monotonic()
     analysis = await _run_analysis(conjecture, exec_result)
     _mark("analyze", t0)
     analysis = _apply_guard(analysis, exec_result)
+    _save_cycle_checkpoint(
+        "analysis_complete",
+        analysis=analysis,
+    )
 
     # Reintentos: primero arreglos MECANICOS deterministas (gratis), luego el
     # traductor corrige (error matematico) o refuerza (WEAK_PASS del auditor).
@@ -561,43 +1567,122 @@ async def _do_cycle(req: dict) -> dict:
     while analysis.get("status") in ("CODE_ERROR", "WEAK_PASS") and retries < max_retries:
         retries += 1
         _progress("retry", n=retries, status=analysis.get("status"), timings=timings)
+        # Escalada por CALIDAD (2026-07-31): el guard rechazo lo que produjo el
+        # peldano actual del traductor -> el retry (y el model-patch de vnext,
+        # que usa el mismo agente) arranca en el peldano superior. Sin esto, con
+        # la escalera invertida ('sonnet,opus') el retry repetia con sonnet y
+        # Opus no se pagaba nunca, ni siquiera cuando hacia falta.
+        new_rung = _escalate_for_quality(
+            "post_oracle_retry",
+            analysis.get("status"),
+        )
+        if new_rung:
+            quality_escalations[-1]["retry"] = retries
         if analysis.get("status") == "WEAK_PASS":
             reasons = "; ".join((exec_result.get("guard") or {}).get("reasons") or [])
-            t0 = time.monotonic()
-            code = await trans.translate_to_code(
-                conjecture, is_correction=True,
-                previous_error=("The script printed VERDICT: PASS but the deterministic "
-                                f"auditor rejected it: {reasons}. Rewrite it with >=3 "
-                                "independent CHECK legs (symbolic, random-numeric, limit "
-                                "case) and a real, reachable VERDICT: FAIL branch.")[:2000])
-            _mark("translate", t0)
+            correction = (
+                "The script printed VERDICT: PASS but the deterministic auditor "
+                f"rejected it: {reasons}. Add the missing independent CHECK legs "
+                "and a real, reachable VERDICT: FAIL branch without changing "
+                "sound validation code."
+            )[:2000]
+            if validator_repair_vnext1:
+                code, patch_error = await _request_model_patch(
+                    code,
+                    translation_input,
+                    correction,
+                    "post_execution_weak_pass",
+                )
+                if patch_error:
+                    out = _fail(
+                        patch_error,
+                        "translator_retry",
+                        conjecture_text=conjecture,
+                    )
+                    out["validator_model_patch_history"] = model_patch_history
+                    return out
+            else:
+                t0 = time.monotonic()
+                _prepare_agent(trans, "TRANSLATOR")
+                code = await trans.translate_to_code(
+                    translation_input,
+                    is_correction=True,
+                    previous_error=correction,
+                    previous_code=code,
+                )
+                _mark("translate", t0)
         else:
             fixed = try_autofix(code, exec_result.get("stderr") or "")
             if fixed:
                 autofixes += 1
                 code = fixed
             else:
-                corrected = analysis.get("corrected_code")
-                if corrected and "```" in corrected:
-                    parts = corrected.split("```")
-                    if len(parts) >= 3:
-                        corrected = parts[1]
-                        if corrected.split("\n", 1)[0].strip() in ("python", "sage", "maxima", "cadabra"):
-                            corrected = corrected.split("\n", 1)[1]
-                if corrected and corrected.strip():
-                    code = corrected.strip()
+                # Codex diagnoses and reviews; Claude remains the code author.
+                err_ctx = (
+                    (exec_result.get("stderr") or "")
+                    + "\n--- stdout tail ---\n"
+                    + (exec_result.get("stdout") or "")[-800:]
+                    + "\n--- Codex analyst diagnosis ---\n"
+                    + str(analysis.get("reasoning") or "")
+                ).strip()
+                if validator_repair_vnext1:
+                    code, patch_error = await _request_model_patch(
+                        code,
+                        translation_input,
+                        err_ctx[:3000],
+                        "post_execution_code_error",
+                    )
+                    if patch_error:
+                        out = _fail(
+                            patch_error,
+                            "translator_retry",
+                            conjecture_text=conjecture,
+                        )
+                        out["validator_model_patch_history"] = model_patch_history
+                        return out
                 else:
-                    err_ctx = ((exec_result.get("stderr") or "") + "\n--- stdout tail ---\n" +
-                               (exec_result.get("stdout") or "")[-800:]).strip()
                     t0 = time.monotonic()
+                    _prepare_agent(trans, "TRANSLATOR")
                     code = await trans.translate_to_code(
-                        conjecture, is_correction=True, previous_error=err_ctx[:2000])
+                        translation_input,
+                        is_correction=True,
+                        previous_error=err_ctx[:3000],
+                        previous_code=code,
+                    )
                     _mark("translate", t0)
         if isinstance(code, str) and code.startswith("API_ERROR:"):
             return _fail(code, "translator_retry", conjecture_text=conjecture)
+        code, code_review, review_error = await _review_or_revise(
+            code, conjecture, translation_input
+        )
+        if review_error:
+            out = _fail(review_error, "reviewer_retry", conjecture_text=conjecture)
+            out["code"] = code
+            out["code_review"] = code_review
+            out["code_review_history"] = review_history
+            out["validator_preflight_history"] = preflight_history
+            out["validator_local_repair_history"] = local_repair_history
+            out["validator_model_patch_history"] = model_patch_history
+            out["deliberation"] = deliberation
+            _save_cycle_checkpoint(
+                out["status"].lower(),
+                code=code,
+                code_review=code_review,
+                code_review_history=review_history,
+                validator_preflight_history=preflight_history,
+                validator_local_repair_history=local_repair_history,
+                validator_model_patch_history=model_patch_history,
+            )
+            return out
         t0 = time.monotonic()
-        exec_result = await execute_python_code(code, timeout=exec_t)
+        effective_exec_t = budget.phase_timeout(
+            requested_exec_t,
+            default_seconds=180,
+        )
+        exec_result = await execute_python_code(code, timeout=effective_exec_t)
         _mark("execute", t0)
+        exec_result["validation_code"] = code
+        exec_result["code_review"] = code_review
         exec_result["verdict"] = _verdict(exec_result.get("stdout", ""))
         exec_result["guard"] = assess_verdict(code, exec_result)
         t0 = time.monotonic()
@@ -613,31 +1698,123 @@ async def _do_cycle(req: dict) -> dict:
     if m_est:
         est = m_est.group(1).lower()
 
+    navigation = {}
+    navigate_enabled = (
+        os.environ.get("ASTRA_NAVIGATE_AFTER_CYCLE", "1")
+        .strip()
+        .strip("'\"")
+        .lower()
+        not in ("0", "off", "false")
+    )
+    if navigate_enabled:
+        _progress("navigate", timings=timings)
+        t0 = time.monotonic()
+        try:
+            cycles_since_milestone = int(
+                req.get("cycles_since_milestone", 1)
+            )
+        except (TypeError, ValueError):
+            cycles_since_milestone = 1
+        thread_summary = req.get("thread_summary") or (
+            "Single deliberative ASTRA cycle. "
+            f"Conjecture ensemble: {', '.join(conj_providers)}; "
+            f"code review: {code_review.get('status')}; "
+            f"oracle verdict: {exec_result.get('verdict')}; "
+            f"analyst status: {analysis.get('status')}."
+        )
+        _prepare_agent(navigator, "NAVIGATOR")
+        navigation = await navigator.navigate_research(
+            macro_question=shared_goal,
+            axiomatic_base=req.get("axiomatic_base", ""),
+            last_conjecture=conjecture,
+            last_status=analysis.get("status") or "UNKNOWN",
+            last_reasoning=str(analysis.get("reasoning") or ""),
+            thread_summary=thread_summary,
+            cycles_since_milestone=cycles_since_milestone,
+        )
+        _mark("navigate", t0)
+
+    coverage = _goal_coverage(
+        shared_goal,
+        intuition,
+        conjecture,
+        analysis,
+        navigation,
+    )
+    analysis["goal_coverage"] = coverage["status"].upper()
+    analysis["goal_resolved"] = coverage["goal_resolved"]
+    analysis["deferred_items"] = coverage["deferred_items"]
+
     timings["total"] = round(time.monotonic() - t_start, 2)
     out = {
         "status": analysis.get("status"),
+        "atomic_status": coverage["atomic_status"],
+        "scientific_status": coverage["scientific_status"],
+        "oracle_verdict": exec_result.get("verdict") or "NONE",
+        "goal_coverage": coverage,
+        "deferred_claims": coverage["deferred_items"],
+        "shared_goal": shared_goal,
         "retried": retried,
         "retries": retries,
         "autofixed": autofixes,
         "timings": timings,
+        "deliberation": deliberation,
         "conjecture": conjecture,
         "code": code,
+        "code_review": code_review,
+        "code_review_history": review_history,
+        "validator_preflight_history": preflight_history,
+        "validator_local_repair_history": local_repair_history,
+        "validator_model_patch_history": model_patch_history,
+        "validator_repair": {
+            "enabled": validator_repair_vnext,
+            "strategy": (
+                "local-patch-vnext.1"
+                if validator_repair_vnext1
+                else (
+                    "legacy-vnext.0"
+                    if validator_repair_vnext
+                    else "classic"
+                )
+            ),
+            "local_repairs": sum(
+                len(item.get("repairs") or [])
+                for item in local_repair_history
+            ),
+            "model_patches": sum(
+                item.get("status") == "APPLIED"
+                for item in model_patch_history
+            ),
+        },
         "execution": exec_result,
         "analysis": analysis,
+        "navigation": navigation,
         "oracle_used": os.environ.get("ASTRA_ORACLE_MODE", "local"),
         "providers": providers_resolved,
+        "architecture": production_manifest(),
+        "cache_key": ckey,
     }
     if est:
         out["est_runtime"] = est
-    warnings, cli_models = _cli_meta(agents + ensemble_agents)
+    warnings, cli_models, cli_costs = _cli_meta(agents + ensemble_agents)
     if warnings:
         out["warnings"] = warnings      # avisos de cuota/fallback de los CLIs
     if cli_models:
         out["cli_models"] = cli_models  # modelo que realmente respondio cada fase
+    if cli_costs:
+        # coste proxy por agente (USD segun el CLI de claude; codex/agy no lo
+        # reportan y van a 0). Telemetria para la auditoria de cuota, NO cargo real.
+        out["cli_cost_usd"] = {**cli_costs,
+                               "total": round(sum(cli_costs.values()), 4)}
+    if quality_escalations:
+        out["quality_escalations"] = quality_escalations
     if est == "long" and not exec_t:
         out.setdefault("warnings", []).append(
             "El traductor estima computo LARGO (>10 min): considera correrlo como "
-            "job asincrono (astra_submit) o repetir el ciclo con exec_timeout mayor.")
+            "ciclo persistente (astra_cycle_submit), o usa astra_submit para "
+            "solo la ejecucion pesada.")
+    out["budget"] = budget.snapshot()
+    out["checkpoint"] = checkpoint_path
     if use_cache and out.get("status") in ("VALIDATED", "REFUTED"):
         try:
             os.makedirs(cache_dir, exist_ok=True)
@@ -645,8 +1822,72 @@ async def _do_cycle(req: dict) -> dict:
                 json.dump(out, f)
         except Exception:
             pass
+    _save_cycle_checkpoint("done", result=out)
     _progress("done", status=out.get("status"), timings=timings)
     return out
+
+
+async def _do_cycle(req: dict) -> dict:
+    """Admit one full cycle per configured model-account slot.
+
+    Independent branches inside a cycle remain parallel.  Separate complete
+    cycles are serialized by default because they share the same Codex, Claude
+    and AGY subscriptions and otherwise make each other's latency unpredictable.
+    """
+    from pathlib import Path
+
+    from core.runtime_resources import (
+        acquire_cycle_slot,
+        detect_compute_capacity,
+        recommended_parallelism,
+    )
+
+    capacity = detect_compute_capacity()
+    plan = recommended_parallelism(capacity)
+    max_slots = max(1, int(plan["deliberative_cycles"]))
+    try:
+        wait_seconds = max(0, int(req.get("wait_for_cycle_slot_seconds") or 0))
+    except (TypeError, ValueError):
+        wait_seconds = 0
+    wait_started = time.monotonic()
+    active = []
+    slot = None
+    while slot is None:
+        slot, active = acquire_cycle_slot(Path(__file__).resolve().parent, max_slots)
+        if slot is not None:
+            break
+        if time.monotonic() - wait_started >= wait_seconds:
+            return {
+                "status": "BUSY",
+                "error": (
+                    "Another full ASTRA deliberative cycle is already using the "
+                    "shared model-account set."
+                ),
+                "active_cycles": active,
+                "capacity": capacity,
+                "parallelism": plan,
+                "retry_hint": (
+                    "Poll the active cycle, retry later, or use astra_cycle_submit "
+                    "to queue a persistent cycle."
+                ),
+            }
+        _progress(
+            "queued",
+            active_cycles=active,
+            waited_s=round(time.monotonic() - wait_started, 1),
+        )
+        await asyncio.sleep(min(5, max(1, wait_seconds)))
+
+    try:
+        result = await _do_cycle_impl(req)
+        if isinstance(result, dict):
+            result.setdefault("capacity", capacity)
+            result.setdefault("parallelism", plan)
+        return result
+    finally:
+        slot.release()
+        global _ACTIVE_CYCLE_CHECKPOINT
+        _ACTIVE_CYCLE_CHECKPOINT = None
 
 
 def main() -> None:
@@ -660,12 +1901,22 @@ def main() -> None:
     try:
         if action == "execute":
             out = asyncio.run(_do_execute(req))
+        elif action == "engines":
+            out = asyncio.run(_do_engines(req))
+        elif action == "review":
+            out = asyncio.run(_do_review(req))
+        elif action == "client_validate":
+            out = asyncio.run(_do_client_validate(req))
         elif action == "cycle":
             out = asyncio.run(_do_cycle(req))
         elif action == "submit":
             out = _do_submit(req)
+        elif action == "cycle_submit":
+            out = _do_submit_cycle(req)
         elif action == "job":
             out = _do_job(req)
+        elif action == "capacity":
+            out = _do_capacity()
         else:
             out = {"error": f"accion desconocida: {action}"}
     except Exception as e:

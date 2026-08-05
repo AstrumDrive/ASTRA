@@ -11,6 +11,7 @@ ASTRUM (tu RTX 3080) o local.
 """
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -31,6 +32,21 @@ if not os.path.exists(ASTRA_PY):
 ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 
 mcp = FastMCP("astra")
+
+
+def _kill_tree(pid: int) -> None:
+    """Terminate the ASTRA subprocess tree on Windows, macOS, or Linux."""
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                timeout=15,
+            )
+        else:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except Exception:
+        pass
 
 
 def _read_child_progress(pid: int):
@@ -56,15 +72,15 @@ def _call_astra(req: dict, timeout: int = 300) -> dict:
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8", errors="replace", cwd=ASTRA_ROOT,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        start_new_session=os.name != "nt",
     )
     try:
         out, err = proc.communicate(input=json.dumps(req), timeout=timeout)
     except subprocess.TimeoutExpired:
         pid = proc.pid
-        # taskkill /T: matar el ARBOL (astra_tool -> powershell -> claude/node).
-        # proc.kill() solo mataria a astra_tool y dejaria un claude -p huerfano
-        # quemando cuota (bug real observado tras cada timeout externo).
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        # Kill the full tree so timed-out model children cannot keep consuming
+        # quota after the MCP caller has already returned.
+        _kill_tree(pid)
         try:
             proc.communicate(timeout=10)
         except Exception:
@@ -118,43 +134,129 @@ def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
 
 
 @mcp.tool()
-def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
-                exec_timeout: int = 0) -> str:
+def astra_client_validate(
+    case_id: str = "",
+    oracle: str = "auto",
+    timeout: int = 300,
+) -> str:
     """
-    Run ASTRA's FULL multi-model pipeline on a scientific intuition and return a verdict.
+    Run ASTRA's minimum application-facing assurance package.
 
-    ASTRA forms a falsifiable conjecture (Codex), translates it into a verification
-    script (Claude), runs it on the oracle (ASTRUM by default), and analyzes the
-    output into VALIDATED / REFUTED / CODE_ERROR. Use this when you want ASTRA to
-    drive the whole loop; use astra_execute when YOU wrote the code and just need it run.
-
-    Slower than astra_execute (several model calls, ~1-4 min).
+    The validator router sends formal invariants to pinned Lean 4, constraints
+    to Z3, symbolic formulas to SymPy, numerical models to SciPy, dimensional
+    checks to Pint, and project cases to their scientific package. Every result
+    includes an explicit claim verdict, artifact hash, assumptions, limitations,
+    structured evidence, provenance and a reproduction command.
 
     Args:
-        intuition: the hypothesis or research prompt (LaTeX/plain text ok).
+        case_id: one case ID, a comma-separated list, or empty for all six cases.
+        oracle: 'auto', 'local', 'astrum', or 'both'. Unsupported combinations
+                are skipped rather than silently rerouted.
+        timeout: per-evidence-bundle execution limit in seconds.
+    """
+    res = _call_astra(
+        {
+            "action": "client_validate",
+            "case_id": case_id,
+            "oracle": oracle,
+            "timeout": timeout,
+        },
+        timeout=min(1740, max(600, timeout * 6 + 60)),
+    )
+    return json.dumps(res, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
+                exec_timeout: int = 0, objective: str = "") -> str:
+    """
+    Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
+
+    Codex and agy propose and cross-critique hypotheses against a shared final
+    objective; Codex synthesizes the consensus. Claude writes the falsifiable
+    validation program, Codex independently reviews it, the selected oracle
+    executes it, Codex audits the evidence, and agy proposes the next direction.
+    Use astra_execute when YOU wrote the code and only need the oracle.
+
+    Slower than astra_execute. Compact cycles may finish in several minutes;
+    adversarial scientific audits commonly require 15-30 minutes.
+
+    Args:
+        intuition: the current hypothesis or research direction (LaTeX/plain text ok).
+        objective: optional overarching scientific goal shared by all three
+            models. When empty, intuition is also used as the final objective.
         oracle: 'local' (default), 'astrum' (opt-in, remote GPU), or 'auto'.
-        timeout: seconds for the WHOLE cycle (default 1500; the client wall is
-            tool_timeout_sec=1800 in Codex). Heavy-physics translation is SLOW
-            by nature (~350-700s measured): a 15-25 min cycle is normal, poll
-            astra_probe meanwhile. If the translator still times out, the reply
-            includes the paid-for 'conjecture' — translate it yourself and use
-            astra_execute.
+        timeout: seconds for the synchronous WHOLE cycle (default 1500; the
+            client wall is tool_timeout_sec=1800 in Codex). ASTRA reserves time
+            to return a PARTIAL result and checkpoint instead of being killed.
+            For complex audits use astra_cycle_submit, then poll astra_job.
         exec_timeout: seconds for the EXECUTION phase only (0 = .env default,
             usually 180). Raise it for legitimately heavy computation (sweeps,
             GPU runs on ASTRUM) and keep timeout > exec_timeout + 400.
 
-    Returns JSON: status, conjecture, code, execution (stdout/verdict), analysis,
-    providers, timings (seconds per phase); plus 'warnings'/'cli_models' when a
-    CLI model hit its usage limit and a fallback served the phase. Each internal
-    CLI call is capped at ASTRA_CLI_TIMEOUT (240s default), so a hung phase fails
-    alone with API_ERROR + phase name instead of eating the whole budget; if the
-    outer timeout still fires, the error includes 'last_progress' (the phase the
-    cycle died in).
+    Returns JSON with separate layers: `status`/`atomic_status` for the bounded
+    conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
+    the shared objective, and `scientific_status` (`VALIDATED` only for complete
+    coverage, otherwise `ATOMIC_VALIDATED`/`ATOMIC_REFUTED`). It also includes
+    shared_goal, deliberation, conjecture, code_review, code, execution,
+    analysis, navigation, providers, timings, and 'warnings'/'cli_models' when a
+    CLI model hit its usage limit and a fallback served the phase. Internal
+    calls use phase-specific caps and are additionally clamped to the remaining
+    global budget. Checkpoints preserve completed work.
     """
-    req = {"action": "cycle", "intuition": intuition, "oracle": oracle}
+    req = {
+        "action": "cycle",
+        "intuition": intuition,
+        "oracle": oracle,
+        "cycle_timeout_seconds": int(timeout),
+        "cycle_return_buffer_seconds": 60,
+    }
+    if objective.strip():
+        req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
     res = _call_astra(req, timeout=timeout)
+    return json.dumps(res, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+def astra_cycle_submit(
+    intuition: str,
+    oracle: str = "local",
+    max_seconds: int = 7200,
+    exec_timeout: int = 0,
+    objective: str = "",
+) -> str:
+    """
+    Queue a FULL ASTRA deliberative cycle as a persistent background job.
+
+    This is the production route for complex scientific audits. It is not bound
+    by the synchronous MCP wall, checkpoints every completed phase, waits for
+    the single shared model-account slot, and survives the calling task. Poll
+    the returned job_id with astra_job.
+
+    A completed job (`status=done`) is operationally finished. Its scientific
+    result must be read from `scientific_status` together with `goal_coverage`;
+    an atomic oracle PASS does not certify a broader paper or research program.
+
+    Args:
+        intuition: current hypothesis or research direction.
+        objective: optional shared final scientific objective.
+        oracle: 'local', 'astrum', or 'auto'.
+        max_seconds: hard ceiling including queue time; default 7200 (2 hours).
+        exec_timeout: execution-phase ceiling; 0 uses ASTRA's configured default.
+    """
+    req = {
+        "action": "cycle_submit",
+        "intuition": intuition,
+        "oracle": oracle,
+        "max_seconds": int(max_seconds),
+    }
+    if objective.strip():
+        req["objective"] = objective.strip()
+    if exec_timeout and exec_timeout > 0:
+        req["exec_timeout"] = int(exec_timeout)
+    res = _call_astra(req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
@@ -185,7 +287,7 @@ def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> 
 @mcp.tool()
 def astra_job(job_id: str = "") -> str:
     """
-    Poll an async job started with astra_submit — without disturbing it.
+    Poll an async job started with astra_submit or astra_cycle_submit.
 
     Returns status (queued/running/done/failed/killed), heartbeat age, elapsed
     seconds, a LIVE stdout tail (local python jobs stream their output), and the
@@ -197,7 +299,27 @@ def astra_job(job_id: str = "") -> str:
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
+@mcp.tool()
+def astra_capacity() -> str:
+    """
+    Report local CPU/thread capacity and ASTRA's safe parallelism policy.
+
+    ASTRA detects process-visible logical CPUs, estimates physical cores,
+    respects CPU affinity and reports recommended local workers. Independent
+    local validators/benchmarks may use those workers; complete deliberative
+    cycles remain serialized because they share model subscriptions.
+    """
+    res = _call_astra({"action": "capacity"}, timeout=60)
+    return json.dumps(res, indent=2, ensure_ascii=False)
+
+
 def _pid_alive(pid) -> bool:
+    if os.name != "nt":
+        try:
+            os.kill(int(pid), 0)
+            return True
+        except (OSError, TypeError, ValueError):
+            return False
     try:
         import ctypes
         h = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))  # QUERY_LIMITED_INFO
@@ -216,9 +338,8 @@ def astra_probe() -> str:
 
     Reads the per-phase heartbeat files every cycle writes (workspace/progress/)
     plus process liveness. Use it whenever a cycle seems slow BEFORE assuming a
-    hang: model phases take 30-240s each (cold CLI starts included) and heavy
-    computations legitimately run up to exec_timeout. Zero cost, instant, safe
-    to poll every ~60s.
+    hang: most model phases take 30-240s, while translation/repair may take up
+    to its larger configured cap. Zero cost, instant, safe to poll every ~60s.
 
     Returns JSON: in_flight (pid, stage, seconds since last heartbeat, partial
     timings), recent (finished/killed cycles with final stage), and a hint.
@@ -242,8 +363,8 @@ def astra_probe() -> str:
     if in_flight:
         top = in_flight[0]
         hint = (f"ASTRA esta TRABAJANDO: fase '{top.get('stage')}' (heartbeat hace "
-                f"{top.get('age_s')}s). Las fases de modelo tardan 30-240s y la ejecucion "
-                f"hasta su exec_timeout. Sondea de nuevo en ~60s antes de asumir cuelgue.")
+                f"{top.get('age_s')}s). Traduccion/reparacion puede usar un presupuesto "
+                "mayor que otras fases. Sondea de nuevo en ~60s antes de asumir cuelgue.")
     elif recent:
         hint = (f"No hay ciclos en vuelo. El ultimo termino en stage '{recent[0].get('stage')}'"
                 + ("" if recent[0].get("stage") in ("done", "failed")
@@ -271,6 +392,18 @@ def astra_status() -> str:
         "astrum_host": (res.get("stdout") or "").replace("VERDICT: PASS", "").strip(),
         "raw": res,
     }, indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+def astra_engines() -> str:
+    """
+    List ASTRUM's authoritative scientific-engine registry.
+
+    Use this instead of PATH discovery. It reports the managed oracle, sci,
+    SageMath, Cadabra, Maxima, Lean, and company-package (`pkgs`) environments.
+    """
+    res = _call_astra({"action": "engines"}, timeout=60)
+    return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ workspace/state.json
 # Runtime logs / output
 astra_out.txt
 *.log
+/tmp/
 
 # Release artifacts
 dist/
@@ -38,9 +39,9 @@ __pycache__/
 *-key.json
 *-sa-key.json
 
-# Local working copies and machine-specific variants
-*-local.*
-local-*
+# Personal working copies (local variants with personal config)
+*-Nelson.*
+-Nelson.*
 
 # Runtime session & benchmark data (personal run history)
 workspace/sessions/
@@ -48,6 +49,16 @@ workspace/benchmark_runs/
 workspace/research_runs/
 workspace/investigations/
 mcp_server/venv/
+.agents/mcp_config.json
+.agents/mcp_config.json.bak
+
+# Generated cycle state and local validation scripts
+workspace/**
+!workspace/.keep
+/verify_*.py
+
+# Local safety copies created during development
+*.bak*
 
 # Mathematica bridge queues and other generated oracle traffic
 bridge/commands/

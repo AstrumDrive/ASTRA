@@ -4,21 +4,73 @@
 
 Created by **Nelson Bolívar** and maintained by **Astrum Drive**.
 
-ASTRA is a multi-agent epistemological research engine that turns scientific intuition into mathematically validated or refuted theorems. It connects LLM reasoning agents to real symbolic/numerical computation engines and presents results through a browser-based research interface.
+ASTRA is a goal-driven, multi-model epistemological research engine. It turns
+scientific intuition into falsifiable conjectures, executable evidence, explicit
+refutations, and new research directions. Its design follows the
+generation–verification–revision spirit of research agents such as
+[Aletheia](https://deepmind.google/blog/accelerating-mathematical-and-scientific-discovery-with-gemini-deep-think/),
+but ASTRA uses three independent subscription CLIs instead of Gemini Deep Think.
 
 ## What It Does
 
-1. **Conjecture Engine** — formalizes an intuition, note, or paper excerpt into a falsifiable mathematical hypothesis.
-2. **Formal Translator** — converts the hypothesis into a runnable validation script (Python, SageMath, Maxima, Cadabra, or Lean 4).
-3. **Validation Oracle** — executes the script and captures stdout/stderr.
-4. **Refutation Analyst** — classifies the result as `VALIDATED`, `REFUTED`, `CODE_ERROR`, or `API_ERROR`.
-5. **Human Approval** — decides whether a validated theorem joins the Axiomatic Base.
-6. **Research Navigator** — in Research Loop mode, proposes the next depth-first direction and manages parallel branches.
+1. **Shared Objective** — every model receives the same final scientific goal and
+   the current research direction.
+2. **Parallel Conjecture** — GPT‑5.6 Sol and agy independently explore hypotheses,
+   then cross-criticize them; GPT‑5.6 Sol synthesizes a falsifiable consensus.
+3. **Formal Translation** — Claude Opus 4.8 converts the consensus into a runnable
+   Python, SageMath, Maxima, Cadabra, or Lean 4 validator.
+4. **Independent Code Review** — GPT‑5.6 Sol audits whether Claude's program can
+   actually prove or refute the decisive claims. Claude revises when required.
+5. **Validation Oracle** — local or ASTRUM execution captures reproducible evidence.
+6. **Refutation Analysis** — GPT‑5.6 Sol reads the code and the execution evidence;
+   a printed `PASS` is not accepted as authority.
+7. **Research Navigation** — agy relates the result back to the shared objective,
+   proposes the next direction, and preserves independent branches.
+8. **Human Approval** — a human decides whether validated results join the
+   Axiomatic Base.
+
+The production role map is:
+
+| Role | Backend |
+|---|---|
+| Primary conjecture, synthesis, code review, final analysis | Codex CLI — `gpt-5.6-sol`, `xhigh` |
+| Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high`, effort `high` |
+| Formal translation and code revision | Claude Code CLI — `claude-opus-4-8` |
+
+The browser UI, MCP server, and subprocess CLI all dispatch the same canonical
+guarded cycle. Run the non-secret architecture contract whenever providers,
+models, or orchestration are changed:
+
+```powershell
+.\venv\Scripts\python.exe scripts\audit_architecture.py
+```
+
+The audit fails closed on production role/model drift and reports optional
+project integrations separately.
 
 ASTRA is designed for theoretical physics, GR, quantum systems, fluid mechanics, symbolic calculus, differential equations, and mathematical model checking.
 
-ASTRA can be controlled either from its browser interface or by an external AI
-agent through the included MCP server. See [Agent control](docs/AGENT_CONTROL.md).
+---
+
+## macOS collaborator installation
+
+ASTRA supports an Apple Silicon Mac as a full agent workstation: Codex, Claude
+Code, and Antigravity `agy` run locally under the collaborator's own
+subscriptions; Python/SymPy/Z3 validation runs locally; and the maintained
+SageMath, Maxima, Cadabra, Lean, GPU, and company-package environments remain on
+ASTRUM behind individual Tailscale/SSH access.
+
+```bash
+git clone https://github.com/AstrumDrive/ASTRA.git
+cd ASTRA
+bash install_macos.sh
+```
+
+The installer also registers ASTRA's MCP server for the Antigravity workspace.
+See [`docs/onboarding/ASTRA_MACOS_INSTALL_EN.md`](docs/onboarding/ASTRA_MACOS_INSTALL_EN.md)
+for prerequisites, per-user SSH authorization, verification, and the
+Antigravity instructor workflow. A Spanish operational summary is available at
+[`docs/onboarding/ASTRA_MACOS_INSTALL_ES.md`](docs/onboarding/ASTRA_MACOS_INSTALL_ES.md).
 
 ---
 
@@ -50,11 +102,16 @@ The installer will:
 > If PowerShell blocks execution, run this first:
 > `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
-### Step 3 — Configure API keys
+### Step 3 — Configure model access
 
 Launch ASTRA from the desktop shortcut. The browser opens at `http://127.0.0.1:5050`.
 
-Click **Settings ⚙** in the top-right corner to enter your API keys — no need to edit files manually.
+The production configuration uses authenticated Claude Code, Codex, and
+Antigravity (`agy`) CLIs. It does not use Gemini API billing. Sign in to each CLI
+once, then keep the production role map from `.env.example`.
+
+API-backed providers remain available as optional alternatives. Click
+**Settings ⚙** to enter keys when you intentionally choose one.
 
 ASTRA works with **any one of these providers**:
 
@@ -95,6 +152,33 @@ Switch to **Research Loop** in the sidebar. Enter a **macro research question** 
 - **New** (topbar) — saves the current investigation and resets ASTRA for a fresh start.
 - **History** — browse, reload, or delete past investigations.
 
+### Runtime budgets, checkpoints, and parallelism
+
+Synchronous `astra_cycle` calls are deadline-aware. Every model/oracle phase is
+clamped to the remaining whole-cycle budget, with a final response buffer. If a
+complex audit cannot finish inside the client wall, ASTRA returns `PARTIAL`
+with the completed conjecture/code, timings, and a checkpoint under
+`workspace/cycle_checkpoints/` instead of being killed without a result.
+
+Use `astra_cycle_submit` for a complete long audit and poll its `job_id` with
+`astra_job`. The persistent route survives the calling task and waits for the
+shared deliberative-cycle slot. `astra_capacity` reports the CPUs visible to the
+process and the selected worker policy.
+
+ASTRA separates four meanings that must not be conflated: `job.status` reports
+operational completion, `oracle_verdict` reports executable PASS/FAIL,
+`atomic_status` reports the bounded conjecture verdict, and `goal_coverage`
+reports whether the shared objective itself is complete. When a cycle explicitly
+defers broader work, `scientific_status` is `ATOMIC_VALIDATED` or
+`ATOMIC_REFUTED`, never whole-goal `VALIDATED`/`REFUTED`.
+
+ASTRA already runs independent proposals, cross-critiques, and evidence
+analyses concurrently. Complete cycles are serialized by default because they
+share the same Codex, Claude, and AGY subscriptions. Independent local
+validators and benchmark cases use an auto-detected safe worker count
+(`ASTRA_LOCAL_WORKERS` overrides it); dependent scientific phases remain
+ordered.
+
 ---
 
 ## Validation Engines
@@ -110,35 +194,67 @@ Python (always available):
 | `fluids`, `pint` | Fluid mechanics and dimensional consistency |
 | `qutip` | Quantum systems, density matrices |
 
-External CAS (optional, via WSL on Windows):
+External CAS (optional, via WSL on Windows). Set `ASTRA_WSL_DISTRO` to pin
+the intended distribution instead of depending on the machine's WSL default:
 
 ```python
 # ASTRA_ENGINE: sage      # SageMath
 # ASTRA_ENGINE: maxima    # Maxima CAS
 # ASTRA_ENGINE: cadabra   # Cadabra (tensor algebra)
-# ASTRA_ENGINE: lean      # Lean 4 + Mathlib (formal proofs)
+# ASTRA_ENGINE: lean4     # Lean 4 + Mathlib (formal proofs)
 ```
 
 If an optional CAS is missing, the oracle returns a clear failure instead of misclassifying as validated.
+Z3 runs as a local Python module. Lean 4 uses either a pinned local
+`ASTRA_LOCAL_LEAN4_ROOT`/`ASTRA_LOCAL_LAKE_BIN` environment, a pinned
+`ASTRA_LOCAL_LEAN4_WSL_ROOT`/`ASTRA_LOCAL_LEAN4_WSL_LAKE_BIN` environment, or
+the configured ASTRUM formal route; merely having an unrelated Lean binary is
+not treated as a kernel-ready Mathlib environment.
+
+The production workstation pins Debian/WSL2 and requires Z3, SageMath, Maxima,
+Cadabra, and the local Lean 4 route. Recreate that versioned scientific stack
+idempotently with:
+
+```powershell
+.\scripts\bootstrap_wsl_scientific_stack.ps1
+```
+
+`ASTRA_REQUIRED_LOCAL_ENGINES` makes the architecture audit fail closed if one
+of those configured engines disappears.
 
 ASTRA can also validate through any installed Python package, including project-specific
 research libraries. A generated script may import the package normally, compute independent
 checks, print the evidence, and end with `VERDICT: PASS` or `VERDICT: FAIL`.
 
 For Wolfram Language and Mathematica notebooks, an agent can use the optional
-[`mathematica-agent-bridge`](https://github.com/xys004/mathematica-agent-bridge) alongside
+the optional `mathematica-agent-bridge` integration alongside
 ASTRA. This lets the agent write and execute Wolfram Language, compare expressions,
 inspect notebooks, and use Mathematica as an independent cross-validation oracle.
 
-The oracle is deliberately extensible. Any installed research package can be imported
-by a validation script, including in-house packages such as `GR_python`,
-`pyWarpFactory`, and `warp_bubble_optimization`. The script must expose reproducible
-inputs and evidence and end with `VERDICT: PASS` or `VERDICT: FAIL`.
+### Bayesian experiment planning
 
-## Architecture documents
+ASTRA includes an optional Gaussian-process planner for expensive numerical or
+hybrid symbolic-numerical searches. Symbolic analysis should first derive exact
+constraints or reduce the parameter space; the planner then selects informative
+numerical evaluations under a fixed budget. GP predictions never replace oracle,
+formal, independent, or human validation.
 
-- [Current architecture — English](docs/architecture/ASTRA_current_architecture_EN.tex)
-- [Arquitectura actual — español](docs/architecture/ASTRA_arquitectura_actual_ES.tex)
+Run the equal-budget symbolic-reduction pilot:
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_bayesian_optimization_pilot.py
+```
+
+See [BAYESIAN_OPTIMIZATION.md](BAYESIAN_OPTIMIZATION.md) for the reusable API,
+scientific acceptance boundary, ASTRUM batch strategy, and cases where a GP is
+not appropriate.
+
+When the separate `hollow_core_energy_conditions` project is available, run
+the real analytical-project counterexample benchmark:
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_hollow_core_bayesian_benchmark.py
+```
 
 ---
 
@@ -172,7 +288,10 @@ Check whether the claim "for all positive real x and y, x + y >= 2 sqrt(x y)" ca
 
 ## Benchmark Suite
 
-ASTRA includes a golden benchmark suite for calibrating providers and engines.
+ASTRA includes a three-track Quality Benchmark for scientific truth,
+adversarial validator review, and local–ASTRUM reproducibility. The scientific
+seed suite is balanced between validation and refutation; false acceptance is
+reported separately as a release-veto metric.
 
 ```
 benchmarks/
@@ -189,8 +308,93 @@ python scripts\list_benchmarks.py
 Run the suite:
 
 ```powershell
-python scripts\run_benchmarks.py
+python scripts\run_quality_benchmarks.py --tier smoke --oracle both --jobs 4
+python scripts\run_quality_benchmarks.py --tier standard --oracle local
 ```
+
+Release evaluations can repeat the full architecture and its ablations:
+
+```powershell
+python scripts\run_quality_benchmarks.py --tier release --repeats 3 `
+  --config full,no-review,no-ensemble --oracle both --jobs 4 --cycle-jobs 1
+```
+
+See [QUALITY_BENCHMARKS.md](QUALITY_BENCHMARKS.md) for the metrics, proposed
+release gates, private-holdout protocol, external benchmark adapters, and the
+safe ASTRUM parallelization strategy. See
+[EXTERNAL_BENCHMARKS.md](EXTERNAL_BENCHMARKS.md) for the pinned SciCode,
+miniF2F, FrontierScience, and AInsteinBench protocols and evaluator readiness.
+
+The checkpointed public calibration compares the compact architecture with
+Codex-only, Claude-only, and agy-only baselines while preserving the same phase
+topology and native evaluators:
+
+```powershell
+python scripts\run_external_comparison.py
+```
+
+The tracked suite manifest is
+`benchmarks/external/comparison_calibration_v1.json`; live JSON and Markdown
+tables are written after every cell under
+`workspace/external_comparison_runs/`.
+The older `scripts/run_benchmarks.py` remains available only for
+historical-result compatibility.
+
+For an application-oriented client demonstration, ASTRA also ships a minimum
+validation package with six cases, deterministic validator routing, Lean 4
+formal assurance, a GR_python vertical example, and JSON evidence bundles:
+
+```powershell
+python scripts\run_client_validation.py --oracle both --timeout 300
+```
+
+The verified seed matrix currently passes 10/10 evidence bundles across six
+cases, with full claim-verdict agreement for the four local–ASTRUM pairs.
+See [CLIENT_VALIDATION.md](CLIENT_VALIDATION.md) for the evidence contract,
+formal-environment pinning, acceptance rule, and commercial scope.
+
+### Long-horizon research quality
+
+The terminal-task suites are complemented by **Research Trajectory Benchmark
+v1**. It starts each architecture from one human research objective and measures
+the resulting autonomous hypothesis–evidence–revision trajectory. The matched
+controls separate heterogeneous perspectives, specialist roles, and the causal
+effect of evidence-responsive loops. Automatic metrics cover observable
+process, reliability, and cost; architecture-blinded experts separately assess
+depth, novelty, usefulness, and causal cross-model uptake.
+
+Inspect the canary schedule without model calls:
+
+```powershell
+python scripts\run_research_trajectory_benchmarks.py --dry-run
+```
+
+See [RESEARCH_TRAJECTORY_BENCHMARK.md](RESEARCH_TRAJECTORY_BENCHMARK.md) for the
+six-program pilot, frozen budgets, graph schema, blinded scorecards, ASTRUM
+strategy, and interpretation rules.
+
+The production [Validator Repair vNext.1](VALIDATOR_REPAIR_VNEXT.md) applies
+safe deterministic fixes locally, compiles and inspects imports before model
+review, and limits Claude to one auditable exact-edit patch instead of a full
+validator regeneration. It preserves the distinction between scientific
+refutation and operational failure. `full-vnext0` remains available only to
+reproduce the first, null-result repair experiment.
+
+Fast release evidence can be reproduced without waiting for a full trajectory:
+
+```powershell
+python scripts\benchmark_validator_repair.py --repeats 300
+python scripts\run_quality_benchmarks.py --tier smoke `
+  --tracks execution --oracle both --jobs 4
+```
+
+See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the tested release
+state, evidence gates, reproduction commands, and explicit limitations.
+The current investor, client and strategic-partner brief is available as
+[source](docs/investor/ASTRA_Investor_Brief_EN.tex) and
+[PDF](output/pdf/ASTRA_Investor_Brief_EN.pdf).
+The measured figures and claim boundaries used by that brief are frozen in the
+[26 July 2026 evidence snapshot](docs/evidence/PRODUCTION_SNAPSHOT_20260726.md).
 
 ---
 
@@ -202,14 +406,9 @@ Status values:
 
 | Status | Meaning |
 |---|---|
-| `VALIDATED` | Hypothesis confirmed by the oracle — awaits human approval |
+| `VALIDATED` | The bounded hypothesis was confirmed and the shared objective is fully covered — awaits human approval |
+| `ATOMIC_VALIDATED` | The current bounded conjecture passed, but the broader objective still has deferred work |
+| `ATOMIC_REFUTED` | The current bounded conjecture failed; this does not by itself refute the broader objective |
 | `REFUTED` | Hypothesis disproved — reasoning added to Axiomatic Base |
 | `CODE_ERROR` | Validation script failed after retries |
 | `API_ERROR` | Provider quota or network error — cycle skipped, retried |
-
----
-
-## Authorship
-
-ASTRA was created by Nelson Bolívar. Citation metadata is available in
-[`CITATION.cff`](CITATION.cff).

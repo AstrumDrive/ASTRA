@@ -1,7 +1,7 @@
 """
 ASTRA — Subscription-CLI backend.
 
-Permite que ASTRA use los CLIs de suscripcion (Claude Code, Codex)
+Permite que ASTRA_Production use los CLIs de suscripcion (Claude Code, Codex)
 en lugar de APIs de pago. La idea: NO se paga API; se usan las mensualidades
 de Claude/ChatGPT a traves de sus CLIs oficiales en modo headless.
 
@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import shutil
 import subprocess
 import tempfile
@@ -77,24 +78,22 @@ def _claude_bin() -> str:
 def _claude_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> dict:
     # Prompt por STDIN (pipe), NO como argumento: los prompts de ASTRA superan el
     # limite de ~32KB de la linea de comandos de Windows y claude devolvia vacio.
-    # Claude Code is AGENTIC: without restricting tools it WRITES the script to a file
-    # (Write/Edit) and returns a PROSE summary (star insights, tables) instead of code
-    # -> downstream SyntaxError. Deny mutating/exec tools so every text-only ASTRA phase
-    # (conjecture/code/analysis) returns its answer on stdout.
-    # ("MultiEdit" removed: current claude CLI no longer has that tool name and prints
-    # a "matches no known tool" warning on every single call.)
-    deny = ["--disallowed-tools", "Write,Edit,NotebookEdit,Bash"]
+    # Claude Code is AGENTIC: every ASTRA phase supplies all allowed context through
+    # the prompt and expects text on stdout. An explicit deny-list proved insufficient
+    # on Windows because newer Claude releases can expose PowerShell under a tool name
+    # other than Bash. `--tools ""` is the CLI's supported hard disable for all tools.
+    tools = ["--tools", ""]
     # Without this, every claude -p call here loads the user's GLOBAL MCP config:
     # Gmail/Calendar/Drive, two npx filesystem servers that fail to connect (each a
     # potential multi-second-to-hung npx registry fetch), and -- critically -- a second,
     # RECURSIVE copy of this very astra MCP server, exposing astra_cycle/astra_execute
-    # back to the inner model (nothing in the disallowed-tools list above blocks MCP
-    # tools, and the conjecture/translator/analyst prompts never say "don't use tools").
+    # back to the inner model. Built-in tools are hard-disabled above, while this flag
+    # also prevents inherited MCP configuration and its startup overhead.
     # This is the root cause behind "astra_cycle a veces se cuelga": isolate the child
     # process from the user's MCP config entirely. Measured impact on a trivial call:
     # 23073 cache-creation tokens / $0.26 / 5.5s -> 3050 tokens / $0.065 / 3.0s.
     isolate = ["--strict-mcp-config"]
-    argv = [_claude_bin(), "-p", "--output-format", "json", *deny, *isolate]
+    argv = [_claude_bin(), "-p", "--output-format", "json", *tools, *isolate]
     if model:
         argv += ["--model", model]
     # stdin_file: _invoke_once conecta el promptfile directo al stdin del exe
@@ -117,6 +116,44 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     return (f'Get-Content -Raw -LiteralPath "{promptfile}" | '
             f'codex exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
             f'--skip-git-repo-check{m}{r} -C "{ws}" -o "{out}" -')
+
+
+def _codex_builder(
+    promptfile: str,
+    model: str | None,
+    out: str,
+    ws: str,
+) -> str | dict:
+    """Build the Codex invocation without requiring PowerShell on POSIX.
+
+    Windows keeps the production-tested PowerShell pipeline. macOS/Linux pass
+    the prompt file directly to the native CLI stdin, which also preserves EOF
+    and avoids shell quoting differences.
+    """
+    if os.name == "nt":
+        return _ps_codex(promptfile, model, out, ws)
+
+    cbin = (
+        (os.environ.get("ASTRA_CODEX_BIN") or "").strip().strip("'\"")
+        or shutil.which("codex")
+        or "codex"
+    )
+    argv = [
+        cbin,
+        "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--ignore-user-config",
+        "--skip-git-repo-check",
+    ]
+    if model:
+        argv += ["-m", model]
+    effort = (
+        os.environ.get("ASTRA_CODEX_REASONING", "high") or ""
+    ).strip().strip("'\"")
+    if effort:
+        argv += ["-c", f'model_reasoning_effort="{effort}"']
+    argv += ["-C", ws, "-o", out, "-"]
+    return {"argv": argv, "stdin_file": promptfile}
 
 
 def _ps_gemini(promptfile: str, model: str | None, _out: str, _ws: str) -> str:
@@ -153,20 +190,41 @@ def _agy_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
     # los prompts POR FASE de ASTRA quedan holgadamente por debajo.
     #
     # --mode plan = SOLO LECTURA (no escribe archivos ni ejecuta): garantiza que la fase
-    # responda TEXTO, la misma leccion que el --disallowed-tools de claude (que si no,
+    # responda TEXTO, la misma leccion que el --tools "" de Claude (que si no,
     # escribia el script a disco y devolvia prosa). El prompt debe ser una instruccion
     # directa (generar/traducir/analizar), no "explora mi repo".
     with open(promptfile, encoding="utf-8") as f:
         prompt = f.read()
     abin = (os.environ.get("ASTRA_AGY_BIN") or "").strip().strip("'\"") \
         or shutil.which("agy") or "agy"
-    argv = [abin, "--print", prompt, "--mode", "plan"]
+    # Antigravity exposes an explicit reasoning-effort control in addition to
+    # the model name.  Production defaults to the highest supported level so
+    # `gemini-3.1-pro-high` is not accidentally invoked with a weaker session
+    # effort.  Keep the accepted set closed: a typo must not become an opaque
+    # CLI failure several minutes into a cycle.
+    effort = (
+        os.environ.get("ASTRA_AGY_EFFORT", "high")
+        .strip()
+        .strip("'\"")
+        .lower()
+    )
+    if effort not in {"low", "medium", "high"}:
+        effort = "high"
+    argv = [
+        abin,
+        "--print",
+        prompt,
+        "--mode",
+        "plan",
+        "--effort",
+        effort,
+    ]
     if model:
         argv += ["--model", model]
     return argv
 
 
-_BUILDERS = {"claude": _claude_argv, "codex": _ps_codex, "gemini": _ps_gemini,
+_BUILDERS = {"claude": _claude_argv, "codex": _codex_builder, "gemini": _ps_gemini,
              "agy": _agy_argv}
 
 
@@ -318,8 +376,11 @@ def _kill_tree(pid: int) -> None:
     nieto muera solo — bug REAL medido en produccion: fases de 956s y 893s con
     timeout=600, mas un claude -p huerfano quemando cuota por cada timeout."""
     try:
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                       capture_output=True, timeout=15)
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                           capture_output=True, timeout=15)
+        else:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
     except Exception:
         pass
 
@@ -333,7 +394,7 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
     #    conectado a stdin (claude: prompts >32KB no caben en argv y PowerShell
     #    sin consola pierde el stdout de hijos nativos -> nada de shells).
     #  - list: argv de exe nativo directo, sin stdin (agy: prompt como argumento).
-    #  - str: comando PowerShell (codex/gemini, pendientes de migrar a argv).
+    #  - str: comando PowerShell (Windows codex and legacy gemini).
     stdin_handle = subprocess.DEVNULL
     stdin_file = None
     if isinstance(built, dict):
@@ -350,6 +411,7 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             stdin=stdin_handle, text=True, encoding="utf-8",
             errors="replace", env=env,
+            start_new_session=os.name != "nt",
         )
     except OSError as e:
         return CliResult(False, error=f"lanzamiento fallo: {e}")

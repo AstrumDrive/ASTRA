@@ -4,7 +4,7 @@ param(
 
     [string]$WorkerDir = "~/astra-worker",
 
-    [string]$IdentityFile = "$env:USERPROFILE\.ssh\id_ed25519",
+    [string]$IdentityFile = "$env:USERPROFILE\.ssh\astra_astrum_ed25519",
 
     [switch]$NoTailscaleProxy
 )

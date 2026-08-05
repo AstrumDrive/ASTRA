@@ -86,7 +86,7 @@ def _extract_json_object(text: str) -> Optional[dict]:
 def _fix_json_backslashes(text: str) -> str:
     """Escape lone backslashes (e.g. LaTeX \\mu) that are invalid inside JSON strings."""
     # Valid JSON escape characters after a backslash: " \ / b f n r t u
-    _VALID = set('"\\\/bfnrtu')
+    _VALID = set(r'"\/bfnrtu')
     out = []
     i = 0
     while i < len(text):
@@ -136,6 +136,8 @@ class ASTRAIntelligence:
         self.cli_kind = None   # set para proveedores de suscripcion claude_cli/codex_cli
         self.cli_last_model = None  # modelo CLI que respondio la ultima llamada (escalera)
         self.cli_warnings = []      # avisos de cuota/fallback, expuestos en el JSON del ciclo
+        self.cli_cost_usd = 0.0     # coste proxy acumulado (lo reporta el CLI de claude;
+                                    # codex/agy devuelven 0) — telemetria de cuota, no cargo
 
         if self.provider in _OPENAI_COMPAT:
             cfg = _OPENAI_COMPAT[self.provider]
@@ -214,11 +216,26 @@ class ASTRAIntelligence:
                 # backends CLI; asi gemini_cli/agy_cli tambien pasan por call_cli.
                 from core.cli_backend import call_cli
                 combined = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
+                if self.cli_kind == "codex":
+                    # ASTRA's Codex turns are deliberative model calls, not autonomous
+                    # workspace tasks.  Everything that may be inspected (objective,
+                    # conjecture, validator and evidence) is already embedded above.
+                    # Explicitly suppress tool exploration so xhigh reasoning is spent
+                    # on the scientific exchange instead of scanning the repository.
+                    combined = (
+                        "ASTRA INTERNAL DELIBERATION MODE.\n"
+                        "Respond directly from the context in this prompt. Do not "
+                        "inspect the workspace, browse, run commands, call tools, "
+                        "spawn agents, wait for files, or modify anything. Return "
+                        "only the requested scientific or JSON response.\n\n"
+                        + combined
+                    )
                 res = await asyncio.to_thread(call_cli, self.cli_kind, combined,
                                               models=self.cli_models,
                                               timeout=self.cli_timeout)
                 if res.model_used:
                     self.cli_last_model = res.model_used
+                self.cli_cost_usd += float(getattr(res, "cost_usd", 0.0) or 0.0)
                 if res.warning:
                     # Hubo fallback por cuota: dejar rastro en el log y en el ciclo
                     logger.warning(res.warning)
@@ -285,15 +302,41 @@ class ASTRAIntelligence:
             return "Simulated Conjecture: The Ricci scalar R vanishes for the proposed metric."
         return response
 
-    async def translate_to_code(self, conjecture: str, is_correction: bool = False, previous_error: str = None) -> str:
+    async def translate_to_code(
+        self,
+        conjecture: str,
+        is_correction: bool = False,
+        previous_error: str = None,
+        previous_code: str = None,
+    ) -> str:
         """Phase 3: Formal Translator"""
         logger.info(f"[{self.provider.upper()}] Translating to SymPy/Z3/QuTiP/SageMath...")
 
-        from agents.translator import FORMAL_TRANSLATOR_PROMPT
+        from agents.translator import (
+            FORMAL_TRANSLATOR_PROMPT,
+            FORMAL_TRANSLATOR_VNEXT_ADDENDUM,
+        )
         system_prompt = FORMAL_TRANSLATOR_PROMPT
+        vnext = (
+            os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
+            .strip()
+            .strip("'\"")
+            .lower()
+            in {"1", "true", "on", "yes"}
+        )
+        if vnext:
+            system_prompt += FORMAL_TRANSLATOR_VNEXT_ADDENDUM
         user_prompt = f"Conjecture:\n{conjecture}"
         if is_correction:
-            user_prompt += f"\n\nPrevious code failed with error:\n{previous_error}\nPlease correct it."
+            if vnext and previous_code:
+                user_prompt += (
+                    "\n\nCURRENT VALIDATION SCRIPT TO PATCH:\n"
+                    f"```text\n{previous_code[:16000]}\n```\n"
+                )
+            user_prompt += (
+                f"\n\nPrevious code failed with error:\n{previous_error}\n"
+                "Please correct it."
+            )
 
         response = await self._call_api(system_prompt, user_prompt)
 
@@ -307,7 +350,7 @@ class ASTRAIntelligence:
         _blocks = _re.findall(r"```[A-Za-z0-9_+-]*\n(.*?)```", response, _re.DOTALL)
         _cands = [b.strip() for b in _blocks if b.strip()] or [response.strip()]
         def _score(c):
-            if _re.match(r"#\s*ASTRA_ENGINE:\s*(sage|maxima|cadabra)", c):
+            if _re.match(r"#\s*ASTRA_ENGINE:\s*(sage|maxima|cadabra|sci|pkgs)", c):
                 return (2, len(c))
             try:
                 ast.parse(c)
@@ -319,6 +362,153 @@ class ASTRAIntelligence:
         response = max(_cands, key=_score)
 
         return response
+
+    async def repair_validation_code(
+        self,
+        conjecture: str,
+        previous_code: str,
+        repair_instructions: str,
+    ) -> dict:
+        """Ask the code author for a bounded exact-edit patch, then apply it."""
+        from agents.translator import FORMAL_PATCH_REPAIR_PROMPT
+        from core.code_patching import apply_exact_edit_patch
+
+        if len(previous_code) > 24000:
+            return {
+                "status": "CANNOT_PATCH",
+                "reason": (
+                    "Validator exceeds the 24,000-character bounded-patch "
+                    "context. Split the conjecture into smaller validation "
+                    "obligations before retrying."
+                ),
+                "code": previous_code,
+                "edits": [],
+                "provider": self.provider,
+            }
+        logger.info(
+            "[%s] Requesting bounded validator patch...",
+            self.provider.upper(),
+        )
+        user_prompt = (
+            f"CONJECTURE AND SHARED OBJECTIVE:\n{conjecture[:5000]}\n\n"
+            f"ATOMIC REPAIR INSTRUCTIONS:\n{repair_instructions[:3500]}\n\n"
+            "CURRENT VALIDATION SCRIPT:\n"
+            f"```text\n{previous_code[:24000]}\n```"
+        )
+        response = await self._call_api(FORMAL_PATCH_REPAIR_PROMPT, user_prompt)
+        if isinstance(response, str) and response.startswith("API_ERROR:"):
+            return {
+                "status": "API_ERROR",
+                "reason": response,
+                "code": previous_code,
+                "edits": [],
+            }
+        parsed = _extract_json_object(response)
+        if not isinstance(parsed, dict):
+            parsed = _extract_json_object(_fix_json_backslashes(response))
+        result = apply_exact_edit_patch(previous_code, parsed)
+        result["provider"] = self.provider
+        return result
+
+    async def review_validation_code(
+        self,
+        shared_goal: str,
+        conjecture: str,
+        code: str,
+        static_context: Optional[dict] = None,
+    ) -> dict:
+        """Independent pre-oracle audit of the translator's validation code."""
+        logger.info(f"[{self.provider.upper()}] Reviewing validation-code coverage...")
+
+        from agents.reviewer import (
+            CODE_REVIEWER_PROMPT,
+            CODE_REVIEWER_VNEXT_PROMPT,
+        )
+        vnext = (
+            os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
+            .strip()
+            .strip("'\"")
+            .lower()
+            in {"1", "true", "on", "yes"}
+        )
+
+        user_prompt = (
+            f"SHARED FINAL OBJECTIVE:\n{shared_goal[:2000]}\n\n"
+            f"CONSENSUS CONJECTURE:\n{conjecture[:5000]}\n\n"
+            f"PROPOSED VALIDATION SCRIPT:\n```text\n{code[:14000]}\n```"
+        )
+        if static_context:
+            user_prompt += (
+                "\n\nDETERMINISTIC COMPILE/IMPORT SMOKE (facts, not model "
+                "speculation):\n"
+                f"{json.dumps(static_context, ensure_ascii=False)[:3000]}"
+            )
+        response = await self._call_api(
+            CODE_REVIEWER_VNEXT_PROMPT if vnext else CODE_REVIEWER_PROMPT,
+            user_prompt,
+        )
+        if response == "SIMULATED_RESPONSE":
+            return {
+                "status": "APPROVED",
+                "reasoning": "Simulated code review.",
+                "revision_instructions": "",
+                "coverage": [],
+                "defect_labels": [],
+            }
+        if isinstance(response, str) and response.startswith("API_ERROR:"):
+            return {
+                "status": "API_ERROR",
+                "reasoning": response,
+                "revision_instructions": "",
+                "coverage": [],
+                "defect_labels": [],
+            }
+
+        parsed = _extract_json_object(_fix_json_backslashes(response))
+        if not isinstance(parsed, dict):
+            return {
+                "status": "REVISE",
+                "reasoning": "Reviewer output was not valid JSON.",
+                "revision_instructions": (
+                    "Regenerate a compact, falsifiable validator whose decisive checks "
+                    "and failure paths are explicit."
+                ),
+                "coverage": [],
+                "defect_labels": [],
+            }
+
+        status = str(parsed.get("status") or "REVISE").upper()
+        if status not in {"APPROVED", "REVISE", "REJECT"}:
+            status = "REVISE"
+        coverage = parsed.get("coverage")
+        if not isinstance(coverage, list):
+            coverage = []
+        allowed_defects = {
+            "hardcoded_pass", "unreachable_failure", "self_comparison",
+            "sampling_as_proof", "wrong_domain", "missing_assumption",
+            "wrong_tolerance", "wrong_units", "unknown_as_pass",
+            "swallowed_exception", "missing_dependency", "engine_mismatch",
+            "unsimplified_symbolic_zero",
+        }
+        defect_labels = parsed.get("defect_labels")
+        if not isinstance(defect_labels, list):
+            defect_labels = []
+        defect_labels = [
+            str(item).strip().lower()
+            for item in defect_labels
+            if str(item).strip().lower() in allowed_defects
+        ]
+        runtime_checks = parsed.get("runtime_checks")
+        if not isinstance(runtime_checks, list):
+            runtime_checks = []
+        return {
+            "status": status,
+            "reasoning": str(parsed.get("reasoning") or response)[:2000],
+            "revision_instructions": str(parsed.get("revision_instructions") or "")[:3000],
+            "coverage": [str(item)[:500] for item in coverage[:12]],
+            "defect_labels": defect_labels[:12],
+            "runtime_checks": [str(item)[:500] for item in runtime_checks[:12]],
+        }
 
     async def navigate_research(
         self,
@@ -389,58 +579,91 @@ class ASTRAIntelligence:
             "macro_resolved": False,
         }
 
-    async def analyze_results(self, conjecture: str, exec_result: dict) -> dict:
-        """Phase 5: Refutation Analyst"""
+    async def analyze_results(
+        self,
+        conjecture: str,
+        exec_result: dict,
+        shared_goal: str = "",
+    ) -> dict:
+        """Phase 5: independent evidence and validation-code audit."""
         logger.info(f"[{self.provider.upper()}] Analyzing execution stdout/stderr...")
 
         from agents.analyst import REFUTATION_ANALYST_PROMPT
         system_prompt = REFUTATION_ANALYST_PROMPT
 
-        # --- Guardas DETERMINISTAS: mandan sobre el juicio del LLM ---
-        # Antes, una corrida CAIDA se auto-"validaba" (falso VALIDATED de Schwarzschild
-        # cuando el sympy local estaba roto). La verdad primaria es el veredicto explicito
-        # del script + el exit code, NO la opinion del analista.
+        # Deterministic evidence constrains the LLM verdict, but no longer bypasses the
+        # analyst. Codex must read Claude's code even when it prints a clean PASS.
         _exit = exec_result.get("exit_code", 0)
         _stdout_up = (exec_result.get("stdout") or "").upper()
         _has_stderr = bool((exec_result.get("stderr") or "").strip())
-        if "VERDICT: FAIL" in _stdout_up:
-            return {"status": "REFUTED",
-                    "reasoning": "El script de validacion reporto VERDICT: FAIL."}
-        if "VERDICT: PASS" in _stdout_up and _exit == 0 and not _has_stderr:
-            return {"status": "VALIDATED",
-                    "reasoning": "El script reporto VERDICT: PASS con ejecucion limpia (exit 0, sin stderr)."}
+        _explicit_fail = "VERDICT: FAIL" in _stdout_up
+        _clean_pass = "VERDICT: PASS" in _stdout_up and _exit == 0 and not _has_stderr
+        _crashed = _exit != 0 or _has_stderr
 
-        if exec_result.get("exit_code", 0) != 0 or exec_result.get("stderr"):
-            if not self.api_key:
-                return {"status": "CODE_ERROR", "corrected_code": "print('Fixed Code')"}
+        if not self.api_key:
+            if _crashed:
+                return {"status": "CODE_ERROR", "reasoning": "Execution failed."}
+            if _explicit_fail:
+                return {"status": "REFUTED", "reasoning": "Validation script reported FAIL."}
+            if _clean_pass:
+                return {"status": "VALIDATED", "reasoning": "Validation script reported a clean PASS."}
+            return {"status": "CODE_ERROR", "reasoning": "No explicit executable verdict."}
 
-            user_prompt = f"Conjecture:\n{conjecture}\n\nExecution Error:\n{exec_result['stderr']}"
-            response = await self._call_api(system_prompt, user_prompt)
-            if isinstance(response, str) and response.startswith("API_ERROR:"):
-                return {"status": "API_ERROR", "reasoning": response}
-            parsed = _extract_json_object(response)
-            # ENDURECIDO: una ejecucion caida NO puede ser VALIDATED (nada se verifico).
-            if parsed and parsed.get("status") in {"CODE_ERROR", "REFUTED"}:
+        review = exec_result.get("code_review") or {}
+        user_prompt = (
+            f"SHARED FINAL OBJECTIVE:\n{shared_goal or conjecture}\n\n"
+            f"CONSENSUS CONJECTURE:\n{conjecture}\n\n"
+            f"VALIDATION SCRIPT:\n```text\n"
+            f"{(exec_result.get('validation_code') or '')[:16000]}\n```\n\n"
+            f"PRE-ORACLE CODE REVIEW:\n{review}\n\n"
+            f"EXECUTION EXIT CODE: {_exit}\n"
+            f"EXECUTION STDOUT:\n{(exec_result.get('stdout') or '')[:10000]}\n\n"
+            f"EXECUTION STDERR:\n{(exec_result.get('stderr') or '')[:6000]}"
+        )
+        response = await self._call_api(system_prompt, user_prompt)
+        if isinstance(response, str) and response.startswith("API_ERROR:"):
+            return {"status": "API_ERROR", "reasoning": response}
+
+        parsed = _extract_json_object(_fix_json_backslashes(response))
+        status = str((parsed or {}).get("status") or "").upper()
+        if status not in {"CODE_ERROR", "REFUTED", "VALIDATED"}:
+            parsed = None
+
+        # A crashed run never establishes a theorem.
+        if _crashed:
+            if parsed and status in {"CODE_ERROR", "REFUTED"}:
                 return parsed
-            return {"status": "CODE_ERROR",
-                    "corrected_code": (parsed or {}).get("corrected_code"),
-                    "reasoning": (parsed or {}).get("reasoning") or response}
+            return {
+                "status": "CODE_ERROR",
+                "corrected_code": (parsed or {}).get("corrected_code"),
+                "reasoning": (parsed or {}).get("reasoning") or response,
+            }
 
-        else:
-            if not self.api_key:
-                return {"status": "VALIDATED", "reasoning": "Null residual."}
-
-            user_prompt = f"Conjecture:\n{conjecture}\n\nExecution Output:\n{exec_result['stdout']}"
-            response = await self._call_api(system_prompt, user_prompt)
-            if isinstance(response, str) and response.startswith("API_ERROR:"):
-                return {"status": "API_ERROR", "reasoning": response}
-            parsed = _extract_json_object(response)
-            if parsed and parsed.get("status") in {"CODE_ERROR", "REFUTED", "VALIDATED"}:
+        # An explicit failing check cannot be promoted to VALIDATED by prose.
+        if _explicit_fail:
+            if parsed and status in {"REFUTED", "CODE_ERROR"}:
                 return parsed
+            return {
+                "status": "REFUTED",
+                "reasoning": "The executable validator reported VERDICT: FAIL. " + response[:1000],
+            }
 
-            stdout = exec_result.get("stdout", "").upper()
-            if "VERDICT: FAIL" in stdout:
-                return {"status": "REFUTED", "reasoning": "Validation script reported VERDICT: FAIL."}
-            if "VERDICT: PASS" in stdout:
-                return {"status": "VALIDATED", "reasoning": "Validation script reported VERDICT: PASS."}
-            return {"status": "CODE_ERROR", "corrected_code": None, "reasoning": response}
+        if parsed:
+            return parsed
+
+        # Parsing failed after a clean PASS. Preserve deterministic evidence only when
+        # the independent pre-oracle review approved the validator; otherwise force a
+        # conservative retry instead of silently accepting the script.
+        if _clean_pass and str(review.get("status") or "").upper() == "APPROVED":
+            return {
+                "status": "VALIDATED",
+                "reasoning": (
+                    "Clean executable PASS with an approved independent code review; "
+                    "the final analyst response was not parseable."
+                ),
+            }
+        return {
+            "status": "WEAK_PASS" if _clean_pass else "CODE_ERROR",
+            "corrected_code": None,
+            "reasoning": response,
+        }

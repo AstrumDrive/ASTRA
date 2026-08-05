@@ -7,10 +7,14 @@ try {
     $script = @'
 import asyncio
 import json
+import os
 from core.preflight import load_project_env
 from core.executor import execute_python_code
 
 load_project_env()
+if not os.environ.get("ASTRA_REMOTE_HOST", "").strip():
+    raise SystemExit("ASTRA_REMOTE_HOST is not configured")
+os.environ["ASTRA_ORACLE_MODE"] = "remote"
 
 CASES = [
     ("python", "print(123)", "123"),
@@ -33,6 +37,11 @@ CASES = [
         "cadabra",
         "# ASTRA_ENGINE: cadabra\n{a,b,c}::Indices.\nex:= A_{a} B_{b};\nprint(ex);\n",
         "A_{a} B_{b}",
+    ),
+    (
+        "company_packages",
+        "# ASTRA_ENGINE: pkgs\nimport sys\nprint('PKGS_PYTHON', sys.executable)\nprint('VERDICT: PASS')",
+        "VERDICT: PASS",
     ),
 ]
 
@@ -61,4 +70,3 @@ asyncio.run(main())
 finally {
     Pop-Location
 }
-
