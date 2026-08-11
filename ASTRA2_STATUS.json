@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "product": "ASTRA 2.0",
+  "release_state": "DEVELOPMENT_ONLY",
+  "production_approved": false,
+  "source": {
+    "checkout": "C:\\Users\\Nelson\\Dev\\ASTRA",
+    "commit": "e4752eada0dc78b52cc88b98753ae144b6e56041"
+  },
+  "development": {
+    "checkout": "C:\\Users\\Nelson\\Dev\\ASTRA-2.0",
+    "branch": "astra-2.0",
+    "production_mcp_unchanged": true,
+    "production_launchers_unchanged": true,
+    "push_urls_enabled": false
+  },
+  "gates": {
+    "G0_isolation": "PASS",
+    "G1_regression": "PARTIAL",
+    "G2_engines_oracles": "PENDING",
+    "G3_scientific_quality": "PENDING",
+    "G4_research_trajectory": "PENDING",
+    "G5_portability_reproducibility": "PENDING",
+    "G6_human_promotion": "PENDING"
+  },
+  "promotion_blocked": true,
+  "environment": {
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "package_count": 95,
+    "pip_freeze_sha256": "59f3d679d7790fe9b96eb1886b44cdbe88aa05f60e79dfe2acfae78df7ccfec5"
+  },
+  "notes": [
+    "Uncommitted files in the production checkout were intentionally excluded."
+  ]
+}

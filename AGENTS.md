@@ -1,5 +1,22 @@
 # ASTRA Agent Notes
 
+## ASTRA 2.0 development isolation
+
+This checkout is the isolated ASTRA 2.0 development line. Read
+`ASTRA2_ACCEPTANCE.md` before changing launchers, MCP registration, remote
+deployment, release metadata, or Git remotes.
+
+Until every mandatory gate is recorded as passed and Nelson gives explicit
+approval:
+
+- do not point the production MCP entry, desktop shortcut, service, or ASTRUM
+  production worker at this directory;
+- do not merge this branch into production or enable its disabled push URLs;
+- do not copy `.env`, CLI tokens, private keys, Tailscale state, virtual
+  environments, or runtime workspaces from the production checkout;
+- tests and frozen benchmarks may execute from this checkout using a dedicated
+  environment and explicitly supplied machine-local configuration.
+
 ## Cross-platform collaborator onboarding
 
 On macOS, read `docs/onboarding/ASTRA_MACOS_INSTALL_EN.md` before installing or

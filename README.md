@@ -1,5 +1,10 @@
 # ASTRA
 
+> **ASTRA 2.0 development checkout:** this directory is isolated from the
+> production MCP and launchers. It must not be promoted or used as production
+> ASTRA until all gates in [`ASTRA2_ACCEPTANCE.md`](ASTRA2_ACCEPTANCE.md) pass
+> and Nelson explicitly approves the promotion.
+
 **Autonomous Symbolic Theorem Reasoning Architecture**
 
 Created by **Nelson Bolívar** and maintained by **Astrum Drive**.
