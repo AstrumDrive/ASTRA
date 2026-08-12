@@ -274,9 +274,13 @@ def _charge_budget(
 def _write_artifacts(
     store: CampaignStore, episode_id: str, result: Mapping[str, Any]
 ) -> dict[str, str]:
-    """Persist validator code and stdout; return relpath -> sha256."""
+    """Persist validator code and stdout; return relpath -> sha256.
+
+    The real cycle stores its oracle output under ``execution``; older test
+    doubles used ``execution_result``.  Both shapes are accepted.
+    """
     artifacts: dict[str, str] = {}
-    execution = result.get("execution_result") or {}
+    execution = result.get("execution") or result.get("execution_result") or {}
     payloads = {
         "validator.py": result.get("code"),
         "stdout.txt": execution.get("stdout") or result.get("stdout"),
@@ -554,7 +558,8 @@ def record_episode_result(
                     "strength": axes.evidence_strength.value,
                     "scope": scope,
                     "engine": str(
-                        result.get("oracle_mode")
+                        result.get("oracle_used")
+                        or result.get("oracle_mode")
                         or result.get("engine")
                         or "local"
                     ),
@@ -595,7 +600,9 @@ def record_episode_result(
         },
         actual_models={
             str(key): str(value)
-            for key, value in (result.get("actual_models") or {}).items()
+            for key, value in (
+                result.get("actual_models") or result.get("cli_models") or {}
+            ).items()
         },
         budget=BudgetVector(
             cycles=1,

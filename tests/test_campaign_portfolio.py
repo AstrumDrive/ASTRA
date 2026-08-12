@@ -204,6 +204,20 @@ class PortfolioParsingTests(unittest.TestCase):
         again = Portfolio.from_dict(json.loads(json.dumps(portfolio.to_dict())))
         self.assertEqual(portfolio.to_dict(), again.to_dict())
 
+    def test_empty_list_entries_are_filtered_not_fatal(self):
+        # Regression from the first live canary (2026-08-12): the model
+        # emitted one empty string inside quantifiers and the whole valid
+        # portfolio was lost. Empty entries are now dropped at the boundary.
+        payload = make_portfolio_dict()
+        payload["selected"]["quantifiers"] = ["", "forall x in R", "   "]
+        payload["selected"]["assumptions"] = [""]
+        result = parse_portfolio(fenced(payload))
+        self.assertIsNone(result.error)
+        self.assertEqual(
+            result.portfolio.selected.quantifiers, ("forall x in R",)
+        )
+        self.assertEqual(result.portfolio.selected.assumptions, ())
+
     def test_machine_paths_are_rejected_in_portable_fields(self):
         payload = make_portfolio_dict()
         payload["selected"]["statement"] = r"See C:\Users\nelson\proof.py"

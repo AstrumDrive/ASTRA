@@ -90,12 +90,18 @@ DEFAULT_BRANCH_BUDGET = BudgetVector(
 
 
 def _string_list(value: Any, field_name: str) -> tuple[str, ...]:
+    """Tolerant boundary for model-authored lists: empty entries are dropped.
+
+    The first live canary lost an entire valid portfolio because the model
+    emitted one empty string inside ``quantifiers``.  Whitespace-only entries
+    carry no semantics, so they are filtered here instead of rejecting the
+    block; the strict record layer (``campaign_models``) stays fail-closed.
+    """
     if not isinstance(value, (list, tuple)):
         raise PortfolioError(f"{field_name} must be a list of strings")
-    items = tuple(str(item).strip() for item in value)
-    if any(not item for item in items):
-        raise PortfolioError(f"{field_name} must not contain empty entries")
-    return items
+    return tuple(
+        item for item in (str(entry).strip() for entry in value) if item
+    )
 
 
 def _optional_text(value: Any, field_name: str) -> str | None:
@@ -481,6 +487,8 @@ def portfolio_instruction_block(
         "or next discriminating obligation for this cycle.",
         "Only include alternatives that are materially different from the "
         "selected claim; an empty list is acceptable and honest.",
+        "Never include empty strings inside list fields; omit entries you "
+        "cannot fill.",
     ]
     deliverable_list = [str(item).strip() for item in deliverables if str(item).strip()]
     if deliverable_list:

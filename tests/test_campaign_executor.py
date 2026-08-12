@@ -582,6 +582,37 @@ class RecordEpisodeTests(unittest.TestCase):
             state.evidence[report.evidence_id].kind, EvidenceKind.NUMERICAL
         )
 
+    def test_real_cycle_result_shape_is_transcribed(self):
+        # Regression from the first live canary: the real _do_cycle result
+        # stores oracle output under "execution", actual models under
+        # "cli_models", and the oracle route under "oracle_used".
+        store = seed_store(self.root, self.addCleanup)
+        result = make_cycle_result()
+        del result["execution_result"]
+        del result["actual_models"]
+        del result["oracle_mode"]
+        result["execution"] = {"stdout": "CHECK identity: OK\nVERDICT: PASS\n"}
+        result["cli_models"] = {"translator": "claude-opus-4-8"}
+        result["oracle_used"] = "local"
+        report = record_episode_result(
+            store,
+            SEED_BRANCH_ID,
+            result,
+            id_factory=make_id_factory(),
+            now_iso=fixed_now,
+        )
+        state = store.replay().state
+        evidence = state.evidence[report.evidence_id]
+        self.assertIn(
+            f"artifacts/{report.episode_id}/stdout.txt",
+            evidence.artifact_hashes,
+        )
+        self.assertEqual(evidence.engine, "local")
+        episode = state.episodes[report.episode_id]
+        self.assertEqual(
+            episode.actual_models, {"translator": "claude-opus-4-8"}
+        )
+
     def test_recording_requires_the_active_branch(self):
         store = seed_store(self.root, self.addCleanup, activate=False)
         with self.assertRaises(CampaignExecutorError):

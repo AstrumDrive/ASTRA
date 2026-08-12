@@ -186,11 +186,21 @@ pip freeze SHA-256:
   repetidas en el ejecutor. Evidencia:
   `docs/evidence/ASTRA2_STAGE6_CANARY_INFRA_20260812.md`.
 
+- **canary VIVO (2026-08-12, go explícito de Nelson): PASS en operabilidad.**
+  Campaña `cmp_cd11be51fcd34e22`: 2 episodios reales (codex+agy+claude,
+  oráculo local), 2 evidencias con artefactos hasheados, decisiones
+  R0→R7→R2 y cierre autónomo por presupuesto; 17/36 llamadas, 2384/3600 s.
+  Dos hallazgos de integración corregidos con tests de regresión (listas del
+  portafolio tolerantes a entradas vacías; forma real del resultado del
+  ciclo: `execution`/`cli_models`/`oracle_used`). Evidencia:
+  `docs/evidence/ASTRA2_CANARY_LIVE_20260812.md`.
+
 ### Todavía no existe
 
-- **canary VIVO y pilot comparativo (H1/H3)** — el lazo aún no ha corrido
-  con modelos reales; consume cuota CLI y requiere el "go" explícito de
-  Nelson (`run_campaign_canary.py --live --yes`);
+- re-verificación viva del flujo de portafolio tras las correcciones
+  (1 ciclo, opcional, decisión de Nelson);
+- **pilot comparativo H3 y gate H1** — presupuestos propios pendientes de
+  decisión de Nelson;
 - R2 (revisor con autocrítica) y R5 (ancla numérica) del contraste con el
   preprint — H2/H4 diferidas hasta implementarlas;
 - campaña adversarial posterior a evidencia en milestones;
