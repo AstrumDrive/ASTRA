@@ -171,9 +171,14 @@ pip freeze SHA-256:
   lock, y no-repetición de episodios por construcción. Evidencia:
   `docs/evidence/ASTRA2_STAGE4_RESUME_20260812.md`.
 
+- **etapa 5 (2026-08-12, autorizada por Nelson)**: interfaces de desarrollo
+  `astra_campaign_*` (`core/campaign_api.py`): start/status/step/stop/
+  reactivate/list sobre `workspace/campaigns`, lock liberado por llamada,
+  entradas fail-closed, y garantía probada de que el MCP de producción no
+  las registra. Evidencia: `docs/evidence/ASTRA2_STAGE5_DEV_API_20260812.md`.
+
 ### Todavía no existe
 
-- interfaces de desarrollo `astra_campaign_*` (etapa 5);
 - canary y ablations comparativas contra ASTRA actual y `full-linear`
   (etapa 6) — el lazo aún no ha corrido con modelos reales;
 - campaña adversarial posterior a evidencia en milestones;
