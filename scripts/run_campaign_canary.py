@@ -43,7 +43,10 @@ DEFAULT_OUT = ROOT / "workspace" / "campaign_canary_runs"
 
 
 def preregistration_fingerprint() -> str:
-    return hashlib.sha256(PREREG_DOC.read_bytes()).hexdigest()
+    # Line endings are normalized so the frozen fingerprint survives Git's
+    # CRLF conversion on a fresh checkout (portability, not security).
+    text = PREREG_DOC.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def verify_preregistration() -> str:
