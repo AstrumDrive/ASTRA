@@ -95,6 +95,18 @@ class CampaignState:
     def remaining_budget(self) -> BudgetVector:
         return self.require_campaign().budget.remaining_after(self.spent)
 
+    def exhausted_method_families(self) -> tuple[str, ...]:
+        """Method families closed for re-proposal (R4 negative prompting)."""
+        return tuple(
+            sorted(
+                {
+                    branch.method_family
+                    for branch in self.branches.values()
+                    if branch.status in _EXHAUSTED_BRANCH_STATUSES
+                }
+            )
+        )
+
     def scientific_refutations(self, claim_id: str) -> tuple[str, ...]:
         """Evidence ids that scientifically refute ``claim_id``.
 

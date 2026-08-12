@@ -144,14 +144,21 @@ pip freeze SHA-256:
   postura neutral en el prompt de conjetura (R1). Conversión determinista a
   `(Claim, Branch)` que pasa los hard gates del primer corte. Evidencia:
   `docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md`.
+- **etapa 2 (2026-08-12, autorizada por Nelson)**: `astra_cycle` envuelto
+  como ejecutor de `Episode` (`core/campaign_executor.py`): pre-gates
+  fail-closed antes de llamar modelos, contexto R4 vivo desde el estado,
+  mapeo determinista del resultado del ciclo a los cinco ejes (un traceback
+  jamás refuta), transcripción a eventos (presupuesto real, claim testeado
+  deduplicado por fingerprint, evidencia con artefactos hasheados, episodio,
+  checkpoint) y promoción de alternativas del portafolio a ramas PROPOSED
+  gateadas a ADMISSIBLE/REJECTED. El ciclo en sí no cambió. Evidencia:
+  `docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md`.
 
 ### Todavía no existe
 
-- controlador de campañas de ASTRA 2.0 (los records, la política y el
-  portafolio existen; ningún runtime de campaña los usa todavía);
-- ramas como objetos científicos vivos alimentados por ciclos reales
-  (etapa 2: envolver `astra_cycle` como ejecutor de un `Episode`);
-- progressive widening;
+- controlador de campañas de ASTRA 2.0 (records, política, portafolio y
+  ejecutor existen; falta el lazo que decide y encadena episodios);
+- selección determinista de rama activa y progressive widening (etapa 3);
 - campaña adversarial posterior a evidencia en milestones;
 - herramientas MCP `astra_campaign_*`;
 - UI para campañas;
@@ -203,17 +210,20 @@ verificado el 2026-08-12** — ver §4 y
 terminación: suite previa intacta, tests nuevos sin modelos/red/ASTRUM,
 `astra_cycle` sin cambios, ningún MCP nuevo, producción intacta.
 
-**La etapa 1 de §7 (portafolio estructurado) fue autorizada por Nelson y está
-implementada y verificada el 2026-08-12** — ver §4 y
-`docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md`.
+**Las etapas 1 y 2 de §7 fueron autorizadas por Nelson y están implementadas
+y verificadas el 2026-08-12** — ver §4,
+`docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md` y
+`docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md`.
 
 **Ningún bloque posterior está autorizado implícitamente.** El siguiente
-candidato es la etapa 2 de §7: envolver `astra_cycle` como ejecutor de un
-`Episode` (el ciclo corre igual; sus artefactos y estatus se registran como
-eventos del ledger, y el portafolio parseado se promueve a records de rama).
-Requiere la aprobación explícita de Nelson antes de empezar. El agente que la
-reciba debe releer el contrato congelado y añadir su propio plan de tests
-antes de escribir código.
+candidato es la etapa 3 de §7: reglas deterministas de admisibilidad y
+progressive widening — el lazo que decide qué rama se activa tras cada
+episodio (continuar, promover alternativa, suspender), registra `Decision`
+records con snapshot de presupuesto, y aplica el ensanchamiento 2–4 solo tras
+evidencia negativa/inconclusa, redundancia o saturación. Requiere la
+aprobación explícita de Nelson antes de empezar. El agente que la reciba debe
+releer el contrato congelado y añadir su propio plan de tests antes de
+escribir código.
 
 Insumo de diseño para esa decisión:
 `docs/architecture/ASTRA2_PREPRINT_2602.03837_CONTRAST.md` contrasta el

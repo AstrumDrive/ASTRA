@@ -32,11 +32,12 @@
     "lockfile": "requirements-workstation-lock.txt"
   },
   "verification": {
-    "base_commit_before_stage1": "47687bd",
+    "base_commit_before_stage2": "4170cf3",
     "date": "2026-08-12",
-    "pytest": "245 passed, 6 skipped, 25 subtests passed in 12.52s",
+    "pytest": "264 passed, 6 skipped, 28 subtests passed in 12.69s",
     "campaign_slice_tests": "82 passed, 23 subtests passed in 0.60s",
     "stage1_portfolio_tests": "27 passed in 0.42s",
+    "stage2_executor_tests": "19 passed, 3 subtests passed in 0.82s",
     "architecture_audit": "PASS; no required failures",
     "trajectory_dry_run": {
       "status": "PASS",
@@ -45,6 +46,7 @@
     },
     "campaign_slice_evidence": "docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md",
     "stage1_evidence": "docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md",
+    "stage2_evidence": "docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md",
     "current_head_command": "git rev-parse HEAD"
   },
   "handoff": {
@@ -54,9 +56,10 @@
     "verified_baseline": "docs/benchmarks/ASTRA2_BASELINE_2026-08-11.md",
     "completed_milestones": [
       "Campaign domain records, deterministic policy, and append-only local store (2026-08-12)",
-      "Stage 1: structured portfolio from ensemble synthesis with R1/R3/R4 (2026-08-12, authorized by Nelson)"
+      "Stage 1: structured portfolio from ensemble synthesis with R1/R3/R4 (2026-08-12, authorized by Nelson)",
+      "Stage 2: astra_cycle wrapped as Episode executor with live branch promotion (2026-08-12, authorized by Nelson)"
     ],
-    "next_milestone": "Stage 2: wrap astra_cycle as an Episode executor - requires explicit authorization from Nelson before starting",
+    "next_milestone": "Stage 3: deterministic branch selection and progressive widening - requires explicit authorization from Nelson before starting",
     "updated": "2026-08-12"
   },
   "notes": [
