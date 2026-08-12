@@ -32,12 +32,13 @@
     "lockfile": "requirements-workstation-lock.txt"
   },
   "verification": {
-    "base_commit_before_stage2": "4170cf3",
+    "base_commit_before_stage3": "961a838",
     "date": "2026-08-12",
-    "pytest": "264 passed, 6 skipped, 28 subtests passed in 12.69s",
+    "pytest": "278 passed, 6 skipped, 28 subtests passed in 13.81s",
     "campaign_slice_tests": "82 passed, 23 subtests passed in 0.60s",
     "stage1_portfolio_tests": "27 passed in 0.42s",
     "stage2_executor_tests": "19 passed, 3 subtests passed in 0.82s",
+    "stage3_decision_tests": "14 passed in 1.18s",
     "architecture_audit": "PASS; no required failures",
     "trajectory_dry_run": {
       "status": "PASS",
@@ -47,6 +48,7 @@
     "campaign_slice_evidence": "docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md",
     "stage1_evidence": "docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md",
     "stage2_evidence": "docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md",
+    "stage3_evidence": "docs/evidence/ASTRA2_STAGE3_DECISION_20260812.md",
     "current_head_command": "git rev-parse HEAD"
   },
   "handoff": {
@@ -57,9 +59,10 @@
     "completed_milestones": [
       "Campaign domain records, deterministic policy, and append-only local store (2026-08-12)",
       "Stage 1: structured portfolio from ensemble synthesis with R1/R3/R4 (2026-08-12, authorized by Nelson)",
-      "Stage 2: astra_cycle wrapped as Episode executor with live branch promotion (2026-08-12, authorized by Nelson)"
+      "Stage 2: astra_cycle wrapped as Episode executor with live branch promotion (2026-08-12, authorized by Nelson)",
+      "Stage 3: deterministic decision policy R1-R7 and progressive widening (2026-08-12, authorized by Nelson)"
     ],
-    "next_milestone": "Stage 3: deterministic branch selection and progressive widening - requires explicit authorization from Nelson before starting",
+    "next_milestone": "Stage 4: explicit campaign resume over the checkpoint; then stage 5 astra_campaign_* dev interfaces - each requires explicit authorization from Nelson",
     "updated": "2026-08-12"
   },
   "notes": [

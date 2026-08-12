@@ -153,15 +153,25 @@ pip freeze SHA-256:
   checkpoint) y promoción de alternativas del portafolio a ramas PROPOSED
   gateadas a ADMISSIBLE/REJECTED. El ciclo en sí no cambió. Evidencia:
   `docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md`.
+- **etapa 3 (2026-08-12, autorizada por Nelson)**: política determinista de
+  decisión y progressive widening (`core/campaign_decision.py`): tabla de
+  reglas R1–R7 (cierre por meta, agotamiento de campaña/rama, refutación,
+  racha no informativa, costeabilidad, continuar), selección lexicográfica
+  sobre el vector de prioridad con re-validación de gates y familias
+  prohibidas, `Decision` records con snapshot exacto y recomendación de
+  modelo que no puede anular gates, bootstrap `select_initial_branch` y
+  `campaign_step` (episodio → decisión → ledger → checkpoint). El widening
+  solo se dispara por evidencia negativa/inconclusa o presión de presupuesto.
+  Evidencia: `docs/evidence/ASTRA2_STAGE3_DECISION_20260812.md`.
 
 ### Todavía no existe
 
-- controlador de campañas de ASTRA 2.0 (records, política, portafolio y
-  ejecutor existen; falta el lazo que decide y encadena episodios);
-- selección determinista de rama activa y progressive widening (etapa 3);
+- resume explícito de campaña sobre el checkpoint (etapa 4) e interfaces de
+  desarrollo `astra_campaign_*` (etapa 5);
+- canary y ablations comparativas contra ASTRA actual y `full-linear`
+  (etapa 6) — el lazo aún no ha corrido con modelos reales;
 - campaña adversarial posterior a evidencia en milestones;
-- herramientas MCP `astra_campaign_*`;
-- UI para campañas;
+- herramientas MCP de producción, UI para campañas, despliegue remoto;
 - resultados comparativos que justifiquen promoción.
 
 No describir ASTRA 2.0 como funcional ni validado hasta que estas piezas estén
@@ -210,18 +220,18 @@ verificado el 2026-08-12** — ver §4 y
 terminación: suite previa intacta, tests nuevos sin modelos/red/ASTRUM,
 `astra_cycle` sin cambios, ningún MCP nuevo, producción intacta.
 
-**Las etapas 1 y 2 de §7 fueron autorizadas por Nelson y están implementadas
-y verificadas el 2026-08-12** — ver §4,
-`docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md` y
-`docs/evidence/ASTRA2_STAGE2_EXECUTOR_20260812.md`.
+**Las etapas 1, 2 y 3 de §7 fueron autorizadas por Nelson y están
+implementadas y verificadas el 2026-08-12** — ver §4 y los tres documentos
+`docs/evidence/ASTRA2_STAGE{1,2,3}_*.md`.
 
-**Ningún bloque posterior está autorizado implícitamente.** El siguiente
-candidato es la etapa 3 de §7: reglas deterministas de admisibilidad y
-progressive widening — el lazo que decide qué rama se activa tras cada
-episodio (continuar, promover alternativa, suspender), registra `Decision`
-records con snapshot de presupuesto, y aplica el ensanchamiento 2–4 solo tras
-evidencia negativa/inconclusa, redundancia o saturación. Requiere la
-aprobación explícita de Nelson antes de empezar. El agente que la reciba debe
+**Ningún bloque posterior está autorizado implícitamente.** Los siguientes
+candidatos de §7 son la etapa 4 (resume explícito de campaña: reconstruir el
+lazo desde `checkpoint.json` + cola del ledger y reanudar `campaign_step` sin
+repetir episodios) y la etapa 5 (interfaces de desarrollo `astra_campaign_*`
+NO registradas en el MCP de producción). Tras ellas, la etapa 6 es el primer
+uso con modelos reales: canary de una celda y ablations contra ASTRA actual y
+`full-linear`, con H1–H4 pre-registradas antes de cualquier ejecución. Cada
+una requiere la aprobación explícita de Nelson. El agente que las reciba debe
 releer el contrato congelado y añadir su propio plan de tests antes de
 escribir código.
 

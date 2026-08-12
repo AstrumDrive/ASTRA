@@ -132,6 +132,7 @@ def make_id_factory():
         "branch": "brn",
         "episode": "epi",
         "evidence": "evd",
+        "decision": "dec",
     }
     counts: dict = {}
 
