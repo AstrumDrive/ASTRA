@@ -5,6 +5,14 @@
 > ASTRA until all gates in [`ASTRA2_ACCEPTANCE.md`](ASTRA2_ACCEPTANCE.md) pass
 > and Nelson explicitly approves the promotion.
 
+New contributors and agents must begin with [`HANDOFF.md`](HANDOFF.md). It
+records the exact project location, current implementation boundary, verified
+baseline, next development slice, and production-isolation rules.
+
+Do not run the install scripts or MCP-registration helper from this development
+checkout. The reproducible local environment is captured in
+[`requirements-workstation-lock.txt`](requirements-workstation-lock.txt).
+
 **Autonomous Symbolic Theorem Reasoning Architecture**
 
 Created by **Nelson Bolívar** and maintained by **Astrum Drive**.

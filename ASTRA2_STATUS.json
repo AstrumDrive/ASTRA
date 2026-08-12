@@ -28,7 +28,29 @@
     "python": "3.12.10",
     "platform": "Windows-11-10.0.26200-SP0",
     "package_count": 95,
-    "pip_freeze_sha256": "59f3d679d7790fe9b96eb1886b44cdbe88aa05f60e79dfe2acfae78df7ccfec5"
+    "pip_freeze_sha256": "59f3d679d7790fe9b96eb1886b44cdbe88aa05f60e79dfe2acfae78df7ccfec5",
+    "lockfile": "requirements-workstation-lock.txt"
+  },
+  "verification": {
+    "last_code_commit_tested": "a20d807f57925186a01fd11ae139e7393a843b52",
+    "date": "2026-08-12",
+    "pytest": "136 passed, 6 skipped, 2 subtests passed in 26.76s",
+    "architecture_audit": "PASS; no required failures",
+    "trajectory_dry_run": {
+      "status": "PASS",
+      "cells": 8,
+      "protocol_fingerprint": "ef119a1e27e51481483ef1166792bec9442a3147c2e5f5436e3918eb2e079054"
+    },
+    "working_tree_clean_before_handoff": true,
+    "current_head_command": "git rev-parse HEAD"
+  },
+  "handoff": {
+    "entrypoint": "HANDOFF.md",
+    "architecture_decision": "docs/architecture/ASTRA2_ARCHITECTURE_REVIEW.md",
+    "implementation_contract": "docs/architecture/ASTRA2_IMPLEMENTATION_CONTRACT.md",
+    "verified_baseline": "docs/benchmarks/ASTRA2_BASELINE_2026-08-11.md",
+    "next_milestone": "Campaign domain records plus append-only local store",
+    "updated": "2026-08-12"
   },
   "notes": [
     "Uncommitted files in the production checkout were intentionally excluded."

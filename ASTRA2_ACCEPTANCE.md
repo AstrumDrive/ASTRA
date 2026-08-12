@@ -66,6 +66,12 @@ The six skips require optional frozen external caches. See
 - [ ] Cross-oracle claim verdicts agree for the frozen client-validation suite
 - [ ] Scheduler attribution, concurrency limits, timeouts, and cancellation pass
 
+Non-promotional diagnostic on 2026-08-12: the architecture audit passed all
+required configuration checks and discovered local Z3 plus WSL routes for
+SageMath, Maxima, and Cadabra. It reported local Lean and the remote route as
+unconfigured. Discovery is not an engine smoke test, so no G2 item is marked
+complete.
+
 ### G3 — Scientific quality benchmarks
 
 - [ ] Frozen deterministic quality suite passes

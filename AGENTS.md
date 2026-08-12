@@ -2,9 +2,17 @@
 
 ## ASTRA 2.0 development isolation
 
-This checkout is the isolated ASTRA 2.0 development line. Read
-`ASTRA2_ACCEPTANCE.md` before changing launchers, MCP registration, remote
-deployment, release metadata, or Git remotes.
+This checkout is the isolated ASTRA 2.0 development line. **Read `HANDOFF.md`
+completely before taking any development action**, then read
+`ASTRA2_ACCEPTANCE.md` and
+`docs/architecture/ASTRA2_ARCHITECTURE_REVIEW.md`, followed by
+`docs/architecture/ASTRA2_IMPLEMENTATION_CONTRACT.md`. The handoff contains the
+current state, exact next implementation slice, test baseline, and prohibited
+production actions.
+
+At session start, verify that `git rev-parse --show-toplevel` resolves to
+`C:/Users/Nelson/Dev/ASTRA-2.0`. If it resolves to
+`C:/Users/Nelson/Dev/ASTRA`, stop: that is the production checkout.
 
 Until every mandatory gate is recorded as passed and Nelson gives explicit
 approval:
@@ -16,6 +24,12 @@ approval:
   environments, or runtime workspaces from the production checkout;
 - tests and frozen benchmarks may execute from this checkout using a dedicated
   environment and explicitly supplied machine-local configuration.
+- the first authorized implementation slice is limited to the campaign domain
+  records, append-only store, and deterministic tests described in `HANDOFF.md`;
+  do not connect it to the MCP, GUI, ASTRUM, or production cycle in the same
+  change.
+- do not run the repository installers or MCP-registration script from this
+  checkout before production acceptance.
 
 ## Cross-platform collaborator onboarding
 

@@ -39,3 +39,12 @@ This result establishes a clean deterministic starting point only. It does not
 validate the proposed ASTRA 2.0 campaign architecture, external engines,
 ASTRUM, model CLIs, research quality, or comparative uplift.
 
+The handoff-only changes were rechecked on 2026-08-12. The suite again reported
+`136 passed, 6 skipped, 2 subtests passed`, in 26.76 seconds.
+
+On the same date, the architecture audit passed without a required failure and
+the trajectory runner produced an eight-cell dry-run schedule with protocol
+fingerprint
+`ef119a1e27e51481483ef1166792bec9442a3147c2e5f5436e3918eb2e079054`.
+Neither command contacted a model or established an engine/ASTRUM acceptance
+result.
