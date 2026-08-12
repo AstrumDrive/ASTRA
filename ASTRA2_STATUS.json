@@ -54,7 +54,17 @@
       "ledger": "HEALTHY, 22 events, checkpoint validated",
       "evidence_doc": "docs/evidence/ASTRA2_CANARY_LIVE_20260812.md"
     },
-    "pytest_after_canary_hardening": "301 passed, 6 skipped, 28 subtests passed in 15.81s",
+    "pytest_after_canary_hardening": "304 passed, 6 skipped, 28 subtests passed in 28.97s",
+    "h1_smoke_clean": {
+      "date": "2026-08-12",
+      "verdict": "BLOCKED_BY_INSTRUMENT (not pass, not fail)",
+      "report": "workspace/quality_benchmark_runs/quality_20260812_163841.json",
+      "audit_track": "3/3, defect recall 1.0, false alarms 0.0",
+      "execution_track": "4/4 verdict accuracy",
+      "hallucinations": "0 in 5/5 completed cycles",
+      "published_false_acceptance_rate": "0.6667 - measurement artifact: verdict not re-anchored to the original claim",
+      "evidence_doc": "docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md"
+    },
     "architecture_audit": "PASS; no required failures",
     "trajectory_dry_run": {
       "status": "PASS",
@@ -84,7 +94,7 @@
       "Stage 5: development-only astra_campaign_* interfaces (2026-08-12, authorized by Nelson)",
       "Stage 6 infrastructure: preregistered canary protocol, runner with dry-run/offline-smoke/live gating (2026-08-12, authorized by Nelson)"
     ],
-    "next_milestone": "H3 comparative pilot (campaign vs full-vnext1/full-linear) and H1 quality gate - each with its own budget decision by Nelson; optional 1-cycle live re-verification of the portfolio flow",
+    "next_milestone": "Verdict re-anchoring to the original claim (blocks a valid H1 measurement; cheap, no quota, requires Nelson's authorization), then H1 standard tier and the H3 comparative pilot",
     "updated": "2026-08-12"
   },
   "notes": [

@@ -195,12 +195,25 @@ pip freeze SHA-256:
   ciclo: `execution`/`cli_models`/`oracle_used`). Evidencia:
   `docs/evidence/ASTRA2_CANARY_LIVE_20260812.md`.
 
+- **H1 smoke limpio (2026-08-12)**: con la configuración íntegra de
+  producción, 3/3 auditoría (0 falsas alarmas), 4/4 ejecución, y **cero
+  alucinaciones en 5/5 ciclos completados**. La `false_acceptance_rate` de
+  0.6667 es un **artefacto de medición**: ASTRA refutó correctamente los
+  claims falsos pero reporta el estado de la conjetura formada, no del claim
+  original. Evidencia:
+  `docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md`.
+
 ### Todavía no existe
 
+- **re-anclaje de veredicto al claim original** (`original_claim_verdict` en
+  el analista) — bloquea la medición H1 con instrumento válido; barato y sin
+  cuota, pero **requiere autorización explícita de Nelson**;
+- **gate H1 en tier standard** (43 casos, 7–14 h) — no gastarlo antes del
+  re-anclaje, mediría el desajuste de etiquetas;
+- **pilot comparativo H3** — su adaptador de métricas ya existe
+  (`core/campaign_trajectory_metrics.py`); presupuesto pendiente;
 - re-verificación viva del flujo de portafolio tras las correcciones
-  (1 ciclo, opcional, decisión de Nelson);
-- **pilot comparativo H3 y gate H1** — presupuestos propios pendientes de
-  decisión de Nelson;
+  (1 ciclo, opcional);
 - R2 (revisor con autocrítica) y R5 (ancla numérica) del contraste con el
   preprint — H2/H4 diferidas hasta implementarlas;
 - campaña adversarial posterior a evidencia en milestones;
