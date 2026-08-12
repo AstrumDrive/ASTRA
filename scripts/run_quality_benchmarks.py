@@ -179,6 +179,32 @@ def _manifest() -> dict[str, Any]:
     }
 
 
+def _reanchored_status(result: dict[str, Any]) -> str:
+    """Score the seeded claim, not the conjecture the cycle chose to test.
+
+    A neutral prove-OR-refute stance lets ASTRA correct or negate a false
+    seeded claim and then validate the corrected statement.  The cycle status
+    describes that tested conjecture, so scoring it against the seeded claim's
+    expected verdict mislabels a correct refutation as a false acceptance
+    (measured 2026-08-12; see docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md).
+
+    When the analyst re-anchored its verdict, that answer decides the case.
+    ``SUBSTITUTED``/``INCONCLUSIVE`` stay distinct from both truth values: the
+    question was not answered, which is not the same as accepting a falsehood.
+    Cycles without the field keep the historical behavior.
+    """
+    status = str(result.get("status") or "TOOL_ERROR").upper()
+    verdict = str(result.get("original_claim_verdict") or "UNSPECIFIED").upper()
+    if status in {"VALIDATED", "REFUTED", "WEAK_PASS"}:
+        if verdict == "SUPPORTED":
+            return "VALIDATED"
+        if verdict == "REFUTED":
+            return "REFUTED"
+        if verdict in {"SUBSTITUTED", "INCONCLUSIVE"}:
+            return verdict
+    return status
+
+
 def _error_status(result: dict[str, Any]) -> str:
     message = str(result.get("error") or "")
     upper = message.upper()
@@ -260,7 +286,7 @@ async def _run_one(
         observed = (
             _error_status(result)
             if result.get("error")
-            else str(result.get("status") or "TOOL_ERROR").upper()
+            else _reanchored_status(result)
         )
         expected = case.expected
         correct = observed == expected

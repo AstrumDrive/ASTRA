@@ -10,6 +10,24 @@ RULES OF OPERATION:
    - A printed PASS is evidence, never authority. Downgrade flawed, circular, incomplete,
      or non-falsifiable validators to CODE_ERROR even when they exit cleanly.
    - Compare the result with the shared objective and state what remains unresolved.
+2b. VERDICT RE-ANCHORING (mandatory when an ORIGINAL CLAIM is supplied):
+   `status` above describes the CONJECTURE that was actually tested. The user
+   asked about the ORIGINAL CLAIM, which the conjecture may have corrected,
+   negated, narrowed, or replaced. Always answer the user's question too, in
+   `original_claim_verdict`:
+     * "SUPPORTED": the evidence establishes the original claim as stated.
+     * "REFUTED": the evidence establishes that the original claim, as stated,
+       is false. Use this when the cycle validated a counterexample to it, or
+       validated a corrected statement that contradicts it. A conjecture of the
+       form "X is a counterexample to the claim" that PASSES means the original
+       claim is REFUTED.
+     * "INCONCLUSIVE": the evidence does not decide the original claim.
+     * "SUBSTITUTED": the cycle deliberately tested a different question and the
+       original claim was neither established nor refuted by this evidence.
+   Also return `original_claim_reasoning`: one sentence naming the exact
+   relation between the tested conjecture and the original claim.
+   Never let a `VALIDATED` status imply the original claim is true when the
+   validated conjecture actually contradicts it.
    - Keep the atomic claim separate from the shared final objective. Also return:
      * `goal_coverage`: `COMPLETE`, `PARTIAL`, or `UNKNOWN`;
      * `goal_resolved`: true only when this evidence resolves the shared objective;

@@ -728,6 +728,7 @@ def _clean_text(x):
 def _ensemble_report(verdicts):
     """Lista transparente de que dijo cada analista (para el JSON del ciclo)."""
     return [{"provider": p, "status": d.get("status"),
+             "original_claim_verdict": d.get("original_claim_verdict"),
              "reasoning": (d.get("reasoning") or "")[:600]} for p, d in verdicts]
 
 
@@ -971,14 +972,16 @@ def _portfolio_evidence_kinds(raw_kinds):
     return kinds
 
 
-async def _ensemble_analysis(providers, shared_goal, conjecture, exec_result, phase_timeout):
+async def _ensemble_analysis(providers, shared_goal, conjecture, exec_result, phase_timeout,
+                             original_claim=""):
     """Analisis multi-modelo con CONSENSO CONSERVADOR (_combine_verdicts).
     Devuelve (analysis_dict, [(label, ASTRAIntelligence)])."""
     from core.llm_client import ASTRAIntelligence
     ais = [ASTRAIntelligence(provider=p, cli_models=None, cli_timeout=phase_timeout)
            for p in providers]
     res = await asyncio.gather(
-        *[a.analyze_results(conjecture, exec_result, shared_goal=shared_goal) for a in ais],
+        *[a.analyze_results(conjecture, exec_result, shared_goal=shared_goal,
+                            original_claim=original_claim) for a in ais],
         return_exceptions=True)
     used = [("analyst:%s" % p, a) for p, a in zip(providers, ais)]
     verdicts = []
@@ -1219,14 +1222,19 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     async def _run_analysis(cj, ex):
         # Un solo analista => camino lineal clasico. >=2 => consenso conservador.
+        # `intuition` es el claim ORIGINAL del usuario: viaja al analista para
+        # que re-ancle su veredicto a la pregunta realmente formulada.
         if len(an_providers) > 1:
             a, used = await _ensemble_analysis(
-                an_providers, shared_goal, cj, ex, _phase_timeout("ANALYST")
+                an_providers, shared_goal, cj, ex, _phase_timeout("ANALYST"),
+                original_claim=intuition,
             )
             ensemble_agents.extend(used)
             return a
         _prepare_agent(analyst, "ANALYST")
-        return await analyst.analyze_results(cj, ex, shared_goal=shared_goal)
+        return await analyst.analyze_results(
+            cj, ex, shared_goal=shared_goal, original_claim=intuition
+        )
 
     def _fail(msg, phase, conjecture_text=None):
         deadline_limited = (
@@ -1884,6 +1892,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         "status": analysis.get("status"),
         "atomic_status": coverage["atomic_status"],
         "scientific_status": coverage["scientific_status"],
+        # Eje separado: veredicto re-anclado al claim ORIGINAL del usuario.
+        # `status` describe la conjetura efectivamente probada; cuando la
+        # conjetura corrige o niega el claim, estos dos NO coinciden y no
+        # deben colapsarse.
+        "original_claim_verdict": (
+            analysis.get("original_claim_verdict") or "UNSPECIFIED"
+        ),
+        "original_claim_reasoning": analysis.get("original_claim_reasoning") or "",
         "oracle_verdict": exec_result.get("verdict") or "NONE",
         "goal_coverage": coverage,
         "deferred_claims": coverage["deferred_items"],
