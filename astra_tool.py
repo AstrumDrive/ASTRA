@@ -777,12 +777,14 @@ def _cycle_cache_payload(req, shared_goal, providers_resolved):
         "ASTRA_REVIEW_MAX_REVISIONS",
         "ASTRA_VNEXT_REVIEW_MAX_REVISIONS",
         "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS",
+        "ASTRA_PORTFOLIO_SYNTH",
     )
     return {
         "cache_schema_version": CACHE_SCHEMA_VERSION,
         "intuition": req.get("intuition", ""),
         "shared_goal": shared_goal,
         "axiomatic_base": req.get("axiomatic_base", ""),
+        "portfolio_context": req.get("portfolio_context"),
         "thread_summary": req.get("thread_summary", ""),
         "cycles_since_milestone": req.get("cycles_since_milestone", 1),
         "exec_timeout": req.get("exec_timeout", 0),
@@ -795,6 +797,12 @@ def _cycle_cache_payload(req, shared_goal, providers_resolved):
     }
 
 
+def _portfolio_synth_enabled():
+    """Gate del portafolio estructurado (etapa 1 de ASTRA 2.0). Default ON."""
+    raw = (os.environ.get("ASTRA_PORTFOLIO_SYNTH") or "").strip().strip("'\"")
+    return raw != "0"
+
+
 async def _ensemble_conjecture(
     providers,
     axiomatic_base,
@@ -803,9 +811,19 @@ async def _ensemble_conjecture(
     synth_provider,
     synth_models=None,
     timeout_for_phase=None,
+    portfolio_context=None,
 ):
     """Conjetura multi-modelo: propuestas en paralelo -> critica cruzada -> merge.
-    Devuelve (conjetura_final, [(label, ASTRAIntelligence)] para _cli_meta)."""
+    Devuelve (conjetura_final, [(label, ASTRAIntelligence)] para _cli_meta).
+
+    Etapa 1 ASTRA 2.0: cuando ASTRA_PORTFOLIO_SYNTH != "0", el merge pide ademas
+    un bloque cercado ```astra-portfolio``` con el claim seleccionado y 0-3
+    alternativas materialmente distintas. El bloque se extrae del texto (el
+    traductor recibe la conjetura limpia) y viaja en deliberation["portfolio"].
+    Fail-soft: un bloque ausente o invalido se registra, nunca rompe el ciclo.
+    `portfolio_context` opcional: {"deliverables": [...],
+    "allowed_evidence_kinds": [EvidenceKind|str, ...],
+    "forbidden_method_families": [...]} (R4 del contraste con el preprint)."""
     from core.llm_client import ASTRAIntelligence
     current_timeout = (
         timeout_for_phase("CONJECTURE")
@@ -876,8 +894,21 @@ async def _ensemble_conjecture(
         c = _clean_text(crits[i]) if i < len(crits) else None
         if c:
             blocks.append("--- Critica de %s a las rivales ---\n%s" % (p, c))
+    portfolio_enabled = _portfolio_synth_enabled()
+    merge_system = _MERGE_SYSTEM
+    context = portfolio_context or {}
+    if portfolio_enabled:
+        from core.campaign_portfolio import portfolio_instruction_block
+        merge_system = _MERGE_SYSTEM + "\n\n" + portfolio_instruction_block(
+            deliverables=context.get("deliverables", ()),
+            allowed_evidence_kinds=_portfolio_evidence_kinds(
+                context.get("allowed_evidence_kinds", ())
+            ),
+            forbidden_families=context.get("forbidden_method_families", ()),
+        )
     merged = _clean_text(await synth._call_api(
-        _MERGE_SYSTEM, "Intuicion original:\n%s\n\n%s" % (intuition, "\n\n".join(blocks))))
+        merge_system, "Intuicion original:\n%s\n\n%s" % (intuition, "\n\n".join(blocks))))
+    synthesis_succeeded = bool(merged)
     if not merged:
         # Merge fallo -> degradar a concatenacion etiquetada (el traductor Opus
         # reconcilia igual, solo sin conjetura de consenso previa).
@@ -894,7 +925,50 @@ async def _ensemble_conjecture(
         ],
         "synthesis_provider": synth_provider,
     }
+    if portfolio_enabled:
+        if synthesis_succeeded:
+            from core.campaign_portfolio import (
+                forbidden_family_violations,
+                parse_portfolio,
+            )
+            parsed = parse_portfolio(merged)
+            merged = parsed.conjecture_text or merged
+            deliberation["portfolio"] = (
+                parsed.portfolio.to_dict() if parsed.portfolio else None
+            )
+            if parsed.error:
+                deliberation["portfolio_error"] = parsed.error
+            forbidden = context.get("forbidden_method_families", ())
+            if parsed.portfolio and forbidden:
+                violations = forbidden_family_violations(
+                    parsed.portfolio, forbidden
+                )
+                if violations:
+                    deliberation["portfolio_forbidden_violations"] = list(
+                        violations
+                    )
+        else:
+            deliberation["portfolio"] = None
+            deliberation["portfolio_error"] = (
+                "synthesis degraded to labeled concatenation; "
+                "no portfolio block available"
+            )
     return merged, used, deliberation
+
+
+def _portfolio_evidence_kinds(raw_kinds):
+    """Acepta EvidenceKind o strings; ignora valores desconocidos (fail-soft)."""
+    from core.campaign_models import EvidenceKind
+    kinds = []
+    for item in raw_kinds or ():
+        if isinstance(item, EvidenceKind):
+            kinds.append(item)
+            continue
+        try:
+            kinds.append(EvidenceKind(str(item)))
+        except ValueError:
+            continue
+    return kinds
 
 
 async def _ensemble_analysis(providers, shared_goal, conjecture, exec_result, phase_timeout):
@@ -1485,6 +1559,7 @@ async def _do_cycle_impl(req: dict) -> dict:
             _phase_timeout("CONJECTURE"), synth_provider,
             _phase_models("SYNTH"),
             timeout_for_phase=_phase_timeout,
+            portfolio_context=req.get("portfolio_context"),
         )
         ensemble_agents.extend(_cu)
     else:

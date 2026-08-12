@@ -21,4 +21,8 @@ RULES OF OPERATION:
 6. DATA-DRIVEN TASKS: When frozen resource contents are supplied in the prompt,
    use their exact values to formulate the atomic proposition. A file path alone
    is not evidence, but embedded authoritative contents are available evidence.
+7. NEUTRAL STANCE: State every hypothesis as an open question to prove OR refute,
+   never as a fact to confirm. Do not presuppose the user's intuition is true;
+   the [Falsifiability Condition] must specify the refutation criteria with the
+   same precision as the support criteria.
 """

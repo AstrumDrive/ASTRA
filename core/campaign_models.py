@@ -121,6 +121,15 @@ def validate_source_commit(value: Any) -> str:
     return value
 
 
+def validate_method_family(value: Any) -> str:
+    """Normalized lowercase method-family name shared by Branch and portfolio."""
+    if not isinstance(value, str) or not _METHOD_FAMILY_RE.match(value):
+        raise CampaignModelError(
+            f"method_family must be normalized lowercase ([a-z0-9_-]): {value!r}"
+        )
+    return value
+
+
 def ensure_portable_text(field_name: str, value: Any) -> str:
     """Reject machine-specific absolute paths inside portable content."""
     if not isinstance(value, str) or not value.strip():
@@ -787,13 +796,7 @@ class Branch:
         object.__setattr__(
             self, "direction", ensure_portable_text("direction", self.direction)
         )
-        if not isinstance(self.method_family, str) or not _METHOD_FAMILY_RE.match(
-            self.method_family
-        ):
-            raise CampaignModelError(
-                "method_family must be normalized lowercase "
-                f"([a-z0-9_-]): {self.method_family!r}"
-            )
+        validate_method_family(self.method_family)
         object.__setattr__(
             self,
             "material_difference",

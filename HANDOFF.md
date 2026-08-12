@@ -135,13 +135,22 @@ pip freeze SHA-256:
   (`core/campaign_policy.py`). Capa pura: sin conexión a `astra_cycle`,
   MCP, GUI ni ASTRUM. Evidencia:
   `docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md`.
+- **etapa 1 (2026-08-12, autorizada por Nelson)**: portafolio estructurado
+  desde la síntesis del ensemble (`core/campaign_portfolio.py` + wiring en
+  `_ensemble_conjecture`, gate `ASTRA_PORTFOLIO_SYNTH` default ON, fail-soft
+  en el ciclo). Las propuestas minoritarias sobreviven como candidatos con
+  familia de método, delta de supuestos, plan de evidencia discriminante,
+  deliverable y crux (R3); familias prohibidas con "DO NOT use" (R4);
+  postura neutral en el prompt de conjetura (R1). Conversión determinista a
+  `(Claim, Branch)` que pasa los hard gates del primer corte. Evidencia:
+  `docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md`.
 
 ### Todavía no existe
 
-- controlador de campañas de ASTRA 2.0 (los records y la política existen;
-  ningún runtime los usa todavía);
-- ramas como objetos científicos vivos alimentados por ciclos reales;
-- portafolio estructurado desde la síntesis del ensemble;
+- controlador de campañas de ASTRA 2.0 (los records, la política y el
+  portafolio existen; ningún runtime de campaña los usa todavía);
+- ramas como objetos científicos vivos alimentados por ciclos reales
+  (etapa 2: envolver `astra_cycle` como ejecutor de un `Episode`);
 - progressive widening;
 - campaña adversarial posterior a evidencia en milestones;
 - herramientas MCP `astra_campaign_*`;
@@ -194,12 +203,17 @@ verificado el 2026-08-12** — ver §4 y
 terminación: suite previa intacta, tests nuevos sin modelos/red/ASTRUM,
 `astra_cycle` sin cambios, ningún MCP nuevo, producción intacta.
 
+**La etapa 1 de §7 (portafolio estructurado) fue autorizada por Nelson y está
+implementada y verificada el 2026-08-12** — ver §4 y
+`docs/evidence/ASTRA2_STAGE1_PORTFOLIO_20260812.md`.
+
 **Ningún bloque posterior está autorizado implícitamente.** El siguiente
-candidato es la etapa 1 de §7 (portafolio estructurado desde la síntesis del
-ensemble), pero requiere la aprobación explícita de Nelson antes de empezar,
-porque toca prompts/parseo de la síntesis existente. El agente que la reciba
-debe releer el contrato congelado y añadir su propio plan de tests antes de
-escribir código.
+candidato es la etapa 2 de §7: envolver `astra_cycle` como ejecutor de un
+`Episode` (el ciclo corre igual; sus artefactos y estatus se registran como
+eventos del ledger, y el portafolio parseado se promueve a records de rama).
+Requiere la aprobación explícita de Nelson antes de empezar. El agente que la
+reciba debe releer el contrato congelado y añadir su propio plan de tests
+antes de escribir código.
 
 Insumo de diseño para esa decisión:
 `docs/architecture/ASTRA2_PREPRINT_2602.03837_CONTRAST.md` contrasta el
