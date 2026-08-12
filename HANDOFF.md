@@ -164,10 +164,16 @@ pip freeze SHA-256:
   solo se dispara por evidencia negativa/inconclusa o presión de presupuesto.
   Evidencia: `docs/evidence/ASTRA2_STAGE3_DECISION_20260812.md`.
 
+- **etapa 4 (2026-08-12, autorizada por Nelson)**: resume explícito de
+  campaña (`core/campaign_resume.py`): checkpoint como acelerador validado y
+  reconstruible (nunca autoridad), bloqueo ante cola truncada hasta archivar,
+  recomendación determinista de la siguiente acción, modo solo-lectura sin
+  lock, y no-repetición de episodios por construcción. Evidencia:
+  `docs/evidence/ASTRA2_STAGE4_RESUME_20260812.md`.
+
 ### Todavía no existe
 
-- resume explícito de campaña sobre el checkpoint (etapa 4) e interfaces de
-  desarrollo `astra_campaign_*` (etapa 5);
+- interfaces de desarrollo `astra_campaign_*` (etapa 5);
 - canary y ablations comparativas contra ASTRA actual y `full-linear`
   (etapa 6) — el lazo aún no ha corrido con modelos reales;
 - campaña adversarial posterior a evidencia en milestones;
