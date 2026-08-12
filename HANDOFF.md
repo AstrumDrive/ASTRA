@@ -82,6 +82,16 @@ Resultado del 2026-08-11:
 Handoff revalidado el 2026-08-12 con el mismo resultado lógico:
 `136 passed, 6 skipped, 2 subtests passed in 26.76s`.
 
+Tras implementar el primer corte (capa de dominio y persistencia de campañas),
+el mismo día:
+
+```text
+218 passed, 6 skipped, 25 subtests passed in 13.84s
+```
+
+Los 82 tests nuevos (más 23 subtests) corren sin modelos, red, MCP ni ASTRUM.
+Evidencia: `docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md`.
+
 Comprobaciones locales adicionales del 2026-08-12:
 
 - `scripts/audit_architecture.py`: `PASS`, sin fallos requeridos;
@@ -116,14 +126,23 @@ pip freeze SHA-256:
   objetivo;
 - Research Loop profundidad-primero y registro textual de ramas;
 - benchmarks de calidad, diversidad y trayectoria;
-- prototipo MCTS experimental separado de producción.
+- prototipo MCTS experimental separado de producción;
+- **primer corte 2.0 (2026-08-12)**: records de dominio de campaña
+  (`core/campaign_models.py`), ledger append-only con cadena de hashes,
+  cola truncada explícita, checkpoint atómico y escritor único
+  (`core/campaign_store.py`), y política determinista con hard gates,
+  presupuestos fail-closed y una sola rama activa
+  (`core/campaign_policy.py`). Capa pura: sin conexión a `astra_cycle`,
+  MCP, GUI ni ASTRUM. Evidencia:
+  `docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md`.
 
 ### Todavía no existe
 
-- controlador de campañas de ASTRA 2.0;
-- ramas como objetos científicos completos con evidencia y decisiones propias;
-- ledger append-only de campaña;
-- progressive widening y política determinista de promoción/suspensión;
+- controlador de campañas de ASTRA 2.0 (los records y la política existen;
+  ningún runtime los usa todavía);
+- ramas como objetos científicos vivos alimentados por ciclos reales;
+- portafolio estructurado desde la síntesis del ensemble;
+- progressive widening;
 - campaña adversarial posterior a evidencia en milestones;
 - herramientas MCP `astra_campaign_*`;
 - UI para campañas;
@@ -169,31 +188,18 @@ sí sola una identidad exacta. El muestreo no prueba una afirmación universal.
 
 ## 6. Próximo bloque de implementación autorizado
 
-El siguiente agente debe implementar solamente la capa de dominio y
-persistencia, sin conectarla todavía al runtime de producción:
+**El primer corte (capa de dominio y persistencia) está implementado y
+verificado el 2026-08-12** — ver §4 y
+`docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md`. Cumplió su criterio de
+terminación: suite previa intacta, tests nuevos sin modelos/red/ASTRUM,
+`astra_cycle` sin cambios, ningún MCP nuevo, producción intacta.
 
-1. `core/campaign_models.py`
-   - `Campaign`, `Branch`, `Episode`, `Claim`, `Evidence`, `Decision`;
-   - enums cerrados para estados y tipos de afirmación;
-   - validación de ids, timestamps, presupuestos, transiciones y referencias;
-   - serialización JSON estable y versionada.
-2. `core/campaign_store.py`
-   - `events.jsonl` append-only;
-   - checkpoints mediante escritura temporal + `os.replace`;
-   - recuperación segura tras una última línea truncada;
-   - ningún escritor concurrente en la primera versión.
-3. `core/campaign_policy.py`
-   - hard gates científicos y de presupuesto;
-   - transiciones fail-closed;
-   - una sola rama activa;
-   - sin selección aprendida ni llamadas de modelos.
-4. Tests nuevos:
-   - round-trip de todos los records;
-   - rechazo de estados/transiciones inválidos;
-   - inmutabilidad de eventos anteriores;
-   - recuperación de log truncado;
-   - checkpoint atómico;
-   - aislamiento entre campañas.
+**Ningún bloque posterior está autorizado implícitamente.** El siguiente
+candidato es la etapa 1 de §7 (portafolio estructurado desde la síntesis del
+ensemble), pero requiere la aprobación explícita de Nelson antes de empezar,
+porque toca prompts/parseo de la síntesis existente. El agente que la reciba
+debe releer el contrato congelado y añadir su propio plan de tests antes de
+escribir código.
 
 Directorio de runtime previsto, siempre ignorado por Git:
 
@@ -208,18 +214,21 @@ workspace/campaigns/<campaign_id>/
   checkpoint.json
 ```
 
-### Criterio de terminación de este bloque
+### Criterio de terminación del primer bloque (cumplido el 2026-08-12)
 
-- la suite previa continúa pasando;
-- pasan todos los tests nuevos sin modelos, red ni ASTRUM;
-- no se modifica la conducta de `astra_cycle`;
-- no se registra un MCP nuevo;
-- no se cambia producción;
-- se actualizan este handoff, `ASTRA2_STATUS.json` y la evidencia de la compuerta.
+- la suite previa continúa pasando — sí (`218 passed, 6 skipped`);
+- pasan todos los tests nuevos sin modelos, red ni ASTRUM — sí (82 + 23 subtests);
+- no se modifica la conducta de `astra_cycle` — sí (solo archivos nuevos);
+- no se registra un MCP nuevo — sí;
+- no se cambia producción — sí;
+- este handoff, `ASTRA2_STATUS.json` y la evidencia de la compuerta quedaron
+  actualizados en el mismo commit que el código.
 
 El contrato exacto de esta capa está congelado en
-`docs/architecture/ASTRA2_IMPLEMENTATION_CONTRACT.md`; no inventar una segunda
-semántica dentro del código.
+`docs/architecture/ASTRA2_IMPLEMENTATION_CONTRACT.md`; la implementación no
+introduce una segunda semántica: el store valida sobres y cadena de hashes, la
+política valida transiciones y referencias, y los modelos definen los enums y
+tablas que ambos comparten.
 
 ## 7. Secuencia posterior, todavía no autorizada implícitamente
 

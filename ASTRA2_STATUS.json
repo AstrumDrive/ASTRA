@@ -32,16 +32,17 @@
     "lockfile": "requirements-workstation-lock.txt"
   },
   "verification": {
-    "last_code_commit_tested": "a20d807f57925186a01fd11ae139e7393a843b52",
+    "base_commit_before_slice": "9903524",
     "date": "2026-08-12",
-    "pytest": "136 passed, 6 skipped, 2 subtests passed in 26.76s",
+    "pytest": "218 passed, 6 skipped, 25 subtests passed in 13.84s",
+    "campaign_slice_tests": "82 passed, 23 subtests passed in 0.60s",
     "architecture_audit": "PASS; no required failures",
     "trajectory_dry_run": {
       "status": "PASS",
       "cells": 8,
       "protocol_fingerprint": "ef119a1e27e51481483ef1166792bec9442a3147c2e5f5436e3918eb2e079054"
     },
-    "working_tree_clean_before_handoff": true,
+    "campaign_slice_evidence": "docs/evidence/ASTRA2_CAMPAIGN_SLICE_20260812.md",
     "current_head_command": "git rev-parse HEAD"
   },
   "handoff": {
@@ -49,7 +50,10 @@
     "architecture_decision": "docs/architecture/ASTRA2_ARCHITECTURE_REVIEW.md",
     "implementation_contract": "docs/architecture/ASTRA2_IMPLEMENTATION_CONTRACT.md",
     "verified_baseline": "docs/benchmarks/ASTRA2_BASELINE_2026-08-11.md",
-    "next_milestone": "Campaign domain records plus append-only local store",
+    "completed_milestones": [
+      "Campaign domain records, deterministic policy, and append-only local store (2026-08-12)"
+    ],
+    "next_milestone": "Structured portfolio from ensemble synthesis - requires explicit authorization from Nelson before starting",
     "updated": "2026-08-12"
   },
   "notes": [
