@@ -58,10 +58,49 @@ demostración con `_scientific_metrics` de que los registros medidos el
 `strict_accuracy` **→ 1.0** al puntuar el claim real en vez de la etiqueta
 desalineada.
 
-## Límite honesto
+## Verificación VIVA: 3/3 con modelos reales
 
-Los tests son deterministas y con dobles: prueban el contrato, el cableado y
-la puntuación. **Falta confirmar en vivo** que los modelos reales rellenan el
-campo correctamente (el prompt es nuevo). Verificación barata propuesta: los
-tres casos de refutación sembrada (~3 ciclos, ~30 min) antes de gastar el
-tier standard de 43 casos.
+Ejecutada sobre los tres casos de refutación sembrada
+(`--only`, ~4 ciclos, config íntegra de producción). Informes:
+`quality_20260812_172156.json` y `quality_20260812_173253.json`.
+
+| Caso | Antes | Después | `original_claim_verdict` |
+|---|---|---|---|
+| `quality_logic_sqrt_square_all_reals_false` | VALIDATED ✗ | **REFUTED ✓** | REFUTED |
+| `logic_false_square_claim` | REFUTED ✓ | **REFUTED ✓** | REFUTED |
+| `quality_ode_harmonic_wrong_initial_solution_false` | VALIDATED ✗ | **REFUTED ✓** | REFUTED |
+
+Razonamientos textuales del analista (extraídos de los informes):
+
+- *"The validated conjecture replaces x with |x| and supplies the exact
+  counterexample x=-1, for which sqrt((-1)^2)=1 rather than -1."*
+- *"The validated conjecture is the negation of the original universal claim:
+  … gives x = 0 as an explicit counterexample."*
+- *"The proposition P is that y(t)=sin(omega t) satisfies the ODE **and both
+  initial conditions**; the validated conjecture proves P false for every
+  real omega because y(0)=0, not 1."*
+
+`false_acceptance_rate` sobre estos casos: **0.0**.
+
+## Corrección intermedia: anclar a la proposición, no a la pista
+
+La primera pasada viva dio 2/3. El fallo **no era del modelo**: en los
+fixtures sembrados el campo `intuition` contiene una **pista**
+("The proposed function solves the differential equation but may fail the
+initial conditions" — enunciado **verdadero**) mientras la proposición
+decidible vive en `objective`. El analista juzgó la pista correctamente; el
+instrumento anclaba al campo equivocado.
+
+Corregido: el prompt identifica P (la proposición del objetivo cuando lo
+enuncia; la dirección si no) con la orden explícita *"Judge P itself. Never
+judge the hint, the method suggestion, or the framing remark"*; la dirección
+viaja etiquetada como pista; y el ancla acepta el objetivo por sí solo.
+Regresión: `test_prompt_judges_the_proposition_not_the_hint` y
+`test_an_objective_alone_is_a_valid_anchor`.
+
+Suite completa tras la corrección: **320 passed, 6 skipped, 41 subtests**.
+
+## Estado del instrumento H1
+
+**Validado.** El tier standard (43 casos) ya mide aceptación falsa real y no
+desajuste de etiquetas.

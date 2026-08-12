@@ -108,19 +108,21 @@ ORIGINAL_CLAIM_VERDICTS = (
 )
 
 
-def _normalize_original_claim_verdict(parsed: dict, original_claim: str) -> dict:
+def _normalize_original_claim_verdict(parsed: dict, anchor_text: str) -> dict:
     """Validate the re-anchored verdict against a closed set; never invent one.
 
-    An absent, unparseable, or unknown value becomes ``UNSPECIFIED`` so callers
-    can tell "the analyst did not answer" from "the analyst decided".  The
-    cycle status is never rewritten from this field: the two axes stay
-    separate by construction.
+    ``anchor_text`` is whatever states the user's question — normally the
+    shared objective, falling back to the current direction.  An absent,
+    unparseable, or unknown value becomes ``UNSPECIFIED`` so callers can tell
+    "the analyst did not answer" from "the analyst decided".  The cycle status
+    is never rewritten from this field: the two axes stay separate by
+    construction.
     """
     verdict = str(parsed.get("original_claim_verdict") or "").strip().upper()
     if verdict not in ORIGINAL_CLAIM_VERDICTS:
         verdict = "UNSPECIFIED"
-    if not str(original_claim or "").strip():
-        # Without an original claim there is nothing to re-anchor to.
+    if not str(anchor_text or "").strip():
+        # With nothing stating the user's question there is no anchor.
         verdict = "UNSPECIFIED"
     parsed["original_claim_verdict"] = verdict
     reasoning = str(parsed.get("original_claim_reasoning") or "").strip()
@@ -648,7 +650,8 @@ class ASTRAIntelligence:
 
         review = exec_result.get("code_review") or {}
         original_block = (
-            f"ORIGINAL CLAIM AS THE USER STATED IT:\n{original_claim}\n\n"
+            f"USER'S CURRENT DIRECTION OR HINT (not necessarily the claim "
+            f"itself):\n{original_claim}\n\n"
             if str(original_claim or "").strip()
             else ""
         )
@@ -672,7 +675,9 @@ class ASTRAIntelligence:
         if status not in {"CODE_ERROR", "REFUTED", "VALIDATED"}:
             parsed = None
         if parsed is not None:
-            parsed = _normalize_original_claim_verdict(parsed, original_claim)
+            parsed = _normalize_original_claim_verdict(
+                parsed, shared_goal or original_claim
+            )
 
         # A crashed run never establishes a theorem.
         if _crashed:

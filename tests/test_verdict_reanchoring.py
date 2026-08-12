@@ -37,7 +37,15 @@ class PromptContractTests(unittest.TestCase):
         for verdict in ("SUPPORTED", "REFUTED", "INCONCLUSIVE", "SUBSTITUTED"):
             self.assertIn(verdict, REFUTATION_ANALYST_PROMPT)
         # The counterexample rule is the exact case measured in the canary.
-        self.assertIn("counterexample to the claim", REFUTATION_ANALYST_PROMPT)
+        self.assertIn("counterexample to P", REFUTATION_ANALYST_PROMPT)
+
+    def test_prompt_judges_the_proposition_not_the_hint(self):
+        # Live finding 2026-08-12: seeded cases put a *hint* in the direction
+        # field ("solves the DE but may fail the initial conditions") and the
+        # decidable proposition in the objective. The analyst must judge the
+        # proposition, never the hint.
+        self.assertIn("Determine whether P", REFUTATION_ANALYST_PROMPT)
+        self.assertIn("Never judge the hint", REFUTATION_ANALYST_PROMPT)
 
 
 class NormalizationTests(unittest.TestCase):
@@ -62,11 +70,20 @@ class NormalizationTests(unittest.TestCase):
                     parsed["original_claim_verdict"], "UNSPECIFIED"
                 )
 
-    def test_without_an_original_claim_there_is_nothing_to_re_anchor(self):
+    def test_without_an_anchor_there_is_nothing_to_re_anchor_to(self):
         parsed = _normalize_original_claim_verdict(
             {"original_claim_verdict": "REFUTED"}, ""
         )
         self.assertEqual(parsed["original_claim_verdict"], "UNSPECIFIED")
+
+    def test_an_objective_alone_is_a_valid_anchor(self):
+        # The proposition normally lives in the objective, so a missing
+        # direction must not suppress a real re-anchored verdict.
+        parsed = _normalize_original_claim_verdict(
+            {"original_claim_verdict": "REFUTED"},
+            "Determine whether sqrt(x^2)=x for every real x.",
+        )
+        self.assertEqual(parsed["original_claim_verdict"], "REFUTED")
 
     def test_closed_enum_is_the_single_source(self):
         self.assertEqual(
@@ -105,11 +122,14 @@ class AnalystWiringTests(unittest.IsolatedAsyncioTestCase):
                 "validation_code": "print('VERDICT: PASS')",
                 "code_review": {"status": "APPROVED"},
             },
-            shared_goal="Decide the identity.",
-            original_claim="For all real x, sqrt(x^2) = x.",
+            shared_goal="Determine whether sqrt(x^2)=x for every real x.",
+            original_claim="Test the universal real-domain claim.",
         )
-        self.assertIn("ORIGINAL CLAIM AS THE USER STATED IT", prompts[0])
-        self.assertIn("For all real x, sqrt(x^2) = x.", prompts[0])
+        # The objective carries the decidable proposition; the direction is a
+        # hint. Both reach the analyst, labeled for what they are.
+        self.assertIn("SHARED FINAL OBJECTIVE", prompts[0])
+        self.assertIn("Determine whether sqrt(x^2)=x", prompts[0])
+        self.assertIn("CURRENT DIRECTION OR HINT", prompts[0])
         # The two axes stay separate and disagree, which is the whole point.
         self.assertEqual(result["status"], "VALIDATED")
         self.assertEqual(result["original_claim_verdict"], "REFUTED")
