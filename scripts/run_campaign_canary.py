@@ -26,11 +26,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.campaign_api import (  # noqa: E402
+    _resolve_source_commit,
     astra_campaign_start,
     astra_campaign_status,
     astra_campaign_step,
 )
 from core.campaign_models import new_record_id  # noqa: E402
+from core.campaign_store import CampaignStore  # noqa: E402
+from core.campaign_trajectory_metrics import (  # noqa: E402
+    campaign_trajectory_metrics,
+)
 from core.research_programs import load_research_programs  # noqa: E402
 
 PREREG_DOC = ROOT / "docs" / "benchmarks" / "ASTRA2_CANARY_PREREGISTRATION_V1.md"
@@ -243,6 +248,13 @@ async def run_canary(
         status = stepped["status"]
         if stepped["step"]["budget_exhausted"]:
             break
+    reader = CampaignStore(
+        Path(root), campaign_id, source_commit=_resolve_source_commit(None)
+    )
+    try:
+        trajectory_metrics = campaign_trajectory_metrics(reader.replay().state)
+    finally:
+        reader.close()
     summary = {
         "run_label": run_label,
         "preregistration_fingerprint": verify_preregistration(),
@@ -251,6 +263,7 @@ async def run_canary(
         "started": started,
         "episodes": episodes,
         "final_status": astra_campaign_status(campaign_id, root=root),
+        "trajectory_metrics": trajectory_metrics,
         "operability": {
             "episodes_completed": len(episodes),
             "evidence_recorded": sum(

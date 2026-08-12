@@ -109,6 +109,11 @@ class CanaryRunnerTests(unittest.TestCase):
         summary = json.loads(summaries[0].read_text(encoding="utf-8"))
         self.assertEqual(summary["operability"]["episodes_completed"], 2)
         self.assertEqual(summary["operability"]["evidence_recorded"], 2)
+        metrics = summary["trajectory_metrics"]
+        self.assertEqual(metrics["episodes_completed"], 2)
+        self.assertEqual(metrics["credible_evidence_episodes"], 2)
+        # bootstrap branch + the promoted independent_check alternative
+        self.assertEqual(metrics["branch_preservation"], 1)
         self.assertGreaterEqual(summary["operability"]["decisions_recorded"], 2)
         campaign_id = summary["campaign_id"]
         validate_record_id(campaign_id, "campaign")
