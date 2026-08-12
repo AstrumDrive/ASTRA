@@ -367,6 +367,30 @@ def _promote_alternatives(
     notes: list[str] = []
     forbidden = {item.lower() for item in forbidden_families}
     for claim, branch in alternatives:
+        # Repeated synthesis portfolios must not pile up duplicate branches:
+        # an alternative whose method family and claim fingerprint are
+        # already tracked by an existing branch is skipped, not re-created.
+        state = store.replay().state
+        fingerprint = claim.fingerprint()
+        already = next(
+            (
+                other.branch_id
+                for other in state.branches.values()
+                if other.method_family == branch.method_family
+                and any(
+                    state.claims[claim_id].fingerprint() == fingerprint
+                    for claim_id in other.claim_refs
+                    if claim_id in state.claims
+                )
+            ),
+            None,
+        )
+        if already is not None:
+            notes.append(
+                f"alternative {branch.method_family} already tracked by "
+                f"{already}; skipped"
+            )
+            continue
         branch = replace(branch, parent_episode_id=episode_id)
         store.append_event(
             event_type="CLAIM_RECORDED",

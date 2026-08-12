@@ -177,10 +177,22 @@ pip freeze SHA-256:
   entradas fail-closed, y garantía probada de que el MCP de producción no
   las registra. Evidencia: `docs/evidence/ASTRA2_STAGE5_DEV_API_20260812.md`.
 
+- **etapa 6 — infraestructura (2026-08-12, autorizada por Nelson)**: canary
+  pre-registrado y congelado
+  (`docs/benchmarks/ASTRA2_CANARY_PREREGISTRATION_V1.md`, huella
+  `9a25c214…` verificada por el runner), `scripts/run_campaign_canary.py`
+  con dry-run por defecto, smoke offline completo sin modelos y `--live`
+  que exige `--yes` + huella intacta; deduplicación de alternativas
+  repetidas en el ejecutor. Evidencia:
+  `docs/evidence/ASTRA2_STAGE6_CANARY_INFRA_20260812.md`.
+
 ### Todavía no existe
 
-- canary y ablations comparativas contra ASTRA actual y `full-linear`
-  (etapa 6) — el lazo aún no ha corrido con modelos reales;
+- **canary VIVO y pilot comparativo (H1/H3)** — el lazo aún no ha corrido
+  con modelos reales; consume cuota CLI y requiere el "go" explícito de
+  Nelson (`run_campaign_canary.py --live --yes`);
+- R2 (revisor con autocrítica) y R5 (ancla numérica) del contraste con el
+  preprint — H2/H4 diferidas hasta implementarlas;
 - campaña adversarial posterior a evidencia en milestones;
 - herramientas MCP de producción, UI para campañas, despliegue remoto;
 - resultados comparativos que justifiquen promoción.
@@ -235,16 +247,23 @@ terminación: suite previa intacta, tests nuevos sin modelos/red/ASTRUM,
 implementadas y verificadas el 2026-08-12** — ver §4 y los tres documentos
 `docs/evidence/ASTRA2_STAGE{1,2,3}_*.md`.
 
-**Ningún bloque posterior está autorizado implícitamente.** Los siguientes
-candidatos de §7 son la etapa 4 (resume explícito de campaña: reconstruir el
-lazo desde `checkpoint.json` + cola del ledger y reanudar `campaign_step` sin
-repetir episodios) y la etapa 5 (interfaces de desarrollo `astra_campaign_*`
-NO registradas en el MCP de producción). Tras ellas, la etapa 6 es el primer
-uso con modelos reales: canary de una celda y ablations contra ASTRA actual y
-`full-linear`, con H1–H4 pre-registradas antes de cualquier ejecución. Cada
-una requiere la aprobación explícita de Nelson. El agente que las reciba debe
-releer el contrato congelado y añadir su propio plan de tests antes de
-escribir código.
+**Las etapas 4, 5 y la infraestructura de la 6 están implementadas y
+verificadas el 2026-08-12** (ver §4). Lo único pendiente de la etapa 6 es la
+ejecución con modelos reales, que consume cuota y requiere el "go" explícito
+de Nelson:
+
+```powershell
+.\venv\Scripts\python.exe scripts\run_campaign_canary.py --dry-run
+.\venv\Scripts\python.exe scripts\run_campaign_canary.py --offline-smoke
+.\venv\Scripts\python.exe scripts\run_campaign_canary.py --live --yes
+```
+
+Topes congelados del canary vivo: ≤3 ciclos, ≤36 llamadas de modelo, pared
+≤60 min, oráculo local, ejecución secuencial. Después del canary operable:
+pilot comparativo H3 (`campaign` vs `full-vnext1`/`full-linear`) y gate H1
+(suite de calidad), cada uno con su propia decisión de presupuesto. La etapa
+7 (UI, MCP de producción, remoto) sigue bloqueada por las compuertas de
+`ASTRA2_ACCEPTANCE.md` y la aprobación de promoción de Nelson (G6).
 
 Insumo de diseño para esa decisión:
 `docs/architecture/ASTRA2_PREPRINT_2602.03837_CONTRAST.md` contrasta el
