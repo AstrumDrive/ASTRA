@@ -201,6 +201,13 @@ porque toca prompts/parseo de la síntesis existente. El agente que la reciba
 debe releer el contrato congelado y añadir su propio plan de tests antes de
 escribir código.
 
+Insumo de diseño para esa decisión:
+`docs/architecture/ASTRA2_PREPRINT_2602.03837_CONTRAST.md` contrasta el
+preprint de Google (arXiv:2602.03837, "Accelerating Scientific Research with
+Gemini") con el diseño congelado: qué valida, qué técnicas se rescatan (R1–R9,
+con etapa y coste) y qué se rechaza. Las hipótesis H1–H4 de ese documento son
+candidatas a pre-registro en los benchmarks congelados.
+
 Directorio de runtime previsto, siempre ignorado por Git:
 
 ```text
