@@ -275,8 +275,18 @@ pip freeze SHA-256:
   nunca queda recortado. Evidencia:
   `docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md`.
 
+- **inventario de separación y camino a pre-producción (2026-08-13)**:
+  `docs/architecture/ASTRA2_SEPARATION_AND_PREPROD.md`. Hallazgo clave:
+  `acquire_cycle_slot` crea el candado bajo `<checkout>/workspace/locks`, así
+  que **2.0 y producción pueden deliberar a la vez contra la misma cuenta** —
+  el candado no cruza checkouts y las credenciales son compartidas por
+  diseño. Cuatro decisiones abiertas listadas allí.
+
 ### Todavía no existe
 
+- **candado de ciclo compartido entre líneas** (`ASTRA_LOCK_ROOT`), sin el
+  cual cualquier medición larga puede contaminarse con la actividad de
+  producción;
 - **validación viva del reparto**: los shares están fijados por tests
   deterministas sobre los p90 medidos, pero **no se ha corrido una suite con
   ellos activos**; la comprobación natural es el standard tier;
