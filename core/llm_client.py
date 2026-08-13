@@ -532,6 +532,11 @@ class ASTRAIntelligence:
         runtime_checks = parsed.get("runtime_checks")
         if not isinstance(runtime_checks, list):
             runtime_checks = []
+        # Non-blocking observations about supplemental legs: recorded so an
+        # approval stays auditable, never used to change the status.
+        auxiliary_notes = parsed.get("auxiliary_notes")
+        if not isinstance(auxiliary_notes, list):
+            auxiliary_notes = []
         return {
             "status": status,
             "reasoning": str(parsed.get("reasoning") or response)[:2000],
@@ -539,6 +544,7 @@ class ASTRAIntelligence:
             "coverage": [str(item)[:500] for item in coverage[:12]],
             "defect_labels": defect_labels[:12],
             "runtime_checks": [str(item)[:500] for item in runtime_checks[:12]],
+            "auxiliary_notes": [str(item)[:500] for item in auxiliary_notes[:12]],
         }
 
     async def navigate_research(

@@ -101,6 +101,20 @@ def _claude_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> dic
     return {"argv": argv, "stdin_file": promptfile}
 
 
+# Windows PowerShell 5.1 pipes to native executables using $OutputEncoding,
+# which defaults to us-ascii, and Get-Content without -Encoding reads a BOM-less
+# file as ANSI. Both destroy every non-ASCII character on the way to the CLI:
+# measured 2026-08-12, one `∀` reached Codex as `???` (one `?` per UTF-8 byte),
+# which made the reviewer reject an otherwise sound Lean validator, and Spanish
+# accents in the consensus conjectures degraded the same way. Prefixing the
+# command with an explicit UTF-8 encoding restores fidelity; the leading BOM
+# that PowerShell emits is pre-existing and harmless.
+_PS_UTF8_PREAMBLE = (
+    "$OutputEncoding = New-Object System.Text.UTF8Encoding $false; "
+    "[Console]::OutputEncoding = $OutputEncoding; "
+)
+
+
 def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     m = f" -m {model}" if model else ""
     # Reasoning effort = la palanca de INTELIGENCIA de los modelos GPT de razonamiento
@@ -113,7 +127,8 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # ASTRA_CODEX_REASONING='' respeta el default interno de codex (no pasa -c).
     effort = (os.environ.get("ASTRA_CODEX_REASONING", "high") or "").strip().strip("'\"")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
-    return (f'Get-Content -Raw -LiteralPath "{promptfile}" | '
+    return (f'{_PS_UTF8_PREAMBLE}'
+            f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
             f'codex exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
             f'--skip-git-repo-check{m}{r} -C "{ws}" -o "{out}" -')
 
@@ -172,7 +187,8 @@ def _ps_gemini(promptfile: str, model: str | None, _out: str, _ws: str) -> str:
     # --approval-mode plan = SOLO LECTURA nativo: el CLI no puede escribir archivos
     # ni ejecutar nada, asi que siempre responde texto (la leccion del bug de claude
     # que escribia el script a disco, resuelta aqui por diseno del propio CLI).
-    return (f'Get-Content -Raw -LiteralPath "{promptfile}" | '
+    return (f'{_PS_UTF8_PREAMBLE}'
+            f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
             f'{gbin} -p . -o json --approval-mode plan{m}')
 
 

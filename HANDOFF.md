@@ -215,11 +215,25 @@ pip freeze SHA-256:
   revisión, y un timeout: **ningún fallo epistémico**. Evidencia:
   `docs/evidence/ASTRA2_H1_STANDARD_20260812.md`.
 
+- **calibración del revisor (2026-08-12, autorizada)**: distinción decisiva
+  vs auxiliar con el guardarraíl "¿el PASS depende de la pierna débil?";
+  compuerta verificada intacta (recall 1.0, sampling/hardcoded siguen
+  REJECT) y un ciclo muerto convertido en evidencia. Evidencia:
+  `docs/evidence/ASTRA2_REVIEWER_CALIBRATION_20260812.md`.
+- **bug Unicode de Windows CORREGIDO en 2.0**: PowerShell 5.1 canaliza a
+  ejecutables nativos con `$OutputEncoding = us-ascii`, así que `∀` llegaba
+  a Codex como `???` y los acentos españoles como `??`. Reproducido sin
+  cuota y corregido en `core/cli_backend.py` con test de integración contra
+  el `powershell.exe` real. **Producción tiene el mismo defecto y no se ha
+  tocado**: portarlo requiere autorización explícita.
+
 ### Todavía no existe
 
-- **calibración del revisor** para no bloquear por piernas auxiliares cuando
-  las decisivas son sólidas (17.4% de fallo operativo medido) — toca prompts
-  de producción, **requiere autorización**;
+- **portar el arreglo Unicode a producción** (mismo `core/cli_backend.py`);
+- revisar el fixture `audit_regression_einsteinpy_list_symbols_supported`,
+  que hoy mide algo distinto de su intención documentada;
+- **re-medición del gate H1 standard** tras ambos cambios — la tasa de fallo
+  operativo del 17.4% no es comparable hasta correr la suite entera;
 - **pilot comparativo H3** — su adaptador de métricas ya existe
   (`core/campaign_trajectory_metrics.py`); presupuesto pendiente;
 - re-verificación viva del flujo de portafolio tras las correcciones

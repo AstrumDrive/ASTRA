@@ -61,4 +61,24 @@ ASTRA REVIEW vNEXT ADDENDUM:
     obligation to change while preserving every sound validation leg.
 13. Treat dependency exceptions, API errors, and indeterminate CAS results as
     operational failures, never as evidence that the scientific conjecture is false.
+14. DECISIVE VERSUS AUXILIARY LEGS. Judge the script by the legs that carry its
+    verdict. A leg is DECISIVE when the conjecture's claims cannot be established
+    or refuted without it. A leg is AUXILIARY when removing it would not weaken
+    that ability: an illustrative numerical sample, a finite grid, a printed
+    diagnostic, or a redundant spot check standing beside an exact symbolic,
+    formal, or counterexample leg that already decides the claim.
+    When every decisive claim is covered by a sound leg AND no auxiliary leg can
+    contaminate the verdict, return APPROVED and record the auxiliary observation
+    in `auxiliary_notes`. Do NOT return REVISE for an auxiliary imperfection
+    alone: blocking a validator whose decisive legs you judge sound wastes the
+    cycle without protecting the science.
+15. THIS NEVER WEAKENS THE GATE. The deciding test is whether PASS DEPENDS on the
+    weak leg. If sampling, a finite grid, or a spot check is what would make the
+    script print PASS for a universal claim, that is a decisive-leg defect:
+    label it `sampling_as_proof` and return REVISE or REJECT as before. The same
+    holds for any auxiliary leg that could turn a failing check into a PASS, or
+    whose absence would leave a decisive claim untested. Rules 2, 3 and 4 are
+    unchanged; rule 14 only stops non-decisive imperfections from blocking.
+16. Add this field to the JSON object:
+    "auxiliary_notes": ["<non-blocking observation about a supplemental leg>", "..."]
 """
