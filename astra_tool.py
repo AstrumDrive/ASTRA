@@ -684,6 +684,31 @@ async def _do_client_validate(req: dict) -> dict:
 # escrito. Un solo proveedor por fase => camino lineal clasico, sin coste extra.
 # ============================================================================
 
+# Fraction of the REMAINING cycle budget any single call of a phase may take.
+# Derived from the p90 of each phase measured over 84 deposited cycles
+# (scripts/analyze_phase_budget.py; docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md):
+# translate 431 s, repair 343 s, conjecture 197 s, review 169 s, audit+navigation
+# 80 s. Those p90s sum to 1220 s and fit the 1440 s usable budget, but only if no
+# phase runs twice - and the translator deliberately retries with a minimal-script
+# request after a generation timeout. Capping each call at a share of what is left
+# keeps that retry, and every other phase, from starving the rest of the pipeline.
+# The shares are deliberately looser than the measured proportions so a normal
+# cycle is never clamped; they bite only when a phase is about to run away.
+# TRANSLATOR is the loosest because the same key funds two calls at different
+# points of the pipeline - the translation and, later, the bounded repair -
+# and the repair runs when less of the budget is left: a p90 repair of 343 s
+# starts with roughly 640 s remaining, so a tighter share would clamp a
+# perfectly normal cycle. test_phase_budget_shares.py pins that arithmetic.
+PHASE_BUDGET_SHARE = {
+    "CONJECTURE": 0.30,
+    "SYNTH": 0.20,
+    "TRANSLATOR": 0.60,
+    "REVIEWER": 0.30,
+    "ANALYST": 0.40,
+    "NAVIGATOR": 0.50,
+}
+
+
 _CRITIQUE_SYSTEM = (
     "Eres un fisico-matematico adversarial. Tu trabajo es REFUTAR: busca errores "
     "dimensionales, algebraicos o de limite, supuestos no justificados y claims que no "
@@ -1171,6 +1196,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         return budget.phase_timeout(
             _configured_phase_timeout(phase),
             default_seconds=240,
+            share=PHASE_BUDGET_SHARE.get(phase.upper()),
         )
 
     def _prepare_agent(agent, phase):

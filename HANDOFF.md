@@ -265,12 +265,21 @@ pip freeze SHA-256:
   343 s contra techo 240). Evidencia:
   `docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md`.
 
+- **reparto de presupuesto por fase adoptado (2026-08-13)**: al leer el
+  mecanismo, la escalera resultó NO ser la causa (solo avanza ante cuota, no
+  ante timeout) y el reintento YA heredaba el restante. El duplicado es el
+  reintento deliberado de script mínimo del traductor, no contabilizado. Como
+  los techos suman exactamente el presupuesto útil (1440 s), se añadió
+  `CycleBudget.phase_timeout(share=)` + `astra_tool.PHASE_BUDGET_SHARE`:
+  ninguna llamada puede dejar sin tiempo a las siguientes, y un ciclo normal
+  nunca queda recortado. Evidencia:
+  `docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md`.
+
 ### Todavía no existe
 
-- **decidir cómo tratar la escalera de modelos** (toca `cli_backend`):
-  dividir el techo de fase entre los modelos de su escalera, usar la escalera
-  solo ante error y no ante timeout, o que el reintento herede el presupuesto
-  restante real. Reparto por datos propuesto en la evidencia, sin adoptar;
+- **validación viva del reparto**: los shares están fijados por tests
+  deterministas sobre los p90 medidos, pero **no se ha corrido una suite con
+  ellos activos**; la comprobación natural es el standard tier;
 - `lean_nat_add_comm`: el reparador acotado intenta parchear un defecto
   inexistente (`"No forbidden axiom declaration ... is present"`);
 - llevar `ASTRA_TRANSLATOR_TIMEOUT=480` a la configuración de producción

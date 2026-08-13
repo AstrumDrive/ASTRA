@@ -73,20 +73,48 @@ presentaba como "el ciclo se quedó sin tiempo".
 | **suma** | **1440 s** | = presupuesto útil actual |
 
 El reparto encaja exactamente en el presupuesto vigente **si ninguna fase se
-duplica**. Por tanto la palanca real es la escalera, y hay tres formas de
-tratarla, **ninguna adoptada**:
+duplica**.
 
-1. dividir el techo de la fase entre el número de modelos de su escalera, de
-   modo que el coste total de la fase (incluidos reintentos) respete su
-   asignación;
-2. dejar el traductor con un solo modelo y usar la escalera solo como
-   fallback ante error, no ante timeout;
-3. hacer que el reintento herede el presupuesto restante real en vez de un
-   techo fijo.
+## Corrección posterior (misma fecha): no era la escalera
 
-La opción 1 es la más simple y la más fiel a lo medido; la 3 es la más
-correcta si se quiere conservar la escalera. Cualquiera exige tests y
-autorización, porque toca `cli_backend`/`astra_tool` de producción.
+Al leer el mecanismo antes de implementar, dos de las tres opciones que
+propuse resultaron mal fundadas:
+
+- la **escalera de modelos solo avanza ante errores de cuota**
+  (`_is_quota_error`); un timeout **rompe** el bucle. No multiplica nada;
+- el reintento **ya hereda** el presupuesto restante, porque
+  `CycleBudget.phase_timeout` recorta contra `usable_seconds`.
+
+El duplicado real es un **reintento deliberado en `astra_tool`**: ante un
+timeout de generación, vuelve a pedir un script MÍNIMO con
+`min(_phase_timeout("TRANSLATOR"), 360)`. Con techo 240 s eso da 240+240=480 s,
+que es exactamente lo medido. Es buen diseño — degrada la petición en vez de
+rendirse — pero **nadie lo contabilizó en el presupuesto**.
+
+La causa raíz, entonces: los techos configurados suman
+240+480+240+480 = **1440 s**, es decir el presupuesto útil COMPLETO. Cero
+holgura. Cualquier reintento, en cualquier fase, lo revienta. Recortar contra
+el tiempo restante no protegía, porque una fase temprana puede consumirlo
+legítimamente todo.
+
+## Intervención adoptada
+
+`CycleBudget.phase_timeout(..., share=)` limita además cada llamada a una
+fracción del presupuesto **restante**, con las fracciones en
+`astra_tool.PHASE_BUDGET_SHARE`. Invariante: ninguna llamada puede dejar sin
+tiempo a las siguientes. Las fracciones se eligieron deliberadamente holgadas
+respecto a los p90 medidos, para que un ciclo normal **nunca** quede recortado
+y solo actúen ante una fase desbocada.
+
+`TRANSLATOR` es la más holgada (0.60) porque la misma clave financia dos
+llamadas en momentos distintos —la traducción y, más tarde, la reparación
+acotada— y la reparación arranca con ~640 s restantes: una fracción más
+estrecha recortaría un ciclo perfectamente normal. Un test falló exactamente
+por eso durante el desarrollo y fijó la aritmética.
+
+Tests: `tests/test_phase_budget_shares.py` (8 tests, 12 subtests), incluido el
+que recorre el pipeline con los p90 medidos y comprueba que ninguna fase queda
+recortada, y el que verifica el invariante tras seis llamadas maximales.
 
 ## Nota de método
 

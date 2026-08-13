@@ -54,8 +54,20 @@ class CycleBudget:
         *,
         default_seconds: int = 240,
         minimum_seconds: int = 1,
+        share: Optional[float] = None,
     ) -> int:
-        """Return a timeout that cannot consume the final response buffer."""
+        """Return a timeout that cannot consume the final response buffer.
+
+        ``share`` additionally caps the call at that fraction of the remaining
+        usable budget, so one phase cannot starve the ones after it.  Measured
+        2026-08-13 over 84 cycles: the configured ceilings sum to exactly the
+        whole-cycle budget (240 conjecture + 480 translate + 240 review + 480
+        repair = 1440 s usable), leaving no slack, so any retry - such as the
+        translator's deliberate minimal-script second attempt - pushed the
+        cycle past its wall.  Clamping to remaining time alone did not prevent
+        that, because an early phase may legitimately consume all of it.
+        See docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md.
+        """
         try:
             requested = int(requested_seconds or default_seconds)
         except (TypeError, ValueError):
@@ -64,7 +76,15 @@ class CycleBudget:
         usable = self.usable_seconds
         if usable is None:
             return requested
-        return max(int(minimum_seconds), min(requested, int(math.floor(usable))))
+        allowed = float(usable)
+        if share is not None:
+            try:
+                fraction = float(share)
+            except (TypeError, ValueError):
+                fraction = 1.0
+            if 0.0 < fraction < 1.0:
+                allowed = min(allowed, usable * fraction)
+        return max(int(minimum_seconds), min(requested, int(math.floor(allowed))))
 
     def can_start(self, minimum_seconds: float = 5.0) -> bool:
         usable = self.usable_seconds
