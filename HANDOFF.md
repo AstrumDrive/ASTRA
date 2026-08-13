@@ -253,13 +253,24 @@ pip freeze SHA-256:
   `--cycle-timeout` NO modifica. Evidencia:
   `docs/evidence/ASTRA2_REVIEWER_REPEATS_20260813.md`.
 
+- **distribución por fase medida sin cuota (2026-08-13)**:
+  `scripts/analyze_phase_budget.py` sobre 84 ciclos ya depositados, con
+  tratamiento explícito de datos censurados. El presupuesto total **no** es
+  el problema (p90 de ciclo completo 921 s contra 1440 s útiles: +519 s de
+  holgura). El p90 de todas las fases suma 1220 s y cabe — **si ninguna se
+  ejecuta dos veces**. La palanca real es la **escalera de modelos**: un
+  reintento del traductor duplica la fase (medido: 448/463/481 s con techo
+  240) y con techo 480 consume 960 s, más que un ciclo completo entero.
+  `translate_patch` era la fase más estrangulada (20 censuras de 64; p90 real
+  343 s contra techo 240). Evidencia:
+  `docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md`.
+
 ### Todavía no existe
 
-- **decidir el reparto del presupuesto de ciclo**: `ASTRA_TRANSLATOR_TIMEOUT=480`
-  no debe adoptarse aislado — con la escalera opus,sonnet la traducción puede
-  comerse 960 s de los 1440 s. Opciones: subir `cycle_timeout_seconds` para
-  casos pesados (2400–3000), volver el traductor a 240 s, o repartir con
-  datos de distribución por fase;
+- **decidir cómo tratar la escalera de modelos** (toca `cli_backend`):
+  dividir el techo de fase entre los modelos de su escalera, usar la escalera
+  solo ante error y no ante timeout, o que el reintento herede el presupuesto
+  restante real. Reparto por datos propuesto en la evidencia, sin adoptar;
 - `lean_nat_add_comm`: el reparador acotado intenta parchear un defecto
   inexistente (`"No forbidden axiom declaration ... is present"`);
 - llevar `ASTRA_TRANSLATOR_TIMEOUT=480` a la configuración de producción
