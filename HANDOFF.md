@@ -245,12 +245,21 @@ pip freeze SHA-256:
   `docs/evidence/ASTRA2_TRANSLATOR_TIMEOUT_20260813.md`.
 - **`ASTRA_CODEX_BIN` portado a 2.0** desde producción (f7db415).
 
+- **medición con repeticiones (2026-08-13)**: 12 ciclos, 4 casos × 3. El
+  bloqueo del revisor NO es reproducible por caso (2/12, nunca dos veces en
+  el mismo caso) ⇒ es varianza y **el cambio estructural queda descartado**.
+  El fallo dominante (6/12) es el **presupuesto TOTAL del ciclo**: 1500 s por
+  defecto (`astra_tool.py:1090`) − 60 s de buffer = 1440 s útiles, que
+  `--cycle-timeout` NO modifica. Evidencia:
+  `docs/evidence/ASTRA2_REVIEWER_REPEATS_20260813.md`.
+
 ### Todavía no existe
 
-- decidir la palanca contra la no-aprobación del revisor: la calibración le
-  hace **articular** la distinción decisiva/auxiliar sin **actuar** sobre
-  ella (dos casos medidos). Opciones: `ASTRA_REVIEW_MAX_REVISIONS=2`, dejar
-  decidir al preflight determinista, o medir con repeticiones antes de tocar;
+- **decidir el reparto del presupuesto de ciclo**: `ASTRA_TRANSLATOR_TIMEOUT=480`
+  no debe adoptarse aislado — con la escalera opus,sonnet la traducción puede
+  comerse 960 s de los 1440 s. Opciones: subir `cycle_timeout_seconds` para
+  casos pesados (2400–3000), volver el traductor a 240 s, o repartir con
+  datos de distribución por fase;
 - `lean_nat_add_comm`: el reparador acotado intenta parchear un defecto
   inexistente (`"No forbidden axiom declaration ... is present"`);
 - llevar `ASTRA_TRANSLATOR_TIMEOUT=480` a la configuración de producción
