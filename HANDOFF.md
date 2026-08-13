@@ -238,13 +238,23 @@ pip freeze SHA-256:
   (n=1 por caso, varianza 2× en casos idénticos). Evidencia:
   `docs/evidence/ASTRA2_H1_STANDARD_V2_20260813.md`.
 
+- **`ASTRA_TRANSLATOR_TIMEOUT=480` medido y documentado (2026-08-13)**: 4 de
+  7 casos fallidos convirtieron; tres fases de traducción/reparación medidas
+  entre 250 y 438 s habrían muerto contra el techo de 240 s. Añadido a
+  `.env.example` con su justificación. Evidencia:
+  `docs/evidence/ASTRA2_TRANSLATOR_TIMEOUT_20260813.md`.
+- **`ASTRA_CODEX_BIN` portado a 2.0** desde producción (f7db415).
+
 ### Todavía no existe
 
-- **prueba dirigida de `ASTRA_TRANSLATOR_TIMEOUT=480`**: los cuatro TIMEOUT
-  mueren en `translate`/`translate_patch` contra el techo de 240 s por
-  llamada (`ASTRA_CLI_TIMEOUT`), que `.env.example` nunca sube pese a que
-  `astra_tool.py:1155` lo recomienda. Afecta igual a producción;
-- portar a 2.0 el arreglo `ASTRA_CODEX_BIN` que producción tiene local;
+- decidir la palanca contra la no-aprobación del revisor: la calibración le
+  hace **articular** la distinción decisiva/auxiliar sin **actuar** sobre
+  ella (dos casos medidos). Opciones: `ASTRA_REVIEW_MAX_REVISIONS=2`, dejar
+  decidir al preflight determinista, o medir con repeticiones antes de tocar;
+- `lean_nat_add_comm`: el reparador acotado intenta parchear un defecto
+  inexistente (`"No forbidden axiom declaration ... is present"`);
+- llevar `ASTRA_TRANSLATOR_TIMEOUT=480` a la configuración de producción
+  (hoy corre el traductor con 240 s);
 - **pilot comparativo H3** — su adaptador de métricas ya existe
   (`core/campaign_trajectory_metrics.py`); presupuesto pendiente;
 - re-verificación viva del flujo de portafolio tras las correcciones
