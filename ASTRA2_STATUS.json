@@ -55,6 +55,21 @@
       "evidence_doc": "docs/evidence/ASTRA2_CANARY_LIVE_20260812.md"
     },
     "pytest_after_canary_hardening": "304 passed, 6 skipped, 28 subtests passed in 28.97s",
+    "h1_standard": {
+      "date": "2026-08-12",
+      "verdict": "PRIMARY METRIC PASSED (false acceptance 0.0); reliability is the bottleneck",
+      "report": "workspace/quality_benchmark_runs/quality_20260812_214125.json",
+      "scientific_cases": 23,
+      "false_acceptance_rate": 0.0,
+      "false_rejection_rate": 0.0,
+      "strict_accuracy": 0.7391,
+      "operational_failure_rate": 0.1739,
+      "audit_defect_recall": 1.0,
+      "audit_sound_validator_false_alarm_rate": 0.3333,
+      "execution_verdict_accuracy": 1.0,
+      "note": "No epistemic failures: the six misses are two honest INCONCLUSIVE re-anchored verdicts, three reviewer non-approvals at the 1-revision ceiling, and one timeout",
+      "evidence_doc": "docs/evidence/ASTRA2_H1_STANDARD_20260812.md"
+    },
     "h1_smoke_clean": {
       "date": "2026-08-12",
       "verdict": "BLOCKED_BY_INSTRUMENT (not pass, not fail)",
@@ -94,7 +109,7 @@
       "Stage 5: development-only astra_campaign_* interfaces (2026-08-12, authorized by Nelson)",
       "Stage 6 infrastructure: preregistered canary protocol, runner with dry-run/offline-smoke/live gating (2026-08-12, authorized by Nelson)"
     ],
-    "next_milestone": "Verdict re-anchoring to the original claim (blocks a valid H1 measurement; cheap, no quota, requires Nelson's authorization), then H1 standard tier and the H3 comparative pilot",
+    "next_milestone": "Reviewer calibration so sound decisive legs are not blocked by auxiliary ones (the measured 17.4% operational failure), then the H3 comparative pilot - each requires Nelson's authorization",
     "updated": "2026-08-12"
   },
   "notes": [

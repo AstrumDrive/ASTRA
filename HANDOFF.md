@@ -203,13 +203,23 @@ pip freeze SHA-256:
   original. Evidencia:
   `docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md`.
 
+- **re-anclaje de veredicto (2026-08-12, autorizado)**: eje separado
+  `original_claim_verdict` que responde al claim del usuario, no solo a la
+  conjetura formada; verificado en vivo 3/3. Corrige también un defecto de
+  producción. Evidencia:
+  `docs/evidence/ASTRA2_VERDICT_REANCHORING_20260812.md`.
+- **gate H1, tier standard (2026-08-12, autorizado)**: 23 casos científicos,
+  **aceptación falsa 0.0 y rechazo falso 0.0**; exactitud estricta 0.739;
+  auditoría con recall 1.0; ejecución 6/6. Los seis casos no acertados son
+  dos INCONCLUSIVE honestos, tres no-aprobaciones del revisor al tope de una
+  revisión, y un timeout: **ningún fallo epistémico**. Evidencia:
+  `docs/evidence/ASTRA2_H1_STANDARD_20260812.md`.
+
 ### Todavía no existe
 
-- **re-anclaje de veredicto al claim original** (`original_claim_verdict` en
-  el analista) — bloquea la medición H1 con instrumento válido; barato y sin
-  cuota, pero **requiere autorización explícita de Nelson**;
-- **gate H1 en tier standard** (43 casos, 7–14 h) — no gastarlo antes del
-  re-anclaje, mediría el desajuste de etiquetas;
+- **calibración del revisor** para no bloquear por piernas auxiliares cuando
+  las decisivas son sólidas (17.4% de fallo operativo medido) — toca prompts
+  de producción, **requiere autorización**;
 - **pilot comparativo H3** — su adaptador de métricas ya existe
   (`core/campaign_trajectory_metrics.py`); presupuesto pendiente;
 - re-verificación viva del flujo de portafolio tras las correcciones
