@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from core.cli_backend import _PS_UTF8_PREAMBLE, _codex_builder, _ps_codex
@@ -36,6 +37,18 @@ class BuilderContractTests(unittest.TestCase):
 
     def test_utf8_encoding_is_created_without_a_bom(self):
         self.assertIn("UTF8Encoding $false", _PS_UTF8_PREAMBLE)
+
+    def test_codex_binary_is_resolvable_off_path(self):
+        # Ported from production 2026-08-13: the MCP server can start without
+        # the codex directory on PATH, which killed the reviewer phase with
+        # CommandNotFound.
+        with unittest.mock.patch.dict(
+            os.environ, {"ASTRA_CODEX_BIN": r"C:\custom\codex.exe"}
+        ):
+            command = _ps_codex(
+                "C:/tmp/prompt.txt", None, "C:/tmp/out.json", "C:/ws"
+            )
+        self.assertIn(r'& "C:\custom\codex.exe" exec', command)
 
     def test_posix_route_bypasses_powershell_entirely(self):
         if os.name == "nt":

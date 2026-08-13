@@ -127,9 +127,20 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # ASTRA_CODEX_REASONING='' respeta el default interno de codex (no pasa -c).
     effort = (os.environ.get("ASTRA_CODEX_REASONING", "high") or "").strip().strip("'\"")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
+    # 2026-08-09 (ported from the production checkout on 2026-08-13): the MCP
+    # server can start with a PATH that lacks the codex directory (the native
+    # installer puts it under AppData\Local\Programs\OpenAI\Codex\bin), which
+    # killed the pipeline with CommandNotFound in the reviewer phase.
+    # ASTRA_CODEX_BIN is honored on Windows too, through the call operator `&`,
+    # exactly as the POSIX branch already did.
+    cbin = (
+        (os.environ.get("ASTRA_CODEX_BIN") or "").strip().strip("'\"")
+        or shutil.which("codex")
+        or "codex"
+    )
     return (f'{_PS_UTF8_PREAMBLE}'
             f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
-            f'codex exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
+            f'& "{cbin}" exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
             f'--skip-git-repo-check{m}{r} -C "{ws}" -o "{out}" -')
 
 
