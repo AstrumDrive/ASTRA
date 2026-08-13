@@ -227,13 +227,24 @@ pip freeze SHA-256:
   el `powershell.exe` real. **Producción tiene el mismo defecto y no se ha
   tocado**: portarlo requiere autorización explícita.
 
+- **port del arreglo Unicode a producción (2026-08-13, autorizado)**:
+  aplicado y verificado en `C:\Users\Nelson\Dev\ASTRA\core\cli_backend.py`,
+  **sin committear** (ese árbol tiene trabajo local vivo, incluido un arreglo
+  propio de `ASTRA_CODEX_BIN` que 2.0 aún no tiene). El commit lo decide
+  Nelson.
+- **fixture EinsteinPy corregido y re-medición hecha (2026-08-13)**: la
+  compuerta aguanta (aceptación falsa 0.0 en dos corridas) y la falsa alarma
+  de auditoría cayó a 0.0. El cambio en fallo operativo NO es atribuible
+  (n=1 por caso, varianza 2× en casos idénticos). Evidencia:
+  `docs/evidence/ASTRA2_H1_STANDARD_V2_20260813.md`.
+
 ### Todavía no existe
 
-- **portar el arreglo Unicode a producción** (mismo `core/cli_backend.py`);
-- revisar el fixture `audit_regression_einsteinpy_list_symbols_supported`,
-  que hoy mide algo distinto de su intención documentada;
-- **re-medición del gate H1 standard** tras ambos cambios — la tasa de fallo
-  operativo del 17.4% no es comparable hasta correr la suite entera;
+- **prueba dirigida de `ASTRA_TRANSLATOR_TIMEOUT=480`**: los cuatro TIMEOUT
+  mueren en `translate`/`translate_patch` contra el techo de 240 s por
+  llamada (`ASTRA_CLI_TIMEOUT`), que `.env.example` nunca sube pese a que
+  `astra_tool.py:1155` lo recomienda. Afecta igual a producción;
+- portar a 2.0 el arreglo `ASTRA_CODEX_BIN` que producción tiene local;
 - **pilot comparativo H3** — su adaptador de métricas ya existe
   (`core/campaign_trajectory_metrics.py`); presupuesto pendiente;
 - re-verificación viva del flujo de portafolio tras las correcciones

@@ -174,7 +174,8 @@
     "tags": ["vnext_regression"],
     "provenance": "research_trajectory_20260725_225917_cycle_2_reviewer_false_positive",
     "objective": "Check flat two-dimensional Minkowski curvature with the installed EinsteinPy MetricTensor API.",
-    "intuition": "EinsteinPy accepts the coordinate-symbol collection as either a list or tuple; API speculation must not be treated as a verified defect.",
+    "intuition": "Two-dimensional Minkowski spacetime has identically vanishing Riemann curvature; verify every component exactly with the installed EinsteinPy MetricTensor API.",
+    "success_criteria": "The reviewer must approve this sound validator. It exercises the list form of the coordinate-symbol collection, which is valid for the installed EinsteinPy; unverified API speculation is not a defect and belongs in runtime_checks. Reworded 2026-08-12: the previous intuition asserted that both the list and tuple forms are accepted, which the script does not test, so the reviewer correctly reported a coverage gap and the case stopped measuring the false positive it was created for (provenance below).",
     "code": "import sympy as sp\nfrom einsteinpy.symbolic import MetricTensor, RiemannCurvatureTensor\nt,x=sp.symbols('t x', real=True)\ng=MetricTensor(sp.diag(-1,1).tolist(), list((t,x)))\narr=RiemannCurvatureTensor.from_metric(g).tensor()\nok=all(sp.simplify(arr[a,b,c,d]).is_zero is True for a in range(2) for b in range(2) for c in range(2) for d in range(2))\nprint('CHECK full_riemann_zero:', 'OK' if ok else 'FAIL')\nprint('VERDICT: PASS' if ok else 'VERDICT: FAIL')\n"
   },
   {
