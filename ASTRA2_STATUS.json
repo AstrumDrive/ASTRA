@@ -108,10 +108,19 @@
       "Stage 3: deterministic decision policy R1-R7 and progressive widening (2026-08-12, authorized by Nelson)",
       "Stage 4: explicit campaign resume over checkpoint and ledger (2026-08-12, authorized by Nelson)",
       "Stage 5: development-only astra_campaign_* interfaces (2026-08-12, authorized by Nelson)",
-      "Stage 6 infrastructure: preregistered canary protocol, runner with dry-run/offline-smoke/live gating (2026-08-12, authorized by Nelson)"
+      "Stage 6 infrastructure: preregistered canary protocol, runner with dry-run/offline-smoke/live gating (2026-08-12, authorized by Nelson)",
+      "Live canary PASS on the operability endpoint (2026-08-12)",
+      "Verdict re-anchoring to the user's original claim, verified live 3/3 (2026-08-12)",
+      "H1 standard gate: false acceptance 0.0 over 23 scientific cases (2026-08-12)",
+      "Windows PowerShell non-ASCII prompt corruption found, fixed, and ported to production (2026-08-12/13)",
+      "Machine-wide deliberative-cycle lock so the two lines cannot collide (2026-08-13)",
+      "Phase budget shares from an 84-cycle measurement (2026-08-13, not yet validated live)",
+      "Cross-line drift check (2026-08-13)",
+      "G2 local half: doctor PASS and 6/6 engine smokes (2026-08-13)",
+      "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)"
     ],
-    "next_milestone": "Reviewer calibration so sound decisive legs are not blocked by auxiliary ones (the measured 17.4% operational failure), then the H3 comparative pilot - each requires Nelson's authorization",
-    "updated": "2026-08-12",
+    "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the two remaining G2 items (cross-oracle agreement and scheduler checks), which submit real work to ASTRUM and need their own authorization, and finally the H3 comparative pilot - which needs at least two seeds per cell to be interpretable at all",
+    "updated": "2026-08-13",
     "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md"
   },
   "notes": [
