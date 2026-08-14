@@ -712,6 +712,18 @@ PHASE_BUDGET_SHARE = {
     "NAVIGATOR": 0.50,
 }
 
+# A bounded cycle and a persistent one want different ceilings, and one variable
+# had to serve both. Measured: benchmark translations have a p90 of 431 s
+# (`ASTRA2_PHASE_BUDGET_20260813.md`), while the research-grade GR validator of
+# 2026-08-14 needed 696 s to write and 658 s to patch
+# (`ASTRA2_WARP_NEC_TEST_20260814.md`). So 480 s starves real physics, and
+# raising it globally would let one phase eat the budget a bounded cycle needs
+# for the repair. A persistent cycle has no whole-cycle wall, so a longer
+# ceiling there costs nothing on the runs that do not need it - a timeout is a
+# limit, not a reservation. Override per phase with
+# ASTRA_<PHASE>_TIMEOUT_PERSISTENT.
+PERSISTENT_PHASE_TIMEOUT = {"TRANSLATOR": 1200}
+
 
 _CRITIQUE_SYSTEM = (
     "Eres un fisico-matematico adversarial. Tu trabajo es REFUTAR: busca errores "
@@ -1187,14 +1199,27 @@ async def _do_cycle_impl(req: dict) -> dict:
         v = (os.environ.get(f"ASTRA_{phase}_TIMEOUT") or "").strip().strip("'\"")
         try:
             if v:
-                return int(v)
-            return int(
-                str(os.environ.get("ASTRA_CLI_TIMEOUT", "240"))
-                .strip()
-                .strip("'\"")
-            )
+                configured = int(v)
+            else:
+                configured = int(
+                    str(os.environ.get("ASTRA_CLI_TIMEOUT", "240"))
+                    .strip()
+                    .strip("'\"")
+                )
         except ValueError:
-            return 240
+            configured = 240
+        if budget.total_seconds is not None:
+            return configured          # bounded cycle: the wall decides
+        key = phase.upper()
+        raw = (
+            os.environ.get(f"ASTRA_{key}_TIMEOUT_PERSISTENT") or ""
+        ).strip().strip("'\"")
+        try:
+            persistent = int(raw) if raw else PERSISTENT_PHASE_TIMEOUT.get(key, 0)
+        except ValueError:
+            persistent = PERSISTENT_PHASE_TIMEOUT.get(key, 0)
+        # max, not override: an operator who configured MORE keeps it.
+        return max(configured, persistent)
 
     def _phase_timeout(phase):
         return budget.phase_timeout(
