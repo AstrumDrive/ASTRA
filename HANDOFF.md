@@ -282,11 +282,14 @@ pip freeze SHA-256:
   el candado no cruza checkouts y las credenciales son compartidas por
   diseño. Cuatro decisiones abiertas listadas allí.
 
-### Todavía no existe
+- **candado de ciclo compartido ADOPTADO (2026-08-13)**: `cycle_lock_root()`
+  usa una raíz de máquina por defecto (`%LOCALAPPDATA%\astra\locks`), con
+  `ASTRA_LOCK_ROOT` para aislar líneas con credenciales distintas y caída a
+  la ruta histórica si no es escribible. Aplicado en las dos líneas (en
+  producción **sin committear**) y verificado cruzando los dos checkouts
+  reales. **El MCP de producción necesita reinicio** para cargarlo.
 
-- **candado de ciclo compartido entre líneas** (`ASTRA_LOCK_ROOT`), sin el
-  cual cualquier medición larga puede contaminarse con la actividad de
-  producción;
+### Todavía no existe
 - **validación viva del reparto**: los shares están fijados por tests
   deterministas sobre los p90 medidos, pero **no se ha corrido una suite con
   ellos activos**; la comprobación natural es el standard tier;

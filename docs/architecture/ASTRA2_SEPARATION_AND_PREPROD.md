@@ -55,8 +55,32 @@ Opciones, **ninguna adoptada**:
 - **(c) Disciplina manual**: no correr 2.0 mientras se usa producción.
   Gratis, frágil, y ya sabemos que las mediciones largas duran horas.
 
-Recomendación: **(a)**, con el default apuntando al comportamiento actual
-para no cambiar producción sin decidirlo.
+### Decidido y adoptado (2026-08-13): opción (a)
+
+Nelson eligió el candado compartido ("no queremos contaminación").
+`cycle_lock_root()` calcula ahora una raíz **de máquina** por defecto
+(`%LOCALAPPDATA%\astra\locks` en Windows, `~/.cache/astra/locks` fuera),
+con `ASTRA_LOCK_ROOT` para forzar otra — que es además la forma correcta de
+aislar a propósito una línea que corra con **credenciales distintas**. Si la
+raíz de máquina no es escribible, cae a la ubicación histórica por checkout
+en vez de quedarse sin candado.
+
+Aplicado en **ambas líneas** (en producción sin committear) y verificado
+cruzando los dos checkouts reales:
+
+```text
+production lock root : C:\Users\Nelson\AppData\Local\astra\locks
+2.0 line lock root   : C:\Users\Nelson\AppData\Local\astra\locks
+production acquired  : True  | holders seen: 0
+2.0 acquired         : False | holders seen: 1   <- bloqueado, como debe
+2.0 tras release     : True  | holders: 0
+```
+
+Nota operativa: **el MCP de producción, si está corriendo, tiene el código
+viejo en memoria**; hasta reiniciarlo seguirá usando su candado por checkout.
+
+Tests: `tests/test_cycle_lock_root.py` (6), incluido el de dos checkouts
+contendiendo por un mismo slot y el de degradación ante raíz no escribible.
 
 ## 3. "Backends independientes": qué significaría en concreto
 
