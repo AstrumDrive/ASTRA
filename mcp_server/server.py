@@ -31,7 +31,17 @@ if not os.path.exists(ASTRA_PY):
     ASTRA_PY = sys.executable
 ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 
-mcp = FastMCP("astra")
+# The development line runs beside production in the same clients, so it must
+# not introduce itself with production's name: a client listing two servers
+# both called "astra" gives the operator no way to tell which one answered.
+# The name says "development" rather than "version 2" on purpose - promotion
+# is still blocked at G6, and once it lands this checkout BECOMES astra and
+# the dev entry disappears, instead of leaving a stale version number behind.
+# ASTRA_MCP_SERVER_NAME overrides it for exactly that promotion.
+MCP_SERVER_NAME = os.environ.get("ASTRA_MCP_SERVER_NAME") or (
+    "astra_dev" if os.path.basename(ASTRA_ROOT).endswith("2.0") else "astra"
+)
+mcp = FastMCP(MCP_SERVER_NAME)
 
 
 def _kill_tree(pid: int) -> None:

@@ -318,6 +318,16 @@ pip freeze SHA-256:
   local. Evidencia:
   `docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md`.
 
+- **entrada MCP `astra_dev` en los tres clientes (2026-08-14, autorizada)**:
+  Codex, Claude Code y Antigravity exponen la línea 2.0 **junto a** producción,
+  nunca reemplazándola. `scripts/register_dev_mcp.py` verifica
+  programáticamente que la entrada `astra` no cambie y se niega a escribir si
+  cambiaría; `--remove --apply` revierte. **`astra` sigue siendo el default de
+  hecho** (herramientas namespaceadas por servidor). Las `astra_campaign_*` NO
+  se exponen. Evidencia: `docs/evidence/ASTRA2_MCP_DEV_ENTRY_20260814.md`.
+  Ojo: NO usar `scripts/configure_antigravity_mcp.py` desde este clon — escribe
+  la clave `astra` y sobrescribiría producción.
+
 ### Todavía no existe
 
 - **los dos ítems restantes de G2 ENVÍAN TRABAJO REAL al clúster** (acuerdo
