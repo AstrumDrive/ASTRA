@@ -4,6 +4,7 @@ import os
 import time
 from typing import Optional
 
+from agents.translator import build_translation_input
 from core.llm_client import ASTRAIntelligence
 from core.executor import execute_python_code
 from core.preflight import phase_provider_map
@@ -235,10 +236,7 @@ async def _execute_one_cycle_legacy(intuition: str) -> dict:
     code_review   = None
     code_retries  = 0
     code_resolved = False
-    validation_brief = (
-        f"SHARED FINAL OBJECTIVE:\n{shared_goal}\n\n"
-        f"CONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
-    )
+    validation_brief = build_translation_input(shared_goal, conjecture)
 
     while not code_resolved:
         if _stop_requested():

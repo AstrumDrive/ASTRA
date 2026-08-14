@@ -50,6 +50,7 @@ from core.architecture_contract import (
     CACHE_SCHEMA_VERSION,
     production_manifest,
 )
+from agents.translator import build_translation_input
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -1312,6 +1313,11 @@ async def _do_cycle_impl(req: dict) -> dict:
     preflight_history = []
     local_repair_history = []
     model_patch_history = []
+    # The review loop calls the AUTHOR (translator) to patch or regenerate. When
+    # that call dies, the phase that failed is the repair, not the reviewer.
+    # Measured 2026-08-14 over 87 deposited checkpoints: 7 blamed `reviewer` for
+    # a translator API error, and in all 7 the generated script was lost too.
+    repair_failure = {}
 
     async def _request_model_patch(
         current_code,
@@ -1362,6 +1368,7 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     async def _review_or_revise(current_code, conjecture_text, translation_input):
         """Codex audits; Claude remains the sole generative code author."""
+        repair_failure.clear()
         enabled = (
             os.environ.get("ASTRA_CODE_REVIEW", "1").strip().strip("'\"").lower()
             not in ("0", "off", "false")
@@ -1525,6 +1532,11 @@ async def _do_cycle_impl(req: dict) -> dict:
                     "operation completed",
                 }
             )
+            # Everything below can overwrite `current_code` with an author call
+            # that may fail. Keep what the cycle already paid for: the script is
+            # the only artifact worth resuming from, and an error string is not
+            # a script.
+            last_authored_code = current_code
             if validator_repair_vnext1 and not requires_regeneration:
                 current_code, patch_error = await _request_model_patch(
                     current_code,
@@ -1557,7 +1569,8 @@ async def _do_cycle_impl(req: dict) -> dict:
                         isinstance(current_code, str)
                         and current_code.startswith("API_ERROR:")
                     ):
-                        return current_code, review, current_code
+                        repair_failure["phase"] = "translator_repair"
+                        return last_authored_code, review, current_code
             else:
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR")
@@ -1572,7 +1585,8 @@ async def _do_cycle_impl(req: dict) -> dict:
                     isinstance(current_code, str)
                     and current_code.startswith("API_ERROR:")
                 ):
-                    return current_code, review, current_code
+                    repair_failure["phase"] = "translator_repair"
+                    return last_authored_code, review, current_code
             review_round += 1
 
     _progress("conjecture", timings=timings)
@@ -1614,10 +1628,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         deliberation=deliberation,
     )
 
-    translation_input = (
-        "SHARED FINAL OBJECTIVE:\n"
-        f"{shared_goal}\n\nCONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
-    )
+    translation_input = build_translation_input(shared_goal, conjecture)
     _progress("translate", timings=timings)
     t0 = time.monotonic()
     _prepare_agent(trans, "TRANSLATOR")
@@ -1652,7 +1663,11 @@ async def _do_cycle_impl(req: dict) -> dict:
         code, conjecture, translation_input
     )
     if review_error:
-        out = _fail(review_error, "reviewer", conjecture_text=conjecture)
+        out = _fail(
+            review_error,
+            repair_failure.get("phase", "reviewer"),
+            conjecture_text=conjecture,
+        )
         out["code"] = code
         out["code_review"] = code_review
         out["code_review_history"] = review_history
@@ -1824,7 +1839,11 @@ async def _do_cycle_impl(req: dict) -> dict:
             code, conjecture, translation_input
         )
         if review_error:
-            out = _fail(review_error, "reviewer_retry", conjecture_text=conjecture)
+            out = _fail(
+                review_error,
+                repair_failure.get("phase", "reviewer_retry"),
+                conjecture_text=conjecture,
+            )
             out["code"] = code
             out["code_review"] = code_review
             out["code_review_history"] = review_history
