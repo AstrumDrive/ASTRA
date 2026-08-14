@@ -37,6 +37,24 @@ RULES OF OPERATION:
    - SIZE BUDGET: keep the script under ~200 lines. Verify the DECISIVE claims of the conjecture, not the entire formalism; factor repeated structure into functions/loops instead of unrolled algebra. A compact script that isolates the sharp content beats a transcription (long generations get killed by the time budget).
    - Final evaluation block: Calculate a symbolic `residual`, a numerical error norm, or a satisfiability result with a clear tolerance.
    - Assert success or failure printing "VERDICT: PASS" or "VERDICT: FAIL" followed by mathematical evidence.
+3b. SYMBOLIC COST CONTROL (decisive for tensor and GR work):
+   - Evaluate where the claim lives. Curvature AT A POINT depends only on the
+     metric and its first and second derivatives AT THAT POINT, so differentiate
+     each metric component symbolically and substitute the point immediately,
+     then assemble Christoffels, their derivatives, Ricci and Einstein from
+     those exact numbers. Carrying full symbolic Christoffels through a 4D
+     rational metric makes the expressions swell until the process is killed
+     for memory or the time budget: measured 2026-08-14, the pointwise assembly
+     finished in 13 s where the fully symbolic route was killed twice.
+   - Differentiation must still strictly PRECEDE substitution. Substituting
+     first and differentiating after is a different, wrong quantity.
+   - Do not call `simplify()` inside the tensor loops. Simplify once, after the
+     substitution that collapses the expression to rationals.
+   - Prefer exact rationals over floats throughout; `nsimplify`/`Rational`
+     rather than evaluation, so the final decision rests on an exact sign.
+   - If the claim genuinely needs a symbolic expression over a whole region,
+     say so and reduce the domain (fix a symmetry axis, set an angular
+     variable) instead of brute-forcing the general expression.
 4. SYNTAX: Avoid infinite loops in simplification. Print clearly.
 5. ROBUSTNESS:
    - Set finite time/iteration limits in numerical solvers.
