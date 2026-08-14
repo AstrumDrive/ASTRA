@@ -108,8 +108,24 @@ def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).astimezone().isoformat()
 
 
+def _looks_like_repo_file(resource: str) -> bool:
+    """True for a repo-relative data file, false for a capability note.
+
+    Both live in a case's `resources`. The two real data files declared by the
+    frozen suite carry a directory separator and a suffix
+    (`benchmarks/.../growth_observations.csv`); the seven capability notes carry
+    neither. The test is deliberately shallow so that a mistyped data path still
+    looks like a path and fails loudly instead of being read as prose.
+    """
+    text = (resource or "").strip()
+    return ("/" in text or "\\" in text) and bool(Path(text).suffix)
+
+
 def _frozen_resource_context(program: ResearchProgram) -> str:
     """Embed declared benchmark resources for tool-disabled model phases.
+
+    See `_looks_like_repo_file` for how the two kinds of declared resource are
+    told apart.
 
     The CLIs are intentionally denied filesystem tools, so a path alone is not
     evidence available to the conjecturer or translator.  Every architecture
@@ -123,6 +139,16 @@ def _frozen_resource_context(program: ResearchProgram) -> str:
     ]
     root = ROOT.resolve()
     for resource in program.resources:
+        # `resources` holds two kinds of entry. Some are repo-relative data
+        # FILES whose bytes must be embedded, because the CLIs have no
+        # filesystem tools and a path alone is not evidence. The rest are
+        # capability NOTES ("Optional GR_python package, resolved through
+        # ASTRA_GR_PYTHON_ROOT") describing what the oracle environment can
+        # import - there is nothing to read, and treating them as paths crashed
+        # the canary on its first cell.
+        if not _looks_like_repo_file(resource):
+            blocks.extend(["", f"AVAILABLE ENVIRONMENT: {resource}"])
+            continue
         path = (ROOT / resource).resolve()
         try:
             path.relative_to(root)
@@ -130,6 +156,10 @@ def _frozen_resource_context(program: ResearchProgram) -> str:
             raise ValueError(
                 f"Frozen resource escapes ASTRA root: {resource}"
             ) from exc
+        if not path.is_file():
+            # It looks like a data file and is not there: a broken benchmark
+            # must fail loudly, never quietly degrade into a prose note.
+            raise FileNotFoundError(f"Frozen resource is missing: {resource}")
         payload = path.read_bytes()
         if len(payload) > 16000:
             raise ValueError(
