@@ -712,6 +712,36 @@ PHASE_BUDGET_SHARE = {
     "NAVIGATOR": 0.50,
 }
 
+# Seconds held back for the phases that still have to run after this one.
+#
+# A share alone cannot protect the end of the pipeline: it is a fraction of what
+# REMAINS, so it shrinks as the cycle progresses and the last phase to run gets
+# the least. Measured 2026-08-14 over the stage-6 ablation
+# (`ASTRA2_ABLATION_FULL_VS_LINEAR_20260814.md`): all twelve validator repairs
+# timed out, at a median ceiling of 165 s against the 480 s configured, and the
+# cycles that failed were simply the ones that took longer to get there.
+#
+# The reserve is sized from the p90s measured over 84 cycles
+# (`ASTRA2_PHASE_BUDGET_20260813.md`) plus what the ablation showed the tail
+# actually costs: repair 343 s, and execution + analysis + navigation about
+# 270 s. So every phase before the repair must leave ~613 s on the table, and
+# the repair itself must leave the tail's 270 s.
+PHASE_DOWNSTREAM_RESERVE = {
+    "CONJECTURE": 613,
+    "SYNTH": 613,
+    "TRANSLATOR": 613,
+    "REVIEWER": 613,
+    "TRANSLATOR_REPAIR": 270,
+    "ANALYST": 120,
+    "NAVIGATOR": 0,
+}
+
+# The repair is a second, later call funded by the same key as the translation,
+# and it is the phase the proportional rule starved. Giving it its own key lets
+# it carry its own share and its own reserve.
+PHASE_BUDGET_SHARE["TRANSLATOR_REPAIR"] = 0.90
+
+
 # A bounded cycle and a persistent one want different ceilings, and one variable
 # had to serve both. Measured: benchmark translations have a p90 of 431 s
 # (`ASTRA2_PHASE_BUDGET_20260813.md`), while the research-grade GR validator of
@@ -1197,6 +1227,12 @@ async def _do_cycle_impl(req: dict) -> dict:
         # genera scripts de fisica largos: ASTRA_TRANSLATOR_TIMEOUT=480);
         # sin variable, cli_backend usa ASTRA_CLI_TIMEOUT (240).
         v = (os.environ.get(f"ASTRA_{phase}_TIMEOUT") or "").strip().strip("'\"")
+        if not v and phase.upper() == "TRANSLATOR_REPAIR":
+            # The repair is the same author writing the same kind of script, so
+            # it inherits the translator's ceiling unless tuned on its own.
+            v = (
+                os.environ.get("ASTRA_TRANSLATOR_TIMEOUT") or ""
+            ).strip().strip("'\"")
         try:
             if v:
                 configured = int(v)
@@ -1222,10 +1258,12 @@ async def _do_cycle_impl(req: dict) -> dict:
         return max(configured, persistent)
 
     def _phase_timeout(phase):
+        key = phase.upper()
         return budget.phase_timeout(
             _configured_phase_timeout(phase),
             default_seconds=240,
-            share=PHASE_BUDGET_SHARE.get(phase.upper()),
+            share=PHASE_BUDGET_SHARE.get(key),
+            reserve_seconds=PHASE_DOWNSTREAM_RESERVE.get(key, 0),
         )
 
     def _prepare_agent(agent, phase):
@@ -1363,7 +1401,7 @@ async def _do_cycle_impl(req: dict) -> dict:
             budget=budget.snapshot(),
         )
         t0 = time.monotonic()
-        _prepare_agent(trans, "TRANSLATOR")
+        _prepare_agent(trans, "TRANSLATOR_REPAIR")
         patch_result = await trans.repair_validation_code(
             translation_input,
             current_code,
@@ -1587,7 +1625,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                         timings=timings,
                     )
                     t0 = time.monotonic()
-                    _prepare_agent(trans, "TRANSLATOR")
+                    _prepare_agent(trans, "TRANSLATOR_REPAIR")
                     current_code = await trans.translate_to_code(
                         translation_input,
                         is_correction=True,
@@ -1607,7 +1645,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 # impossible task that burned a whole 64000-token output budget
                 # on 2026-08-14. Give a clean slate and the reason for it.
                 t0 = time.monotonic()
-                _prepare_agent(trans, "TRANSLATOR")
+                _prepare_agent(trans, "TRANSLATOR_REPAIR")
                 current_code = await trans.translate_to_code(
                     translation_input,
                     is_correction=True,
@@ -1823,7 +1861,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     return out
             else:
                 t0 = time.monotonic()
-                _prepare_agent(trans, "TRANSLATOR")
+                _prepare_agent(trans, "TRANSLATOR_REPAIR")
                 code = await trans.translate_to_code(
                     translation_input,
                     is_correction=True,
@@ -1862,7 +1900,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                         return out
                 else:
                     t0 = time.monotonic()
-                    _prepare_agent(trans, "TRANSLATOR")
+                    _prepare_agent(trans, "TRANSLATOR_REPAIR")
                     code = await trans.translate_to_code(
                         translation_input,
                         is_correction=True,

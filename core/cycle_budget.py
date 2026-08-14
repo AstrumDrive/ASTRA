@@ -55,6 +55,7 @@ class CycleBudget:
         default_seconds: int = 240,
         minimum_seconds: int = 1,
         share: Optional[float] = None,
+        reserve_seconds: float = 0.0,
     ) -> int:
         """Return a timeout that cannot consume the final response buffer.
 
@@ -67,6 +68,17 @@ class CycleBudget:
         cycle past its wall.  Clamping to remaining time alone did not prevent
         that, because an early phase may legitimately consume all of it.
         See docs/evidence/ASTRA2_PHASE_BUDGET_20260813.md.
+
+        ``reserve_seconds`` holds budget back for the phases that still have to
+        run AFTER this one, which a share alone cannot do: a share of what is
+        left shrinks as the cycle progresses, so the last phase to run gets the
+        least.  Measured 2026-08-14 over the stage-6 ablation
+        (`ASTRA2_ABLATION_FULL_VS_LINEAR_20260814.md`): every one of twelve
+        validator repairs died with 124-454 s left, at a median ceiling of
+        165 s, and cycles that failed had simply spent longer getting there
+        (median 1249 s against 882 s for the ones that validated).  The repair
+        is last and decisive, so it is exactly the phase a proportional rule
+        starves.
         """
         try:
             requested = int(requested_seconds or default_seconds)
@@ -76,7 +88,14 @@ class CycleBudget:
         usable = self.usable_seconds
         if usable is None:
             return requested
-        allowed = float(usable)
+        try:
+            reserve = max(0.0, float(reserve_seconds or 0.0))
+        except (TypeError, ValueError):
+            reserve = 0.0
+        # Never let the reserve drive a phase to zero: if the cycle is already
+        # so far gone that the reserve exceeds what is left, this phase still
+        # gets the floor and the caller decides whether to start it at all.
+        allowed = max(float(minimum_seconds), float(usable) - reserve)
         if share is not None:
             try:
                 fraction = float(share)

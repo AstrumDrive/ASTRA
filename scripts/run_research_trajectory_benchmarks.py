@@ -398,6 +398,12 @@ def _run_cycle(
         "oracle": oracle,
         "exec_timeout": program.budget.execution_timeout_seconds,
         "benchmark_seed": record["seed"],
+        # The frozen case budget, passed through so ASTRA plans against the
+        # benchmark's wall rather than its own 1500 s default. Measured
+        # 2026-08-14: every ablation cycle ran with total_seconds 1500 while the
+        # suite declares 1800, and the missing 300 s were exactly what the
+        # validator repair could not find.
+        "cycle_timeout_seconds": program.budget.cycle_timeout_seconds,
     }
     started = time.monotonic()
     raw_output = ""
@@ -448,7 +454,11 @@ def _invoke_cycle_once(
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=program.budget.cycle_timeout_seconds,
+            # Outer kill, deliberately looser than the wall ASTRA plans
+            # against: a cycle that legitimately uses its whole budget still
+            # needs a moment to serialise its result, and killing it there
+            # would turn a finished cycle into a runner timeout.
+            timeout=program.budget.cycle_timeout_seconds + 120,
             check=False,
         )
         raw_output = process.stdout
