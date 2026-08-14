@@ -53,6 +53,42 @@ class CliResult:
     warning: str = ""         # aviso cuando la respuesta vino de un modelo fallback
 
 
+# Reserve part of the output budget for the ANSWER.
+#
+# Measured 2026-08-14 across four translator calls
+# (`docs/evidence/ASTRA2_PLAN_ARTIFACT_INJECTION_20260814.md`): the repair call
+# that killed a cycle spent all 64000 output tokens without emitting a single
+# character of text (`stop_reason: max_tokens`), which ASTRA could only observe
+# as a 1200 s timeout. 64000 is the model's own output ceiling, not a CLI
+# default, so it cannot be raised - the only lever is keeping room for the
+# reply inside it.
+#
+# Sizing it needs care in BOTH directions, because the successful calls were
+# not comfortable either: the translation that worked spent 59181 of the 64000
+# tokens and the patch 56630. Only the totals are observable, so thinking is
+# bounded above by them; subtracting the emitted text puts the largest working
+# thinking near 56 k. A cap below that would degrade the one configuration
+# known to work, and a cap too near 64000 would reserve nothing for the answer.
+# 58000 clears every observed success and still leaves 6000 tokens - about
+# twice the largest validator measured (250 lines, 10.4 k characters).
+_CLAUDE_THINKING_CAP_DEFAULT = 58000
+
+
+def _claude_thinking_cap() -> str | None:
+    raw = (
+        os.environ.get("ASTRA_CLAUDE_MAX_THINKING_TOKENS", "")
+        .strip()
+        .strip("'\"")
+    )
+    if raw.lower() in ("0", "off", "none"):
+        return None            # explicit opt-out: let the model use it all
+    try:
+        cap = int(raw) if raw else _CLAUDE_THINKING_CAP_DEFAULT
+    except ValueError:
+        cap = _CLAUDE_THINKING_CAP_DEFAULT
+    return str(cap) if cap > 0 else None
+
+
 def _claude_bin() -> str:
     """Resuelve el claude.exe NATIVO que hay detras del shim npm.
 
@@ -307,6 +343,55 @@ def _parse_gemini(stdout: str, _outfile: str) -> tuple[str, float]:
     return s, 0.0
 
 
+# ASTRA runs agy with `--mode plan` on purpose: it is the read-only sandbox that
+# stops the CLI writing files or executing, the same lesson as claude's
+# `--tools ""`. The plan artifact is therefore the STRUCTURAL cost of a correct
+# safety choice, not a model quirk - which is why it shows up in 72% of the
+# deliberations sampled on 2026-08-14, and why it can be recognised
+# deterministically instead of hoped away.
+#
+# Across every sample the invariant is the same: a markdown link pointing at a
+# `file://` artifact under the Antigravity brain directory, in a trailing
+# paragraph, sometimes followed by an approval request. The wording varies and
+# switches language ("Please review the...", "You can review the formalization
+# here:", "He estructurado ... en el artefacto"); the link does not. So the link
+# is what we match.
+_AGY_ARTIFACT_LINE = re.compile(r"^.*\]\(\s*file://[^)]*\).*$", re.MULTILINE)
+_AGY_APPROVAL_TAIL = re.compile(
+    r"(?:^|\n)[^\n]{0,120}?(pending your approval|awaiting your approval|"
+    r"pendiente de tu aprobaci[oó]n)[^\n]*", re.IGNORECASE)
+
+
+def strip_plan_artifacts(text: str) -> tuple[str, str]:
+    """Drop plan-mode artifact pointers from a CLI answer.
+
+    Returns `(clean_text, note)`; `note` is empty when nothing was removed and
+    otherwise says what went, because a sanitiser that silently eats model
+    output is its own debugging trap.
+
+    `clean_text` comes back EMPTY when the reply was nothing but a pointer.
+    That is not a reply: the model put its answer in a file ASTRA cannot read,
+    which is an operational failure the caller should surface so the ladder and
+    the cycle can react - the same treatment the headless-permission guard below
+    already gives to "the model tried to use a tool instead of answering".
+    """
+    if not text or "file://" not in text:
+        return text, ""
+    dropped = _AGY_ARTIFACT_LINE.findall(text)
+    if not dropped:
+        return text, ""
+    clean = _AGY_ARTIFACT_LINE.sub("", text)
+    clean = _AGY_APPROVAL_TAIL.sub("", clean)
+    # Tidy the separator and blank lines the removed paragraph leaves behind.
+    clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    clean = re.sub(r"(?:\n\s*-{3,}\s*)+$", "", clean).strip()
+    note = (
+        f"plan-mode artifact removed from the reply ({len(dropped)} line(s)): "
+        + " | ".join(line.strip()[:120] for line in dropped[:2])
+    )
+    return clean, note
+
+
 def _parse_agy(stdout: str, _outfile: str) -> tuple[str, float]:
     s = (stdout or "").strip()
     if not s:
@@ -486,7 +571,15 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         tail = (proc.stdout or "")[-300:]
         return CliResult(False, error=f"respuesta vacia (posible tope de cuota). {tail.strip()}")
 
-    return CliResult(True, text=text, cost_usd=cost)
+    # Strip the plan-mode artifact at the SOURCE, before this text can become
+    # another agent's instructions. It is announced, never silent.
+    text, artifact_note = strip_plan_artifacts(text)
+    if not text.strip():
+        return CliResult(False, error=(
+            "la respuesta era SOLO un puntero a un artefacto de plan-mode: el "
+            "modelo dejo su contenido en un fichero que ASTRA no puede leer. "
+            f"{artifact_note}"))
+    return CliResult(True, text=text, cost_usd=cost, warning=artifact_note)
 
 
 def call_cli(kind: str, prompt: str, timeout: int | None = None,
@@ -520,6 +613,12 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
 
     env = os.environ.copy()
     env["NO_COLOR"] = "1"
+    if kind == "claude":
+        cap = _claude_thinking_cap()
+        # setdefault, not assignment: an operator who exported the variable
+        # deliberately outranks our default.
+        if cap and not env.get("MAX_THINKING_TOKENS"):
+            env["MAX_THINKING_TOKENS"] = cap
     if kind in ("gemini", "agy"):
         # gemini_cli / agy = OAuth de suscripcion (Code Assist / Antigravity), cuota de
         # la cuenta Google, NO API de pago. Sin esto el CLI ve la GEMINI_API_KEY del .env
@@ -546,8 +645,11 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
             res.model_used = label
             if fallidos:
                 caidos = "; ".join(f"'{l}' -> {e[:140]}" for l, e in fallidos)
-                res.warning = (f"AVISO CUOTA [{kind}]: {caidos}. "
-                               f"La fase la respondio el fallback '{label}'.")
+                quota = (f"AVISO CUOTA [{kind}]: {caidos}. "
+                         f"La fase la respondio el fallback '{label}'.")
+                # The sanitiser may already have left a note here; both matter,
+                # so neither is allowed to clobber the other.
+                res.warning = f"{quota} {res.warning}".strip() if res.warning else quota
             return res
         fallidos.append((label, res.error))
         if not _is_quota_error(res.error):

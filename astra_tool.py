@@ -50,7 +50,10 @@ from core.architecture_contract import (
     CACHE_SCHEMA_VERSION,
     production_manifest,
 )
-from agents.translator import build_translation_input
+from agents.translator import (
+    NOT_CODE_RETRY_INSTRUCTIONS,
+    build_translation_input,
+)
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -1522,9 +1525,11 @@ async def _do_cycle_impl(req: dict) -> dict:
                 str(item).lower()
                 for item in (review.get("defect_labels") or [])
             }
+            not_code = "not_code_at_all" in defect_labels
             requires_regeneration = (
                 status == "REJECT"
                 or "syntax_error" in defect_labels
+                or not_code
                 or current_code.strip().lower()
                 in {
                     "write operation completed",
@@ -1572,13 +1577,20 @@ async def _do_cycle_impl(req: dict) -> dict:
                         repair_failure["phase"] = "translator_repair"
                         return last_authored_code, review, current_code
             else:
+                # A reply that is not a script has nothing worth preserving, and
+                # quoting it back as "your previous code, fix line 1" is the
+                # impossible task that burned a whole 64000-token output budget
+                # on 2026-08-14. Give a clean slate and the reason for it.
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR")
                 current_code = await trans.translate_to_code(
                     translation_input,
                     is_correction=True,
-                    previous_error=patch_instructions,
-                    previous_code=current_code,
+                    previous_error=(
+                        NOT_CODE_RETRY_INSTRUCTIONS if not_code
+                        else patch_instructions
+                    ),
+                    previous_code=None if not_code else current_code,
                 )
                 _mark("translate", t0)
                 if (

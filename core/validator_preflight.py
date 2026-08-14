@@ -171,6 +171,43 @@ def _symbolic_zero_without_normalization(
     return sorted(sympy_aliases)[0] if sympy_aliases else None
 
 
+# A reply can fail to parse for two very different reasons, and they need
+# opposite treatments. A damaged SCRIPT is worth patching; a reply that is not a
+# script at all is not. Measured 2026-08-14: the translator, told by a leaked
+# plan-mode line to read a file it had no tools for, answered with forty
+# repetitions of "**Tool call:** let me read it". Handing that back as "your
+# previous code, fix line 1" is an impossible task, and the model spent its
+# entire 64000-token output budget on it without emitting anything.
+_CODE_SHAPED = re.compile(
+    r"^\s*(?:from\s|import\s|def\s|class\s|return\b|for\s|while\s|if\s|elif\s|"
+    r"else\b|try\b|except\b|with\s|assert\s|raise\s|print\s*\(|@|#|\)|\]|\})"
+)
+_DECLARES_CODE = re.compile(r"^\s*(?:from\s+\S+\s+import|import\s+\S|def\s+\w)",
+                            re.MULTILINE)
+
+
+def looks_like_prose(code: str) -> bool:
+    """True when the reply is not a broken script but not a script at all.
+
+    Deliberately conservative: any import or `def` counts as evidence that a
+    script was attempted, so a real validator with a typo is never mistaken for
+    prose and keeps its right to a local repair.
+    """
+    text = (code or "").strip()
+    if not text or _DECLARES_CODE.search(text):
+        return False
+    try:
+        ast.parse(text)
+        return False                      # it parses: whatever it is, it is code
+    except SyntaxError:
+        pass
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return True
+    shaped = sum(1 for ln in lines if _CODE_SHAPED.match(ln) or "=" in ln)
+    return (shaped / len(lines)) < 0.25
+
+
 def audit_validation_code(code: str) -> dict[str, Any]:
     findings: list[PreflightFinding] = []
     engine = detect_engine(code or "")
@@ -185,10 +222,16 @@ def audit_validation_code(code: str) -> dict[str, Any]:
     try:
         tree = ast.parse(code or "")
     except SyntaxError as exc:
+        prose = looks_like_prose(code)
         finding = PreflightFinding(
-            label="syntax_error",
+            label="not_code_at_all" if prose else "syntax_error",
             severity="critical",
-            message=f"Python syntax error: {exc.msg}",
+            message=(
+                "The reply is prose, not a script: no imports, no definitions, "
+                f"and it does not parse ({exc.msg})."
+                if prose
+                else f"Python syntax error: {exc.msg}"
+            ),
             line=exc.lineno,
             autofixable=False,
         )
