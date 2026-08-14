@@ -17,7 +17,7 @@
   "gates": {
     "G0_isolation": "PASS",
     "G1_regression": "PARTIAL",
-    "G2_engines_oracles": "PARTIAL: local doctor PASS and 6/6 local engine smokes (2026-08-13); ASTRUM inventory, cross-oracle agreement and scheduler checks still pending",
+    "G2_engines_oracles": "PARTIAL: local doctor PASS, 6/6 local engine smokes, ASTRUM inventory recorded with verified identical Lean/Mathlib pin (2026-08-13); cross-oracle agreement and scheduler checks still pending",
     "G3_scientific_quality": "PENDING",
     "G4_research_trajectory": "PENDING",
     "G5_portability_reproducibility": "PENDING",
@@ -111,7 +111,8 @@
       "Stage 6 infrastructure: preregistered canary protocol, runner with dry-run/offline-smoke/live gating (2026-08-12, authorized by Nelson)"
     ],
     "next_milestone": "Reviewer calibration so sound decisive legs are not blocked by auxiliary ones (the measured 17.4% operational failure), then the H3 comparative pilot - each requires Nelson's authorization",
-    "updated": "2026-08-12"
+    "updated": "2026-08-12",
+    "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md"
   },
   "notes": [
     "Uncommitted files in the production checkout were intentionally excluded."

@@ -62,7 +62,7 @@ The six skips require optional frozen external caches. See
 
 - [x] Local doctor/preflight passes
 - [x] Required local engines pass their smoke tests
-- [ ] ASTRUM remote engine inventory is recorded
+- [x] ASTRUM remote engine inventory is recorded
 - [ ] Cross-oracle claim verdicts agree for the frozen client-validation suite
 - [ ] Scheduler attribution, concurrency limits, timeouts, and cancellation pass
 
@@ -89,8 +89,17 @@ to native Windows executables — those engines run under WSL and pass — and
 that the native Lean 4.32.2 it discovers is NOT the ASTRA oracle, which is
 pinned to 4.30.0 under WSL.
 
-The three remaining items require contacting ASTRUM, which needs explicit
-authorization under `HANDOFF.md` §9.
+The ASTRUM inventory was recorded on 2026-08-13 under a separate explicit
+authorization, as a read-only query that submitted no work
+(`docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md`): eight engines
+catalogued, and the formal route verified to run the *same* Lean toolchain and
+the *same* Mathlib commit as the local one, which is the precondition for a
+cross-oracle agreement to mean anything. One asymmetry is recorded there: the
+remote Lean route calls `lean` against a prebuilt Mathlib without `lake`, so
+artifacts needing dependency resolution run locally only.
+
+The two remaining items submit real work to the cluster rather than listing
+it, so they need an authorization distinct from the inventory one.
 
 ### G3 — Scientific quality benchmarks
 

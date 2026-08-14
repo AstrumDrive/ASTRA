@@ -309,11 +309,21 @@ pip freeze SHA-256:
   Trampa anotada: el marcador debe ser `# ASTRA_ENGINE: <motor>`; con otra
   sintaxis de comentario el artefacto se enruta **silenciosamente a Python**.
 
+- **inventario de ASTRUM REGISTRADO (2026-08-13, autorizado)**: 8 motores
+  catalogados vía `astra_engine.sh list`, y **verificado** que el oráculo
+  formal remoto usa el MISMO toolchain (`v4.30.0`) y el MISMO commit de
+  Mathlib (`c5ea0035…`) que el local — condición para que un acuerdo entre
+  oráculos signifique algo. Asimetría anotada: la ruta remota llama a `lean`
+  sin `lake`, así que artefactos que resuelvan dependencias solo corren en
+  local. Evidencia:
+  `docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md`.
+
 ### Todavía no existe
 
-- **los tres ítems restantes de G2 requieren ASTRUM** (inventario de motores,
-  acuerdo de veredictos entre oráculos, scheduler/concurrencia/cancelación):
-  contactar el clúster exige autorización explícita (§9);
+- **los dos ítems restantes de G2 ENVÍAN TRABAJO REAL al clúster** (acuerdo
+  de veredictos entre oráculos con la suite cliente; scheduler, concurrencia,
+  timeouts y cancelación): requieren una autorización distinta de la del
+  inventario;
 - portar a 2.0 los dos cambios `PRODUCTION ONLY` detectados (informe PDF
   enriquecido); no bloquean el lazo de campaña;
 - **validación viva del reparto**: los shares están fijados por tests
