@@ -289,7 +289,20 @@ pip freeze SHA-256:
   producción **sin committear**) y verificado cruzando los dos checkouts
   reales. **El MCP de producción necesita reinicio** para cargarlo.
 
+- **chequeo de deriva entre líneas (2026-08-13)**:
+  `scripts/check_line_drift.py` compara la superficie de runtime compartida
+  contra el commit base y clasifica `PRODUCTION ONLY` / `BOTH CHANGED` /
+  `2.0 ONLY` / `PROSE ONLY` (este último por AST, para que una redacción
+  distinta tras un port no se reporte como deriva). Primera pasada: 2 cambios
+  de producción ausentes en 2.0 (`core/pdf_generator.py`, `main.py`).
+- **arreglos portados a producción y COMMITTEADOS** (`9326928` en `main` de
+  `Dev/ASTRA`): Unicode de PowerShell + candado de máquina, acotado a esos
+  dos ficheros; el resto del trabajo local de Nelson quedó intacto.
+
 ### Todavía no existe
+
+- portar a 2.0 los dos cambios `PRODUCTION ONLY` detectados (informe PDF
+  enriquecido); no bloquean el lazo de campaña;
 - **validación viva del reparto**: los shares están fijados por tests
   deterministas sobre los p90 medidos, pero **no se ha corrido una suite con
   ellos activos**; la comprobación natural es el standard tier;

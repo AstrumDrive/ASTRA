@@ -100,6 +100,43 @@ Mientras la aceptación siga bloqueada, la divergencia deliberada es lo
 coherente; el backend compartido tiene sentido **después** de G6, como parte
 de la promoción y no antes.
 
+### Adoptado (2026-08-13): chequeo de deriva, no fusión de código
+
+El problema real no era arquitectónico sino de **visibilidad**: los dos ports
+de hoy se descubrieron por accidente. `scripts/check_line_drift.py` compara
+cada fichero de la superficie de runtime compartida en tres puntos —el commit
+base del clon, el árbol de 2.0 y el de producción— y clasifica:
+
+- `PRODUCTION ONLY`: producción avanzó y 2.0 no. **Es la clase de cambio que
+  un port se pierde**, exactamente como pasó con `ASTRA_CODEX_BIN`.
+- `BOTH CHANGED`: divergencia real, decisión humana.
+- `2.0 ONLY`: evolución esperada de la línea de desarrollo.
+- `PROSE ONLY`: mismo comportamiento, distinta redacción.
+
+La última categoría importa: compara el **AST con docstrings eliminados**, así
+que una redacción distinta tras un port no se reporta como deriva. Sin eso, el
+primer informe marcaba `cli_backend.py` y `runtime_resources.py` como
+divergentes cuando su código es idéntico — y un informe con ruido se deja de
+leer, que es justo cómo se pierde el siguiente arreglo de verdad.
+
+Primera ejecución (2026-08-13), 41 ficheros comparados:
+
+```text
+PRODUCTION ONLY    2   core/pdf_generator.py, main.py
+BOTH CHANGED       0
+2.0 ONLY           7
+PROSE ONLY         2   core/cli_backend.py, core/runtime_resources.py
+IN SYNC           30
+```
+
+Encontró en su primera pasada dos cambios de producción ausentes en 2.0:
+`generate_pdf_report(...)` pasa ahora `code` y `execution_result` para
+enriquecer el informe PDF. No es crítico para el lazo de campaña, pero ya no
+depende de que alguien se acuerde.
+
+Uso: `python scripts/check_line_drift.py --production <ruta>` (o
+`ASTRA_PRODUCTION_ROOT`). Sin cuota, sin escrituras.
+
 ## 4. Camino a pre-producción
 
 "Pre-producción" aquí = ejecutar el lazo de campaña 2.0 con modelos reales,
