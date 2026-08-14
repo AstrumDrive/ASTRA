@@ -3,7 +3,8 @@
   "application": "QuantumTransportEOM package assurance",
   "demonstration": "quantum_transport_eom_open_system_assurance",
   "objective": "Exercise QuantumTransportEOM through its public open-system API against analytic and conservation identities.",
-  "claim": "QuantumTransportEOM v0.3.0 reproduces the resonant-level Lorentzian, equilibrium FDT and zero current, and steady-state current conservation.",
+  "claim": "QuantumTransportEOM v0.4.0.dev0 reproduces the resonant-level Lorentzian, equilibrium FDT and zero current, and steady-state current conservation.",
+  "expected_package_version": "0.4.0.dev0",
   "expected_claim_verdict": "VALIDATED",
   "artifact_kind": "project_package",
   "artifact_path": "artifacts/quantum_transport_eom_open_system.py",
@@ -25,7 +26,7 @@
   ],
   "limitations": [
     "This case validates a high-value open-system slice, not every symbolic, interacting, parallel or GPU path.",
-    "The case is local until the same package and Python runtime are provisioned on ASTRUM."
+    "The case is local because the current development package is not a released ASTRUM artifact."
   ],
   "adapter": "quantum_transport_eom"
 }

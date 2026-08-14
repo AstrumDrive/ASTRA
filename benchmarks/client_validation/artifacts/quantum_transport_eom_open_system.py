@@ -138,7 +138,7 @@ commit = subprocess.run(
 ).stdout.strip()
 evidence["quantum_transport_commit"] = commit
 passed = (
-    evidence["package_version"] == "0.3.0"
+    evidence["package_version"] == "0.4.0.dev0"
     and evidence["lorentzian_max_abs_error"] < 1e-11
     and evidence["equilibrium_current_abs"] < 1e-12
     and evidence["current_conservation_error"] < 1e-8

@@ -105,12 +105,13 @@ agreement of 1.0 over the five cases that run on both oracles, including the
 Lean formal case, and 4/4 scheduler checks covering capacity, attribution,
 timeouts and cancellation. No model quota was involved.
 
-**G2 is closed with one recorded caveat**: the client-validation case
-`client_quantum_transport_eom_open_system` reports REFUTED locally because the
-2.0 fixture still pins package version 0.3.0 while the installed package is
-0.4.0.dev0. Production carries that correction uncommitted. It is instrument
-drift rather than a scientific result, it does not touch the cross-oracle
-agreement, and porting a measurement fixture is Nelson's decision.
+**G2 is closed.** The one caveat recorded at closing time - the
+client-validation case `client_quantum_transport_eom_open_system` reporting
+REFUTED because the 2.0 fixture still pinned package version 0.3.0 against an
+installed 0.4.0.dev0 - was instrument drift rather than a scientific result.
+It was resolved the same day, with authorization, by porting production's
+uncommitted correction; the case now passes and the drift check reports no
+production-only file left behind.
 
 ### G3 — Scientific quality benchmarks
 

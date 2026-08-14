@@ -34,8 +34,13 @@ No afecta al acuerdo entre oráculos (ese caso corre solo en local, por
 decisión propia del fixture: *"el paquete de desarrollo actual no es un
 artefacto liberado de ASTRUM"*).
 
-**Portar ese fixture es decisión de Nelson**: es su cambio y es un instrumento
-de medida, no lo toco por mi cuenta.
+**Portado el 2026-08-13 con autorización de Nelson.** Tras copiar los cuatro
+ficheros `PRODUCTION ONLY` (el artefacto y el JSON del caso cuántico, más
+`core/pdf_generator.py` y `main.py`), el caso pasa: `passing_cases 1/1`. Los
+cuatro estaban idénticos al commit base en 2.0, así que el port no pisó
+ningún cambio propio — se verificó antes de copiar. El chequeo de deriva
+quedó en **`PRODUCTION ONLY: 0`**, y la suite completa y la auditoría siguen
+verdes (356 passed, audit PASS).
 
 ## Scheduler compartido: 4/4
 
