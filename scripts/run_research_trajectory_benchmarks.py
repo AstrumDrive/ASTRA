@@ -401,6 +401,43 @@ def _run_cycle(
     }
     started = time.monotonic()
     raw_output = ""
+    attempt = 0
+    while True:
+        result, raw_output = _invoke_cycle_once(program, env, request)
+        # BUSY is a scheduling condition, not a property of the architecture
+        # under test: another cycle holds the shared model-account slot. Counting
+        # it as an operational failure poisons the measurement, which is exactly
+        # what happened on 2026-08-14 - a stale lock turned an 8-cell ablation
+        # into `operational_failure_rate: 1.0` for BOTH arms in four seconds, a
+        # number that looks like data and is not.
+        if str(result.get("status") or "").upper() != "BUSY":
+            break
+        attempt += 1
+        if attempt > _BUSY_MAX_ATTEMPTS:
+            result["error"] = (
+                f"{result.get('error') or 'BUSY'} - still busy after "
+                f"{_BUSY_MAX_ATTEMPTS} waits of {_BUSY_WAIT_SECONDS}s"
+            )
+            break
+        print(
+            f"[WAIT] shared model slot busy; retry {attempt}/{_BUSY_MAX_ATTEMPTS}"
+            f" in {_BUSY_WAIT_SECONDS}s",
+            flush=True,
+        )
+        time.sleep(_BUSY_WAIT_SECONDS)
+    return result, round(time.monotonic() - started, 3), raw_output
+
+
+_BUSY_WAIT_SECONDS = 60
+_BUSY_MAX_ATTEMPTS = 20
+
+
+def _invoke_cycle_once(
+    program: ResearchProgram,
+    env: dict[str, str],
+    request: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    raw_output = ""
     try:
         process = subprocess.run(
             [sys.executable, str(ASTRA_TOOL)],
@@ -435,7 +472,7 @@ def _run_cycle(
             "error": f"{type(exc).__name__}: {exc}",
             "phase": "runner",
         }
-    return result, round(time.monotonic() - started, 3), raw_output
+    return result, raw_output
 
 
 def _artifact_suffix(result: dict[str, Any]) -> str:
