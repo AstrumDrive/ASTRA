@@ -84,6 +84,14 @@ suficiente.
 
 ## Lo que este test enseñó sobre la herramienta
 
+> **Corrección (2026-08-14, mismo día).** El párrafo siguiente era n=1 y quedó
+> **refutado** por el reintento con techo de 1200 s
+> (`ASTRA2_PLAN_ARTIFACT_INJECTION_20260814.md`): el traductor no fallaba por
+> falta de tiempo sino por un artefacto de plan-mode de `agy` filtrado en la
+> conjetura, y por agotar sus 64 000 tokens de salida en razonamiento interno.
+> El límite que ataba era de tokens, no de segundos. Lo que sigue se conserva
+> como registro de lo que se creyó, no como conclusión vigente.
+
 El techo del traductor **es insuficiente para física de investigación real**.
 Nuestro p90 de 431 s (`ASTRA2_PHASE_BUDGET_20260813.md`) se midió sobre casos
 de benchmark mucho más ligeros; escribir un validador de Einstein exacto con
