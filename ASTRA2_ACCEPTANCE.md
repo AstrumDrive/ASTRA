@@ -63,8 +63,8 @@ The six skips require optional frozen external caches. See
 - [x] Local doctor/preflight passes
 - [x] Required local engines pass their smoke tests
 - [x] ASTRUM remote engine inventory is recorded
-- [ ] Cross-oracle claim verdicts agree for the frozen client-validation suite
-- [ ] Scheduler attribution, concurrency limits, timeouts, and cancellation pass
+- [x] Cross-oracle claim verdicts agree for the frozen client-validation suite
+- [x] Scheduler attribution, concurrency limits, timeouts, and cancellation pass
 
 Non-promotional diagnostic on 2026-08-12: the architecture audit passed all
 required configuration checks and discovered local Z3 plus WSL routes for
@@ -98,8 +98,19 @@ cross-oracle agreement to mean anything. One asymmetry is recorded there: the
 remote Lean route calls `lean` against a prebuilt Mathlib without `lake`, so
 artifacts needing dependency resolution run locally only.
 
-The two remaining items submit real work to the cluster rather than listing
-it, so they need an authorization distinct from the inventory one.
+The last two items were closed on 2026-08-13 under a further authorization,
+submitting real work to the cluster
+(`docs/evidence/ASTRA2_G2_CLOSED_20260813.md`): cross-oracle claim-verdict
+agreement of 1.0 over the five cases that run on both oracles, including the
+Lean formal case, and 4/4 scheduler checks covering capacity, attribution,
+timeouts and cancellation. No model quota was involved.
+
+**G2 is closed with one recorded caveat**: the client-validation case
+`client_quantum_transport_eom_open_system` reports REFUTED locally because the
+2.0 fixture still pins package version 0.3.0 while the installed package is
+0.4.0.dev0. Production carries that correction uncommitted. It is instrument
+drift rather than a scientific result, it does not touch the cross-oracle
+agreement, and porting a measurement fixture is Nelson's decision.
 
 ### G3 — Scientific quality benchmarks
 

@@ -17,7 +17,7 @@
   "gates": {
     "G0_isolation": "PASS",
     "G1_regression": "PARTIAL",
-    "G2_engines_oracles": "PARTIAL: local doctor PASS, 6/6 local engine smokes, ASTRUM inventory recorded with verified identical Lean/Mathlib pin (2026-08-13); cross-oracle agreement and scheduler checks still pending",
+    "G2_engines_oracles": "PASS (2026-08-13): local doctor, 6/6 engine smokes, ASTRUM inventory with verified identical Lean/Mathlib pin, cross-oracle agreement 1.0, scheduler 4/4. Caveat: one client-validation fixture still pins an outdated package version",
     "G3_scientific_quality": "PENDING",
     "G4_research_trajectory": "PENDING",
     "G5_portability_reproducibility": "PENDING",
@@ -117,11 +117,13 @@
       "Phase budget shares from an 84-cycle measurement (2026-08-13, not yet validated live)",
       "Cross-line drift check (2026-08-13)",
       "G2 local half: doctor PASS and 6/6 engine smokes (2026-08-13)",
-      "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)"
+      "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)",
+      "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)"
     ],
-    "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the two remaining G2 items (cross-oracle agreement and scheduler checks), which submit real work to ASTRUM and need their own authorization, and finally the H3 comparative pilot - which needs at least two seeds per cell to be interpretable at all",
+    "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the H3 comparative pilot, which needs at least two seeds per cell to be interpretable at all. Pending Nelson's decision: porting the client-validation package pin (0.3.0 -> 0.4.0.dev0) and the two other PRODUCTION ONLY files the drift check reports",
     "updated": "2026-08-13",
-    "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md"
+    "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md",
+    "g2_closed_evidence": "docs/evidence/ASTRA2_G2_CLOSED_20260813.md"
   },
   "notes": [
     "Uncommitted files in the production checkout were intentionally excluded."

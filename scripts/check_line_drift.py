@@ -37,11 +37,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# The runtime surface both lines execute. Campaign modules, ASTRA 2.0 docs and
-# benchmark fixtures are deliberately excluded: they are 2.0-only by design and
-# would drown the signal.
-TRACKED_PREFIXES = ("core/", "agents/", "mcp_server/")
+# The runtime surface both lines execute, plus the measurement fixtures.
+# Fixtures were originally excluded as noise; on 2026-08-13 that cost a false
+# REFUTED in the client-validation suite, because production had locally
+# updated a package version pin from 0.3.0 to 0.4.0.dev0 and the 2.0 line was
+# still asserting the old one. A benchmark that measures the wrong thing is
+# exactly the drift worth reporting.
+TRACKED_PREFIXES = ("core/", "agents/", "mcp_server/", "benchmarks/")
 TRACKED_FILES = ("astra_tool.py", "main.py", ".env.example")
+# 2.0-only modules would drown the signal; they have no production counterpart.
 EXCLUDED_SUBSTRINGS = ("campaign_",)
 
 
@@ -127,7 +131,7 @@ def tracked_paths(checkout: Path, commit: str) -> list[str]:
     paths = []
     for line in result.stdout.splitlines():
         path = line.strip()
-        if not path.endswith((".py", ".example")):
+        if not path.endswith((".py", ".example", ".json")):
             continue
         if any(token in path for token in EXCLUDED_SUBSTRINGS):
             continue
