@@ -60,8 +60,8 @@ The six skips require optional frozen external caches. See
 
 ### G2 — Engine and oracle validation
 
-- [ ] Local doctor/preflight passes
-- [ ] Required local engines pass their smoke tests
+- [x] Local doctor/preflight passes
+- [x] Required local engines pass their smoke tests
 - [ ] ASTRUM remote engine inventory is recorded
 - [ ] Cross-oracle claim verdicts agree for the frozen client-validation suite
 - [ ] Scheduler attribution, concurrency limits, timeouts, and cancellation pass
@@ -69,8 +69,28 @@ The six skips require optional frozen external caches. See
 Non-promotional diagnostic on 2026-08-12: the architecture audit passed all
 required configuration checks and discovered local Z3 plus WSL routes for
 SageMath, Maxima, and Cadabra. It reported local Lean and the remote route as
-unconfigured. Discovery is not an engine smoke test, so no G2 item is marked
-complete.
+unconfigured. Discovery is not an engine smoke test, so no G2 item was marked
+complete on that basis.
+
+Closed on 2026-08-13, both items evidence-backed by local execution and no
+model quota (`docs/evidence/ASTRA2_G2_LOCAL_ENGINES_20260813.md`):
+
+- `scripts/astra_doctor.py` reports PASS with every required check green.
+- `scripts/run_engine_smokes.py` runs one real artifact per engine through
+  ASTRA's local router and gets 6/6: python, z3, sage, maxima, cadabra, and
+  lean4 kernel-checked against the pinned Mathlib v4.30.0 with a clean
+  `#print axioms`. Each artifact fails on a wrong answer, not merely on a
+  missing import.
+
+The local Lean route became testable only after the Windows PowerShell
+encoding defect was fixed on 2026-08-12: `∀` reached the reviewer as `???`.
+Note that the doctor's `OPTIONAL_MISSING` lines for maxima/sage/cadabra2 refer
+to native Windows executables — those engines run under WSL and pass — and
+that the native Lean 4.32.2 it discovers is NOT the ASTRA oracle, which is
+pinned to 4.30.0 under WSL.
+
+The three remaining items require contacting ASTRUM, which needs explicit
+authorization under `HANDOFF.md` §9.
 
 ### G3 — Scientific quality benchmarks
 

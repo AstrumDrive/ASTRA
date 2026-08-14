@@ -17,7 +17,7 @@
   "gates": {
     "G0_isolation": "PASS",
     "G1_regression": "PARTIAL",
-    "G2_engines_oracles": "PENDING",
+    "G2_engines_oracles": "PARTIAL: local doctor PASS and 6/6 local engine smokes (2026-08-13); ASTRUM inventory, cross-oracle agreement and scheduler checks still pending",
     "G3_scientific_quality": "PENDING",
     "G4_research_trajectory": "PENDING",
     "G5_portability_reproducibility": "PENDING",
@@ -93,6 +93,7 @@
     "stage4_evidence": "docs/evidence/ASTRA2_STAGE4_RESUME_20260812.md",
     "stage5_evidence": "docs/evidence/ASTRA2_STAGE5_DEV_API_20260812.md",
     "stage6_evidence": "docs/evidence/ASTRA2_STAGE6_CANARY_INFRA_20260812.md",
+    "g2_local_engines_evidence": "docs/evidence/ASTRA2_G2_LOCAL_ENGINES_20260813.md",
     "current_head_command": "git rev-parse HEAD"
   },
   "handoff": {

@@ -299,8 +299,21 @@ pip freeze SHA-256:
   `Dev/ASTRA`): Unicode de PowerShell + candado de máquina, acotado a esos
   dos ficheros; el resto del trabajo local de Nelson quedó intacto.
 
+- **G2 local CERRADO (2026-08-13)**: `scripts/astra_doctor.py` PASS y
+  `scripts/run_engine_smokes.py` **6/6** (python, z3, sage, maxima, cadabra y
+  lean4 kernel-checked contra el Mathlib v4.30.0 pineado, `#print axioms`
+  limpio). Sin cuota. Se creó un `.env` propio de 2.0 con **solo**
+  configuración no secreta (roles de producción + rutas de motores); ninguna
+  credencial copiada. Evidencia:
+  `docs/evidence/ASTRA2_G2_LOCAL_ENGINES_20260813.md`.
+  Trampa anotada: el marcador debe ser `# ASTRA_ENGINE: <motor>`; con otra
+  sintaxis de comentario el artefacto se enruta **silenciosamente a Python**.
+
 ### Todavía no existe
 
+- **los tres ítems restantes de G2 requieren ASTRUM** (inventario de motores,
+  acuerdo de veredictos entre oráculos, scheduler/concurrencia/cancelación):
+  contactar el clúster exige autorización explícita (§9);
 - portar a 2.0 los dos cambios `PRODUCTION ONLY` detectados (informe PDF
   enriquecido); no bloquean el lazo de campaña;
 - **validación viva del reparto**: los shares están fijados por tests
