@@ -101,6 +101,21 @@ def _claude_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> dic
     return {"argv": argv, "stdin_file": promptfile}
 
 
+# Windows PowerShell 5.1 pipes to native executables using $OutputEncoding,
+# which defaults to us-ascii, and Get-Content without -Encoding reads a BOM-less
+# file as ANSI. Both destroy every non-ASCII character on the way to the CLI:
+# measured 2026-08-12 in the ASTRA 2.0 line, one `∀` reached Codex as `???`
+# (one `?` per UTF-8 byte), which made the reviewer reject an otherwise sound
+# Lean validator, and Spanish accents in the consensus conjectures degraded the
+# same way. Declaring UTF-8 before the pipe restores fidelity; the leading BOM
+# PowerShell emits is pre-existing and harmless. The POSIX route feeds the file
+# to stdin directly and was never affected.
+_PS_UTF8_PREAMBLE = (
+    "$OutputEncoding = New-Object System.Text.UTF8Encoding $false; "
+    "[Console]::OutputEncoding = $OutputEncoding; "
+)
+
+
 def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     m = f" -m {model}" if model else ""
     # Reasoning effort = la palanca de INTELIGENCIA de los modelos GPT de razonamiento
@@ -113,8 +128,18 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # ASTRA_CODEX_REASONING='' respeta el default interno de codex (no pasa -c).
     effort = (os.environ.get("ASTRA_CODEX_REASONING", "high") or "").strip().strip("'\"")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
-    return (f'Get-Content -Raw -LiteralPath "{promptfile}" | '
-            f'codex exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
+    # 2026-08-09: el server MCP puede arrancar con un PATH sin el dir de codex
+    # (instalador nativo en AppData\Local\Programs\OpenAI\Codex\bin) -> el pipeline
+    # moria con CommandNotFound en la fase reviewer. Se honra ASTRA_CODEX_BIN
+    # tambien en Windows (como ya hacia la rama POSIX) con el call operator `&`.
+    cbin = (
+        (os.environ.get("ASTRA_CODEX_BIN") or "").strip().strip("'\"")
+        or shutil.which("codex")
+        or "codex"
+    )
+    return (f'{_PS_UTF8_PREAMBLE}'
+            f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
+            f'& "{cbin}" exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
             f'--skip-git-repo-check{m}{r} -C "{ws}" -o "{out}" -')
 
 
@@ -172,7 +197,8 @@ def _ps_gemini(promptfile: str, model: str | None, _out: str, _ws: str) -> str:
     # --approval-mode plan = SOLO LECTURA nativo: el CLI no puede escribir archivos
     # ni ejecutar nada, asi que siempre responde texto (la leccion del bug de claude
     # que escribia el script a disco, resuelta aqui por diseno del propio CLI).
-    return (f'Get-Content -Raw -LiteralPath "{promptfile}" | '
+    return (f'{_PS_UTF8_PREAMBLE}'
+            f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
             f'{gbin} -p . -o json --approval-mode plan{m}')
 
 

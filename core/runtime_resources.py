@@ -138,11 +138,50 @@ def _read_holder(path: Path) -> dict:
         return {}
 
 
+def cycle_lock_root(root: Path) -> Path:
+    """Directory holding the deliberative-cycle locks.
+
+    The slot exists to enforce one deliberation per *model-account set*, but
+    it used to live under ``<checkout>/workspace/locks``, so two checkouts
+    sharing one subscription — this line and the ASTRA 2.0 development line —
+    held different locks and could deliberate simultaneously against the same
+    account.  Inside a single checkout the lock worked; across checkouts there
+    was no mutual exclusion at all, and the resulting quota contention
+    surfaces as operational errors that contaminate any measurement.
+    Ported from the 2.0 line on 2026-08-13.
+
+    The default is therefore machine-wide.  ``ASTRA_LOCK_ROOT`` overrides it,
+    which is also how a line running on a *different* account can be isolated
+    on purpose: separate credentials, separate lock root.
+    """
+    configured = (os.environ.get("ASTRA_LOCK_ROOT") or "").strip().strip("'\"")
+    if configured:
+        return Path(configured).expanduser()
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base) / "astra" / "locks"
+    base = os.environ.get("XDG_CACHE_HOME")
+    if base:
+        return Path(base) / "astra" / "locks"
+    return Path.home() / ".cache" / "astra" / "locks"
+
+
 def acquire_cycle_slot(root: Path, max_slots: int = 1) -> tuple:
-    """Atomically acquire one deliberative-cycle slot across MCP processes."""
+    """Atomically acquire one deliberative-cycle slot across MCP processes.
+
+    ``root`` is kept for callers and for the fallback below; the lock itself
+    is machine-wide by default (see :func:`cycle_lock_root`).
+    """
     slots = max(1, int(max_slots))
-    lock_root = Path(root).resolve() / "workspace" / "locks"
-    lock_root.mkdir(parents=True, exist_ok=True)
+    try:
+        lock_root = cycle_lock_root(Path(root))
+        lock_root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # An unwritable machine-wide directory must not disable the slot:
+        # fall back to the historical per-checkout location.
+        lock_root = Path(root).resolve() / "workspace" / "locks"
+        lock_root.mkdir(parents=True, exist_ok=True)
     active = []
 
     for index in range(slots):
