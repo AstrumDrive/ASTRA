@@ -73,7 +73,89 @@ en la pared son los que ven densidad de energía negativa.
    precursor → cavidad plana → wake; este resultado **poda una rama**, que es
    trabajo útil pero negativo.
 
+## Cierre: la cadena completa (ciclo `cycle_20260814_120554_ab9d`, 12:40)
+
+Tercer intento, ya con la conjetura vallada como dato y la contabilidad de
+fases arreglada. **El ciclo completó la cadena entera** en 2013 s:
+
+| fase | s |
+|---|---|
+| conjetura | 176 |
+| traducción | **696** |
+| revisión | 345 |
+| parche del validador | **658** |
+| ejecución | 27 |
+| análisis | 53 |
+| navegación | 57 |
+
+- Validador de **250 líneas**, **15/15 CHECK OK**, `VERDICT: PASS`, oráculo
+  `PASS`, guard determinista limpio (`verdict_suspect: false`, 44
+  comparaciones, 0 asserts).
+- **Revisión independiente real**: el revisor (`gpt-5.6-sol`) devolvió primero
+  `REVISE` con las etiquetas `sampling_as_proof` y `missing_assumption` —exigió
+  que la optimización numérica no contara como prueba— y solo aprobó tras un
+  parche acotado que añadió el testigo exacto y la independencia de `R` de la
+  tetrada. Un `APPROVED` precedido de un `REVISE` con causa es la señal que
+  buscábamos.
+- **Testigo exacto** `s_* = (0,-1,0)`, con
+  `k_* = (8/9, 2/9, -100/121, 0)` futuro y nulo, y
+  `q(s_*) = -23778856/143496441 < 0` ⟹ `m_{p_R} < 0` para todo `R > 0`.
+
+### Contraste con el cálculo a mano
+
+| | valor | ≈ |
+|---|---|---|
+| mínimo global (validador mío, minimización exacta de Lagrange) | −196091158785784⁄1172859407230599 | −0.167191 |
+| testigo exacto (validador de ASTRA, estrategia distinta) | −23778856⁄143496441 | −0.165710 |
+
+El testigo queda **por encima** del mínimo global, como debe ser, a un 0.9 %.
+Dos validadores escritos por separado, con estrategias distintas —minimización
+global frente a testigo exacto más criterio tipo S-lemma— coinciden en el signo
+y guardan entre sí la desigualdad correcta. Esto es lo que faltaba esta
+madrugada.
+
+### Lo que ASTRA dice del claim original
+
+`original_claim_verdict: INCONCLUSIVE`, y la razón es exactamente el alcance
+que hubo que poner a mano en la sección anterior:
+
+> P afirma que existe una solución Einstein-materia estable, subluminal y sin
+> materia exótica con la estructura viajera solicitada; el testigo exacto
+> refuta únicamente esta configuración explícita, sin probar ni excluir la
+> existencia de otras configuraciones.
+
+`goal_coverage: partial`, `goal_resolved: false`, con siete ítems diferidos
+—entre ellos el minimizador global exacto, la clasificación Hawking-Ellis, la
+estabilidad y la cavidad extensa—. El re-anclaje de veredicto funcionó: el
+ciclo valida **su** conjetura y dice, por separado, que **la pregunta de Nelson
+sigue abierta**.
+
+Navegación propuesta: desacoplar el perfil radial del lapso `α` del shift
+`β^i`, o introducir vorticidad en el shift, para romper la proporcionalidad
+estricta que fuerza la violación en el plano transversal.
+
+### Qué NO demuestra este ciclo
+
+La fuga de plan-mode de `agy` **volvió a aparecer en la deliberación**, pero
+esta vez la síntesis la filtró y **no llegó a la conjetura**. Es decir: la
+valla no se ejerció en vivo en esta corrida. Que el ciclo saliera bien no es
+evidencia de que la valla funcione —eso lo sostienen los tests conductuales, no
+este run—.
+
+Lo que sí queda medido: la traducción necesitó **696 s** y el parche **658 s**.
+Con el techo por defecto de 480 s habría fallado otra vez. El techo importa
+para física de investigación; lo que era falso es que fuera la causa del fallo
+anterior.
+
+Coste del ciclo: **3.09 USD** (traductor).
+
 ## Estatus epistémico, con precisión
+
+> **Actualizado (12:40).** Lo que sigue describía el estado tras el primer
+> ciclo. El tercero cerró la brecha: hay validador del traductor, revisión
+> independiente con `REVISE` motivado antes del `APPROVED`, y coincidencia con
+> el cálculo a mano. Se conserva el párrafo porque delimita qué valía y qué no
+> valía el resultado de las 05:09.
 
 El cálculo es evidencia ejecutable con certificado exacto, pero **no completó
 la cadena de ASTRA**: el validador es mío, no del traductor, y por tanto
