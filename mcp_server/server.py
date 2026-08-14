@@ -502,5 +502,155 @@ def astra_engines() -> str:
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------------
+# ASTRA 2.0 campaign tools — DEVELOPMENT LINE ONLY.
+#
+# `ASTRA2_ACCEPTANCE.md` forbids exposing these through the PRODUCTION MCP
+# before promotion. They are registered only when this server runs from the
+# 2.0 checkout, which is the same condition that renames the server itself,
+# so a promoted checkout stops advertising them until that decision is taken
+# deliberately. ASTRA_CAMPAIGN_TOOLS=0 disables them regardless.
+# ---------------------------------------------------------------------------
+
+def _campaign_tools_enabled() -> bool:
+    flag = (os.environ.get("ASTRA_CAMPAIGN_TOOLS") or "").strip().strip("'\"")
+    if flag:
+        return flag.lower() in {"1", "true", "on", "yes"}
+    return MCP_SERVER_NAME != "astra"
+
+
+def _campaign_api():
+    sys.path.insert(0, ASTRA_ROOT) if ASTRA_ROOT not in sys.path else None
+    from core import campaign_api
+
+    return campaign_api
+
+
+def _campaign_result(payload) -> str:
+    return json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+
+
+if _campaign_tools_enabled():
+
+    @mcp.tool()
+    def astra_campaign_start(
+        objective: str,
+        success_definition: str,
+        deliverables: list[str],
+        budget_cycles: int = 6,
+        budget_model_calls: int = 72,
+        budget_wall_seconds: int = 21600,
+        budget_execution_seconds: int = 3600,
+        allowed_evidence_classes: list[str] | None = None,
+        initial_portfolio: dict | None = None,
+    ) -> str:
+        """
+        Start a long-horizon ASTRA 2.0 research campaign (development line).
+
+        A campaign is an append-only ledger of branches, episodes, claims,
+        evidence and deterministic decisions, unlike `astra_cycle`, which runs
+        exactly one bounded cycle. Nothing runs yet: this only creates the
+        campaign and, when an initial portfolio is supplied, selects the first
+        branch. Drive it with `astra_campaign_step`.
+
+        Budgets are hard ceilings, enforced fail-closed and accounted per
+        dimension. `deliverables` are the mandatory outcomes; the campaign
+        cannot be declared complete while any remains unresolved.
+        """
+        api = _campaign_api()
+        try:
+            result = api.astra_campaign_start(
+                objective=objective,
+                success_definition=success_definition,
+                deliverables=list(deliverables),
+                allowed_evidence_classes=list(
+                    allowed_evidence_classes
+                    or ["SYMBOLIC", "NUMERICAL", "COUNTEREXAMPLE", "FORMAL"]
+                ),
+                budget={
+                    "cycles": int(budget_cycles),
+                    "model_calls": int(budget_model_calls),
+                    "wall_seconds": int(budget_wall_seconds),
+                    "execution_seconds": int(budget_execution_seconds),
+                    "human_interventions": 1,
+                    "remote_jobs": 0,
+                },
+                initial_portfolio=initial_portfolio,
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    def astra_campaign_status(campaign_id: str) -> str:
+        """
+        Read-only state of a campaign: recommended next action, active branch,
+        unresolved deliverables, budget spent and remaining, and the last
+        decision. Takes no writer lock, so it is safe while a step is running.
+        """
+        api = _campaign_api()
+        try:
+            return _campaign_result(api.astra_campaign_status(campaign_id))
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    def astra_campaign_step(campaign_id: str) -> str:
+        """
+        Run ONE campaign step: a full atomic cycle on the active branch, then
+        the deterministic decision that follows from its evidence.
+
+        This spends real model quota, roughly one `astra_cycle`. It records an
+        episode with its five separate status axes, evidence with hashed
+        artifacts, any materially different alternatives the synthesis
+        proposed, and the decision, then checkpoints. Returns what happened
+        and the campaign status afterwards.
+        """
+        api = _campaign_api()
+        try:
+            import asyncio
+
+            result = asyncio.run(api.astra_campaign_step(campaign_id))
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    def astra_campaign_stop(
+        campaign_id: str, mode: str = "pause", reason: str = ""
+    ) -> str:
+        """
+        Stop a campaign: `pause` keeps it resumable, `cancel` is terminal and
+        cannot be undone. Prefer `pause` unless the objective is abandoned.
+        """
+        api = _campaign_api()
+        try:
+            return _campaign_result(
+                api.astra_campaign_stop(
+                    campaign_id, mode=mode, reason=reason or None
+                )
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    def astra_campaign_reactivate(campaign_id: str) -> str:
+        """Return a PAUSED campaign to ACTIVE after a human review."""
+        api = _campaign_api()
+        try:
+            return _campaign_result(api.astra_campaign_reactivate(campaign_id))
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    def astra_campaign_list() -> str:
+        """List every campaign in this checkout with its status and progress."""
+        api = _campaign_api()
+        try:
+            return _campaign_result(api.astra_campaign_list())
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+
 if __name__ == "__main__":
     mcp.run()  # transporte stdio (lo que usan los CLIs de agentes)

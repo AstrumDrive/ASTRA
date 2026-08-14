@@ -1,4 +1,7 @@
 """Stage 5: development-only astra_campaign_* interfaces."""
+import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -214,15 +217,56 @@ class CampaignApiTests(unittest.IsolatedAsyncioTestCase):
         lock = root / CAMPAIGN_ID / "writer.lock"
         self.assertFalse(lock.exists())
 
-    def test_dev_api_never_touches_the_mcp_server(self):
+    def test_dev_api_never_imports_the_mcp_server(self):
         self.assertNotIn("mcp_server", sys.modules)
         self.assertNotIn("mcp_server.server", sys.modules)
-        server_source = (
-            Path(__file__).resolve().parents[1]
-            / "mcp_server"
-            / "server.py"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("astra_campaign", server_source)
+
+    def test_campaign_tools_are_gated_off_for_production(self):
+        """The tools may ship on the dev line, never under the production name.
+
+        Stage 5 enforced this by asserting the string `astra_campaign` was
+        absent from the server. Nelson later authorised exposing the tools on
+        the development line, so the invariant that actually matters is the
+        gate: a server introducing itself as `astra` - the production entry -
+        must not advertise them, and the kill switch must work.
+        """
+        root = Path(__file__).resolve().parents[1]
+        probe = (
+            "import asyncio, importlib.util, sys, json\n"
+            f"spec = importlib.util.spec_from_file_location('s', r'{root / 'mcp_server' / 'server.py'}')\n"
+            "m = importlib.util.module_from_spec(spec); sys.modules['s'] = m\n"
+            "spec.loader.exec_module(m)\n"
+            "names = [t.name for t in asyncio.run(m.mcp.list_tools())]\n"
+            "print(json.dumps({'server': m.MCP_SERVER_NAME, "
+            "'campaign': sorted(n for n in names if 'campaign' in n)}))\n"
+        )
+
+        def tools_under(env_extra: dict) -> dict:
+            env = {**os.environ, **env_extra}
+            completed = subprocess.run(
+                [sys.executable, "-c", probe],
+                capture_output=True, text=True, timeout=180, cwd=str(root),
+                env=env,
+            )
+            for line in completed.stdout.splitlines():
+                if line.startswith("{"):
+                    return json.loads(line)
+            self.fail(f"probe produced no result: {completed.stderr[-400:]}")
+
+        production = tools_under({"ASTRA_MCP_SERVER_NAME": "astra"})
+        self.assertEqual(production["server"], "astra")
+        self.assertEqual(
+            production["campaign"],
+            [],
+            "the production MCP name must not advertise campaign tools",
+        )
+
+        disabled = tools_under({"ASTRA_CAMPAIGN_TOOLS": "0"})
+        self.assertEqual(disabled["campaign"], [], "kill switch did not work")
+
+        dev = tools_under({"ASTRA_CAMPAIGN_TOOLS": "1"})
+        self.assertIn("astra_campaign_start", dev["campaign"])
+        self.assertIn("astra_campaign_step", dev["campaign"])
 
 
 if __name__ == "__main__":
