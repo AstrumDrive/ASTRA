@@ -104,6 +104,21 @@ class ScalingTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(seen[0], 1000)
         self.assertGreater(seen[0], 525)   # still above the fraction's floor
 
+    async def test_the_repair_scales_with_the_cycle_too(self):
+        """A ceiling fixed in one place and forgotten in the other is no fix.
+
+        Measured 2026-08-16, first point-decidable campaign episode: on a 7200 s
+        cycle the translation ran 853 s - past the old ceiling, so the fraction
+        was working - while the repair died at exactly 481 s, the value of
+        ASTRA_TRANSLATOR_TIMEOUT.
+        """
+        from astra_tool import PHASE_BUDGET_FRACTION
+
+        self.assertEqual(
+            PHASE_BUDGET_FRACTION.get("TRANSLATOR_REPAIR"),
+            PHASE_BUDGET_FRACTION.get("TRANSLATOR"),
+        )
+
     async def test_the_scaled_ceiling_still_fits_the_cycle(self):
         """Room for the phases after it, or the fix just moves the failure."""
         seen = []

@@ -798,7 +798,15 @@ PERSISTENT_PHASE_TIMEOUT = {"TRANSLATOR": 1200}
 # of the 2340 usable. It is a floor, never a cut: an operator who configured
 # more keeps it, and at the old 1500 s budget it yields 525 s, above the 480
 # that was there before.
-PHASE_BUDGET_FRACTION = {"TRANSLATOR": 0.35}
+#
+# The repair carries the same fraction: it is the same author writing the same
+# kind of script, and giving only the translation a budget-scaled ceiling leaves
+# the repair on a number from an older budget. Measured live on 2026-08-16, the
+# first point-decidable campaign episode: with a 7200 s cycle the translation
+# took 853 s - comfortably past the old ceiling, so the fraction was working -
+# and the repair died at exactly 481 s, which is ASTRA_TRANSLATOR_TIMEOUT. The
+# ceiling had been fixed in one place and left behind in the other.
+PHASE_BUDGET_FRACTION = {"TRANSLATOR": 0.35, "TRANSLATOR_REPAIR": 0.35}
 
 
 _CRITIQUE_SYSTEM = (
