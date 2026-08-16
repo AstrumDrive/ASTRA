@@ -147,7 +147,7 @@ class CycleWiringTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Decide the NEC at the wall point.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 2400,
                 }
             )
         checkpoint = Path(result.get("checkpoint") or "")

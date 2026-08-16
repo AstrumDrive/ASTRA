@@ -91,6 +91,85 @@ class ReserveTests(unittest.TestCase):
         self.assertEqual(ceiling(cycle, "TRANSLATOR_REPAIR", 1200), 1200)
 
 
+class StarvationGuardTests(unittest.IsolatedAsyncioTestCase):
+    """A call that cannot succeed must not be made.
+
+    Measured 2026-08-15: with the reserve in place, the SECOND review round -
+    the one after a repair - was handed ceilings of 6 s and 1 s, because by then
+    what remains is roughly the reserve itself. ASTRA issued those calls anyway
+    and reported `timeout tras 1s`, which reads as a hung model rather than an
+    exhausted budget.
+    """
+
+    async def _run(self, cycle_seconds):
+        from unittest.mock import patch
+
+        from astra_tool import _do_cycle
+
+        calls = []
+
+        class FakeIntelligence:
+            def __init__(self, provider, cli_models=None, cli_timeout=None):
+                self.provider = provider
+                self.cli_models = cli_models
+                self.cli_timeout = cli_timeout
+                self.cli_warnings = []
+                self.cli_last_model = None
+                self.cli_cost_usd = 0.0
+
+            async def generate_conjecture(self, axiomatic_base, intuition):
+                return "Prove X."
+
+            async def translate_to_code(self, _conjecture, **_kwargs):
+                return "print('CHECK a: OK')\nprint('VERDICT: PASS')\n"
+
+            async def review_validation_code(self, **_kwargs):
+                calls.append("review")
+                return {"status": "APPROVED", "reasoning": "", "coverage": [],
+                        "revision_instructions": "", "defect_labels": [],
+                        "runtime_checks": []}
+
+            async def analyze_results(self, *_args, **_kwargs):
+                return {"status": "VALIDATED", "reasoning": "ok"}
+
+        env = {
+            "ASTRA_CYCLE_CACHE": "0",
+            "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+            "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
+            "ASTRA_MAX_RETRIES": "0",
+            "ASTRA_ORACLE_MODE": "local",
+        }
+        providers = {
+            "conjecture": "codex_cli", "translator": "claude_cli",
+            "reviewer": "codex_cli", "analyst": "codex_cli",
+            "navigator": "agy_cli", "synth": "codex_cli",
+        }
+        with patch.dict("os.environ", env, clear=False), patch(
+            "core.preflight.phase_provider_map", return_value=providers
+        ), patch("core.llm_client.ASTRAIntelligence", FakeIntelligence):
+            result = await _do_cycle({
+                "action": "cycle",
+                "intuition": "Decide X.",
+                "cycle_timeout_seconds": cycle_seconds,
+            })
+        from pathlib import Path
+
+        checkpoint = Path(result.get("checkpoint") or "")
+        if checkpoint.name and checkpoint.exists():
+            checkpoint.unlink()
+        return result, calls
+
+    async def test_an_exhausted_budget_stops_instead_of_burning_a_call(self):
+        result, calls = await self._run(100)
+        self.assertEqual(calls, [], "the reviewer was called with no budget")
+        self.assertIn("Cycle budget exhausted", str(result.get("error")))
+        self.assertIn("45s", str(result.get("error")))
+
+    async def test_a_healthy_budget_still_reviews(self):
+        _result, calls = await self._run(2400)
+        self.assertEqual(calls, ["review"])
+
+
 class ReserveArithmeticTests(unittest.TestCase):
     def test_reserve_and_share_both_apply(self):
         cycle, _clock = budget(1800.0)

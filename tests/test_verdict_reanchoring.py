@@ -309,7 +309,7 @@ class CycleOutputTests(unittest.IsolatedAsyncioTestCase):
                     "action": "cycle",
                     "intuition": "For all real x, sqrt(x^2) = x.",
                     "objective": "Decide the identity.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 2400,
                 }
             )
 

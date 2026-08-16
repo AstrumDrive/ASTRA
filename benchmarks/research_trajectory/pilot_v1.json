@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "id": "astra_research_trajectory_pilot_v1",
-  "status": "frozen_before_live_execution",
+  "status": "amended_before_live_execution",
   "frozen_date": "2026-07-25",
   "question": "Under a single human objective and a fixed compute ceiling, does ASTRA's heterogeneous reflective loop produce deeper, broader, more useful, and more reproducible research trajectories than matched homogeneous, single-model, and non-reflective controls?",
   "configurations": [
@@ -10,7 +10,11 @@
     "codex-only",
     "full-linear"
   ],
-  "seeds": [11, 29, 47],
+  "seeds": [
+    11,
+    29,
+    47
+  ],
   "cases": [
     "gr_invariant_audit",
     "warp_shape_pareto",
@@ -28,8 +32,8 @@
     "hypothesis_quality": 0.13,
     "research_depth": 0.16,
     "evidence_quality": 0.16,
-    "self_correction": 0.10,
-    "cross_perspective_uptake": 0.10,
+    "self_correction": 0.1,
+    "cross_perspective_uptake": 0.1,
     "novelty_utility": 0.09,
     "artifact_reproducibility": 0.08
   },
@@ -49,5 +53,17 @@
     "paired_case_seed_analysis": true,
     "fallback_models_forbidden": true,
     "human_interventions_per_cell": 1
-  }
+  },
+  "amendments": [
+    {
+      "id": "A1",
+      "date": "2026-08-15",
+      "field": "budget.cycle_timeout_seconds",
+      "from": 1800,
+      "to": 2400,
+      "reason": "Measured over the first valid canary run (docs/evidence/ASTRA2_ABLATION_RUN2_FINAL_20260815.md, 19 cycles): median phases sum to 1424 s of the 1740 usable, leaving under 50 s of slack once execution, analysis and navigation are paid for, and 6 of 17 cycles stopped at exactly 1471 s. The ceiling, not the architecture, was being measured: operational failure 0.9167 in both arms. 2400 s restores room for one retry.",
+      "comparability": "No completed pilot depends on the 1800 s value; every prior run was either invalid or a canary, so nothing published is invalidated.",
+      "authorised_by": "Nelson, 2026-08-15"
+    }
+  ]
 }

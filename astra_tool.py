@@ -741,6 +741,17 @@ PHASE_DOWNSTREAM_RESERVE = {
 # it carry its own share and its own reserve.
 PHASE_BUDGET_SHARE["TRANSLATOR_REPAIR"] = 0.90
 
+# Below this, a model call cannot plausibly return anything and starting it only
+# burns quota and mislabels the failure. Measured 2026-08-15
+# (`ASTRA2_ABLATION_RUN2_FINAL_20260815.md`): with the downstream reserve in
+# place, a SECOND review round - the one that follows a repair - was handed
+# ceilings of 6 s and 1 s, because at that point what remains is roughly the
+# reserve itself. The call was issued anyway and the resulting
+# `timeout tras 1s` read as a hung model rather than as an exhausted budget.
+# The fastest phase ever measured over 84 cycles is an order of magnitude above
+# this floor, so it can only fire on genuine exhaustion.
+PHASE_MIN_USEFUL_SECONDS = 45
+
 
 # A bounded cycle and a persistent one want different ceilings, and one variable
 # had to serve both. Measured: benchmark translations have a p90 of 431 s
@@ -1270,6 +1281,19 @@ async def _do_cycle_impl(req: dict) -> dict:
         agent.cli_timeout = _phase_timeout(phase)
         return agent.cli_timeout
 
+    def _phase_starved(phase):
+        """True when what is left cannot fund a call worth making."""
+        return _phase_timeout(phase) < PHASE_MIN_USEFUL_SECONDS
+
+    def _starved_error(what):
+        snapshot = budget.snapshot()
+        return (
+            f"Cycle budget exhausted before {what}: "
+            f"{snapshot.get('remaining_seconds')}s remain of "
+            f"{snapshot.get('total_seconds')}s, below the {PHASE_MIN_USEFUL_SECONDS}s "
+            "a phase needs to be worth starting."
+        )
+
     conj = ASTRAIntelligence(provider=pmap["conjecture"],
                              cli_models=_phase_models("CONJECTURE"),
                              cli_timeout=_phase_timeout("CONJECTURE"))
@@ -1473,7 +1497,15 @@ async def _do_cycle_impl(req: dict) -> dict:
         model_revisions = 0
         review_round = 0
         seen_code = set()
+        last_review = {
+            "status": "INCONCLUSIVE",
+            "reasoning": "No review round completed.",
+            "revision_instructions": "",
+            "coverage": [],
+        }
         while True:
+            if _phase_starved("REVIEWER"):
+                return current_code, last_review, _starved_error("independent review")
             code_sha = hashlib.sha256(current_code.encode("utf-8")).hexdigest()
             _progress(
                 "review",
@@ -1545,6 +1577,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 )
                 review["source"] = "model_reviewer"
             _mark("review", t0)
+            last_review = review
             review_history.append(
                 {
                     **dict(review),
@@ -1605,6 +1638,8 @@ async def _do_cycle_impl(req: dict) -> dict:
             # the only artifact worth resuming from, and an error string is not
             # a script.
             last_authored_code = current_code
+            if _phase_starved("TRANSLATOR_REPAIR"):
+                return current_code, review, _starved_error("validator repair")
             if validator_repair_vnext1 and not requires_regeneration:
                 current_code, patch_error = await _request_model_patch(
                     current_code,

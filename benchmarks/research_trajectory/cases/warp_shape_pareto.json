@@ -45,9 +45,14 @@
   "budget": {
     "max_cycles": 8,
     "max_wall_minutes": 300,
-    "cycle_timeout_seconds": 2100,
+    "cycle_timeout_seconds": 2700,
     "execution_timeout_seconds": 900,
     "human_interventions": 1
   },
-  "tags": ["physics", "optimization", "package", "astrum"]
+  "tags": [
+    "physics",
+    "optimization",
+    "package",
+    "astrum"
+  ]
 }

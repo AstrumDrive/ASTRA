@@ -123,7 +123,7 @@ class GoalCoverageCycleTests(unittest.IsolatedAsyncioTestCase):
                     "action": "cycle",
                     "intuition": "Check one bounded identity.",
                     "objective": "Review the complete paper and its English.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 2400,
                 }
             )
 

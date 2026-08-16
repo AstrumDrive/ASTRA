@@ -128,7 +128,7 @@ class RegenerationTests(unittest.IsolatedAsyncioTestCase):
             result = await _do_cycle({
                 "action": "cycle",
                 "intuition": "Decide the NEC at the wall point.",
-                "cycle_timeout_seconds": 120,
+                "cycle_timeout_seconds": 2400,
             })
         from pathlib import Path
 

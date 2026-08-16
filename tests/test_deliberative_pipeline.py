@@ -101,7 +101,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test quality escalation.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 2400,
                 }
             )
 
@@ -208,7 +208,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test rejected patch regeneration.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 2400,
                 }
             )
 

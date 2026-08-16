@@ -43,9 +43,14 @@
   "budget": {
     "max_cycles": 8,
     "max_wall_minutes": 240,
-    "cycle_timeout_seconds": 1800,
+    "cycle_timeout_seconds": 2400,
     "execution_timeout_seconds": 600,
     "human_interventions": 1
   },
-  "tags": ["smoke", "physics", "symbolic", "package"]
+  "tags": [
+    "smoke",
+    "physics",
+    "symbolic",
+    "package"
+  ]
 }
