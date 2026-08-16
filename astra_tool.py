@@ -753,6 +753,25 @@ PHASE_BUDGET_SHARE["TRANSLATOR_REPAIR"] = 0.90
 PHASE_MIN_USEFUL_SECONDS = 45
 
 
+def review_round_reserve(model_revisions: int, max_revisions: int) -> int:
+    """Seconds to hold back for whatever can still run after THIS review round.
+
+    The reserve table assumes a linear pipeline, and the validation loop is not
+    one: review runs again after each repair. Holding back a repair's worth of
+    budget before a review that no repair can follow reserves for something that
+    will never happen - measured 2026-08-16
+    (`ASTRA2_ABLATION_RUN3_20260816.md`), a final review round was refused with
+    571 s still on the clock, because the 613 s reserve exceeded what was left.
+
+    So the question is not "which phase is this" but "what is still ahead":
+    with revisions remaining a repair may follow and must be funded; with the
+    revision budget spent, only execution, analysis and navigation remain.
+    """
+    if model_revisions >= max_revisions:
+        return PHASE_DOWNSTREAM_RESERVE["TRANSLATOR_REPAIR"]
+    return PHASE_DOWNSTREAM_RESERVE["REVIEWER"]
+
+
 # A bounded cycle and a persistent one want different ceilings, and one variable
 # had to serve both. Measured: benchmark translations have a p90 of 431 s
 # (`ASTRA2_PHASE_BUDGET_20260813.md`), while the research-grade GR validator of
@@ -1268,30 +1287,34 @@ async def _do_cycle_impl(req: dict) -> dict:
         # max, not override: an operator who configured MORE keeps it.
         return max(configured, persistent)
 
-    def _phase_timeout(phase):
+    def _phase_timeout(phase, reserve=None):
         key = phase.upper()
         return budget.phase_timeout(
             _configured_phase_timeout(phase),
             default_seconds=240,
             share=PHASE_BUDGET_SHARE.get(key),
-            reserve_seconds=PHASE_DOWNSTREAM_RESERVE.get(key, 0),
+            reserve_seconds=(
+                PHASE_DOWNSTREAM_RESERVE.get(key, 0) if reserve is None else reserve
+            ),
         )
 
-    def _prepare_agent(agent, phase):
-        agent.cli_timeout = _phase_timeout(phase)
+    def _prepare_agent(agent, phase, reserve=None):
+        agent.cli_timeout = _phase_timeout(phase, reserve)
         return agent.cli_timeout
 
-    def _phase_starved(phase):
+    def _phase_starved(phase, reserve=None):
         """True when what is left cannot fund a call worth making."""
-        return _phase_timeout(phase) < PHASE_MIN_USEFUL_SECONDS
+        return _phase_timeout(phase, reserve) < PHASE_MIN_USEFUL_SECONDS
 
-    def _starved_error(what):
+    def _starved_error(what, phase, reserve=None):
         snapshot = budget.snapshot()
         return (
-            f"Cycle budget exhausted before {what}: "
-            f"{snapshot.get('remaining_seconds')}s remain of "
-            f"{snapshot.get('total_seconds')}s, below the {PHASE_MIN_USEFUL_SECONDS}s "
-            "a phase needs to be worth starting."
+            f"Cycle budget exhausted before {what}: the phase would get "
+            f"{_phase_timeout(phase, reserve)}s, below the "
+            f"{PHASE_MIN_USEFUL_SECONDS}s a call needs to be worth making "
+            f"({snapshot.get('remaining_seconds')}s remain of "
+            f"{snapshot.get('total_seconds')}s, minus what is reserved for the "
+            "phases still ahead)."
         )
 
     conj = ASTRAIntelligence(provider=pmap["conjecture"],
@@ -1504,8 +1527,17 @@ async def _do_cycle_impl(req: dict) -> dict:
             "coverage": [],
         }
         while True:
-            if _phase_starved("REVIEWER"):
-                return current_code, last_review, _starved_error("independent review")
+            # What must be held back depends on what can still follow THIS
+            # round, not on the phase's name: with the revision budget spent no
+            # repair can follow, so reserving for one refuses a review that the
+            # cycle can perfectly well afford.
+            review_reserve = review_round_reserve(model_revisions, max_revisions)
+            if _phase_starved("REVIEWER", review_reserve):
+                return (
+                    current_code,
+                    last_review,
+                    _starved_error("independent review", "REVIEWER", review_reserve),
+                )
             code_sha = hashlib.sha256(current_code.encode("utf-8")).hexdigest()
             _progress(
                 "review",
@@ -1560,7 +1592,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 if preflight.get("status") != "APPROVED":
                     review = preflight_as_review(preflight)
                 else:
-                    _prepare_agent(reviewer, "REVIEWER")
+                    _prepare_agent(reviewer, "REVIEWER", review_reserve)
                     review = await reviewer.review_validation_code(
                         shared_goal=shared_goal,
                         conjecture=conjecture_text,
@@ -1569,7 +1601,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     )
                     review["source"] = "model_reviewer"
             else:
-                _prepare_agent(reviewer, "REVIEWER")
+                _prepare_agent(reviewer, "REVIEWER", review_reserve)
                 review = await reviewer.review_validation_code(
                     shared_goal=shared_goal,
                     conjecture=conjecture_text,
@@ -1639,7 +1671,9 @@ async def _do_cycle_impl(req: dict) -> dict:
             # a script.
             last_authored_code = current_code
             if _phase_starved("TRANSLATOR_REPAIR"):
-                return current_code, review, _starved_error("validator repair")
+                return current_code, review, _starved_error(
+                    "validator repair", "TRANSLATOR_REPAIR"
+                )
             if validator_repair_vnext1 and not requires_regeneration:
                 current_code, patch_error = await _request_model_patch(
                     current_code,

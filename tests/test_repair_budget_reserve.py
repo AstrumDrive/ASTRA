@@ -13,7 +13,11 @@ nothing held budget back for the phases that still had to run.
 """
 import unittest
 
-from astra_tool import PHASE_BUDGET_SHARE, PHASE_DOWNSTREAM_RESERVE
+from astra_tool import (
+    PHASE_BUDGET_SHARE,
+    PHASE_DOWNSTREAM_RESERVE,
+    review_round_reserve,
+)
 from core.cycle_budget import CycleBudget
 
 
@@ -89,6 +93,55 @@ class ReserveTests(unittest.TestCase):
     def test_a_persistent_cycle_is_unaffected(self):
         cycle = CycleBudget(None)
         self.assertEqual(ceiling(cycle, "TRANSLATOR_REPAIR", 1200), 1200)
+
+
+class LoopAwareReserveTests(unittest.TestCase):
+    """The validation loop is not a line: review runs again after each repair.
+
+    Measured 2026-08-16 (`ASTRA2_ABLATION_RUN3_20260816.md`): a final review
+    round was refused with 571.83 s still on the clock, because it was asked to
+    hold back 613 s for a repair that could no longer run - the revision budget
+    was already spent.
+    """
+
+    def test_a_repair_that_can_still_run_is_funded(self):
+        self.assertEqual(
+            review_round_reserve(model_revisions=0, max_revisions=1),
+            PHASE_DOWNSTREAM_RESERVE["REVIEWER"],
+        )
+
+    def test_a_repair_that_cannot_run_is_not_reserved_for(self):
+        self.assertEqual(
+            review_round_reserve(model_revisions=1, max_revisions=1),
+            PHASE_DOWNSTREAM_RESERVE["TRANSLATOR_REPAIR"],
+        )
+
+    def test_the_measured_refusal_would_now_go_through(self):
+        """Replay the exact cell that failed: 571.83 s left of 2400."""
+        cycle, clock = budget(2400.0)
+        clock.advance(2400.0 - 571.83)
+        stale = cycle.phase_timeout(
+            240, share=PHASE_BUDGET_SHARE["REVIEWER"],
+            reserve_seconds=review_round_reserve(0, 1),
+        )
+        fixed = cycle.phase_timeout(
+            240, share=PHASE_BUDGET_SHARE["REVIEWER"],
+            reserve_seconds=review_round_reserve(1, 1),
+        )
+        self.assertLess(stale, 45)           # what actually happened
+        self.assertGreaterEqual(fixed, 45)   # what should have happened
+
+    def test_a_genuinely_spent_budget_is_still_refused(self):
+        """Relaxing the reserve must not disable the guard."""
+        cycle, clock = budget(2400.0)
+        clock.advance(2380.0)
+        self.assertLess(
+            cycle.phase_timeout(
+                240, share=PHASE_BUDGET_SHARE["REVIEWER"],
+                reserve_seconds=review_round_reserve(1, 1),
+            ),
+            45,
+        )
 
 
 class StarvationGuardTests(unittest.IsolatedAsyncioTestCase):
