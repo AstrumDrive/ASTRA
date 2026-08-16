@@ -22,6 +22,7 @@ declare -A ENGINES=(
   [maxima]="/usr/bin/maxima"
   [lean]="$H/astra-worker/lean_verify.sh"             # Lean4 + mathlib4 compilado
   [pkgs]="$H/miniforge3/envs/pkgs/bin/python"         # paquetes propios de la organización
+  [wolfram]="$H/opt/Wolfram/Executables/wolframscript" # Mathematica 12 (install de usuario)
 )
 declare -A DESC=(
   [oracle]="numérico/simbólico general + GPU (sympy, z3, qutip, torch, cupy, jax)"
@@ -32,11 +33,12 @@ declare -A DESC=(
   [maxima]="CAS clásico"
   [lean]="verificación formal contra mathlib4 (solo lectura, sin lake)"
   [pkgs]="paquetes propios (ver ~/pkgs/README.md) — GR: GR_python+grthermo, pyWarpFactory, TELAR, warp_nn, natario, metric-engine | fundamentos: protoespacio | materia condensada: QuantumTransportEOM, mobius_rsoc | fluidos: rectification"
+  [wolfram]="Mathematica 12.0 — simbólico pesado (Integrate/DSolve/Simplify), subkernels paralelos sin límite de licencia (.wl/.m)"
 )
 
 if [ "${1:-list}" = "list" ]; then
   echo "Motores disponibles en $(hostname):"
-  for k in oracle sci sage cadabra cadabra-py maxima lean pkgs; do
+  for k in oracle sci sage cadabra cadabra-py maxima lean pkgs wolfram; do
     b="${ENGINES[$k]}"
     if [ -x "$b" ]; then s="OK "; else s="NO "; fi
     printf "  [%s] %-11s %s\n" "$s" "$k" "${DESC[$k]}"
@@ -55,5 +57,10 @@ BIN="${ENGINES[$ENGINE]:-}"
 # maxima necesita -b para lotes no interactivos; el resto toma el fichero directo.
 if [ "$ENGINE" = "maxima" ]; then
   exec "$BIN" --very-quiet -b "$@"
+fi
+# wolframscript no acepta el script como argumento suelto: exige -file. Los args
+# que sigan quedan disponibles en el script vía $ScriptCommandLine.
+if [ "$ENGINE" = "wolfram" ]; then
+  exec "$BIN" -file "$@"
 fi
 exec "$BIN" "$@"
