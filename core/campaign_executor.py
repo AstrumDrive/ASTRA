@@ -101,6 +101,29 @@ class EpisodeRunReport:
     checkpoint_path: str | None = None
 
 
+def reviewer_withheld_approval(result: Mapping[str, Any]) -> bool:
+    """True when review ran and declined, as opposed to review breaking.
+
+    The two look alike in a cycle result and mean opposite things. A reviewer
+    that returns REVISE or REJECT has done its job: the pipeline completed and
+    the gate refused to certify a validator. A reviewer that times out or hits a
+    quota error is an operational failure and must stay one.
+
+    Measured live 2026-08-16, first real campaign episode: the reviewer refused
+    a validator whose two "independent" legs solved the same semialgebraic
+    condition, and whose universal R-scaling claim rested on two radii. That is
+    rigour, and it was being recorded as a broken tool.
+    """
+    phase = str(result.get("phase") or "").lower()
+    if not phase.startswith("review"):
+        return False
+    error = str(result.get("error") or "")
+    if error.startswith("API_ERROR:") or "timeout tras" in error:
+        return False
+    review = result.get("code_review") or {}
+    return str(review.get("status") or "").upper() in {"REVISE", "REJECT"}
+
+
 def map_cycle_outcome(result: Mapping[str, Any]) -> OutcomeAxes:
     """Deterministic five-axis projection of a cycle result dict."""
     status = str(result.get("status") or "").upper()
@@ -150,6 +173,17 @@ def map_cycle_outcome(result: Mapping[str, Any]) -> OutcomeAxes:
         return OutcomeAxes(
             OperationStatus.COMPLETED,
             ClaimStatus.INCONCLUSIVE,
+            EvidenceOutcome.INCONCLUSIVE,
+            EvidenceStrength.PRELIMINARY,
+            goal,
+        )
+    if reviewer_withheld_approval(result):
+        # The pipeline completed; the gate declined. The claim is untested
+        # because no validator was admitted, which is informative about the
+        # branch - unlike a tool that broke, which is informative about nothing.
+        return OutcomeAxes(
+            OperationStatus.COMPLETED,
+            ClaimStatus.NOT_TESTED,
             EvidenceOutcome.INCONCLUSIVE,
             EvidenceStrength.PRELIMINARY,
             goal,
