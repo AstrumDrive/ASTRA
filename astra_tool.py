@@ -784,6 +784,22 @@ def review_round_reserve(model_revisions: int, max_revisions: int) -> int:
 # ASTRA_<PHASE>_TIMEOUT_PERSISTENT.
 PERSISTENT_PHASE_TIMEOUT = {"TRANSLATOR": 1200}
 
+# Some ceilings have to be a FRACTION of the cycle, not a fixed number of
+# seconds. ASTRA_TRANSLATOR_TIMEOUT=480 was sized against a 1500 s cycle; once
+# the budget moved to 2400 it scaled with nothing, and run 3 measured the
+# consequence (`ASTRA2_ABLATION_RUN3_20260816.md`): seven of eight timeouts were
+# the translator, four of them at exactly 480 s, while the median translation in
+# that same run took 573 s. The ceiling sat below the median of the task it
+# bounds.
+#
+# 0.35 of the cycle gives 840 s at 2400 - clear of the 573 s median and of the
+# 696 s the warp validator needed on 14-ago - and still leaves room for the rest:
+# 270 conjecture + 840 translation + 205 review + 375 repair + 270 tail = 1960 s
+# of the 2340 usable. It is a floor, never a cut: an operator who configured
+# more keeps it, and at the old 1500 s budget it yields 525 s, above the 480
+# that was there before.
+PHASE_BUDGET_FRACTION = {"TRANSLATOR": 0.35}
+
 
 _CRITIQUE_SYSTEM = (
     "Eres un fisico-matematico adversarial. Tu trabajo es REFUTAR: busca errores "
@@ -1274,9 +1290,16 @@ async def _do_cycle_impl(req: dict) -> dict:
                 )
         except ValueError:
             configured = 240
-        if budget.total_seconds is not None:
-            return configured          # bounded cycle: the wall decides
         key = phase.upper()
+        if budget.total_seconds is not None:
+            # Bounded cycle: the wall decides, but a ceiling that does not scale
+            # with it stops meaning anything when the wall moves.
+            fraction = PHASE_BUDGET_FRACTION.get(key)
+            if fraction:
+                configured = max(
+                    configured, int(budget.total_seconds * float(fraction))
+                )
+            return configured
         raw = (
             os.environ.get(f"ASTRA_{key}_TIMEOUT_PERSISTENT") or ""
         ).strip().strip("'\"")

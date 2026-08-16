@@ -67,13 +67,58 @@ async def run_cycle(extra_request, seen, env_extra=None):
     return result
 
 
+class ScalingTests(unittest.IsolatedAsyncioTestCase):
+    """A fixed ceiling stops meaning anything when the wall moves.
+
+    Measured 2026-08-16 (`ASTRA2_ABLATION_RUN3_20260816.md`): with the cycle
+    budget amended to 2400 s, seven of eight timeouts were the translator and
+    four died at exactly 480 s - the value in `.env`, sized for a 1500 s cycle -
+    while the median translation in that same run took 573 s.
+    """
+
+    async def test_the_ceiling_scales_with_the_benchmark_budget(self):
+        seen = []
+        await run_cycle({"cycle_timeout_seconds": 2400}, seen)
+        self.assertEqual(seen[0], 840)
+        # The measured median translation, which 480 s cut in half the time.
+        self.assertGreater(seen[0], 573)
+
+    async def test_it_is_a_floor_and_never_a_cut(self):
+        """At the old budget it must not drop below what was configured."""
+        seen = []
+        await run_cycle({"cycle_timeout_seconds": 1500}, seen)
+        self.assertGreaterEqual(seen[0], 480)
+
+    async def test_an_operator_who_configured_more_still_keeps_it(self):
+        seen = []
+        await run_cycle({"cycle_timeout_seconds": 3000}, seen,
+                        {"ASTRA_TRANSLATOR_TIMEOUT": "1200"})
+        # 1200 beats the fraction's 1050 and the cycle can fund it.
+        self.assertEqual(seen[0], 1200)
+
+    async def test_the_whole_cycle_budget_still_outranks_everything(self):
+        """A generous ceiling is a request, not a licence to overrun the wall."""
+        seen = []
+        await run_cycle({"cycle_timeout_seconds": 1500}, seen,
+                        {"ASTRA_TRANSLATOR_TIMEOUT": "1000"})
+        self.assertLess(seen[0], 1000)
+        self.assertGreater(seen[0], 525)   # still above the fraction's floor
+
+    async def test_the_scaled_ceiling_still_fits_the_cycle(self):
+        """Room for the phases after it, or the fix just moves the failure."""
+        seen = []
+        await run_cycle({"cycle_timeout_seconds": 2400}, seen)
+        conjecture, review, repair, tail = 270, 205, 375, 270
+        self.assertLess(seen[0] + conjecture + review + repair + tail, 2340)
+
+
 class CeilingTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_bounded_cycle_keeps_the_configured_ceiling(self):
         seen = []
-        # 3000 s of wall leaves the share cap slack, so nothing but the
-        # configured value can govern here.
+        # A phase with no fraction of its own is governed by its configured
+        # value; 3000 s of wall leaves the share cap slack.
         await run_cycle({"cycle_timeout_seconds": 3000}, seen)
-        self.assertEqual(seen[0], 480)
+        self.assertEqual(seen[0], int(3000 * 0.35))
 
     async def test_a_persistent_cycle_gets_the_research_ceiling(self):
         seen = []
