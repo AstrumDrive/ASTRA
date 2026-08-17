@@ -98,7 +98,54 @@ def _safe_detail(value: Any) -> Any:
     return value
 
 
+# A busy model-account slot is a queue, not a result.
+#
+# ASTRA admits one full deliberative cycle per model-account set, machine-wide,
+# because the CLIs are subscriptions rather than per-request API keys. Any other
+# work on the machine - another project's cycle, the other checkout, or this
+# runner's own second job - therefore makes a cycle return BUSY. Scoring that as
+# an architectural failure is how three research-trajectory runs were lost on
+# 2026-08-15/16, and this runner had no handling for it at all: the trajectory
+# runner got a retry after that incident and the quality runner did not.
+#
+# The budget deliberately exceeds the longest cycle measured to date (2400 s on
+# the amended protocol), because the common case is queuing behind one real
+# cycle and giving up sooner would turn a wait into a false failure.
+_BUSY_WAIT_SECONDS = 60
+_BUSY_MAX_ATTEMPTS = 45
+
+
 async def _invoke_tool(
+    payload: dict[str, Any],
+    *,
+    env: dict[str, str],
+    timeout: int,
+) -> tuple[dict[str, Any], str]:
+    """Invoke the tool, queuing rather than failing while the slot is busy."""
+    attempt = 0
+    while True:
+        result, stderr_tail = await _invoke_tool_once(
+            payload, env=env, timeout=timeout
+        )
+        if str(result.get("status") or "").upper() != "BUSY":
+            return result, stderr_tail
+        attempt += 1
+        if attempt > _BUSY_MAX_ATTEMPTS:
+            waited = _BUSY_MAX_ATTEMPTS * _BUSY_WAIT_SECONDS
+            result["error"] = (
+                f"{result.get('error') or 'BUSY'} - the shared model-account "
+                f"slot was still busy after {waited}s of waiting"
+            )
+            return result, stderr_tail
+        print(
+            f"[WAIT] model slot busy; retry {attempt}/{_BUSY_MAX_ATTEMPTS} "
+            f"in {_BUSY_WAIT_SECONDS}s",
+            flush=True,
+        )
+        await asyncio.sleep(_BUSY_WAIT_SECONDS)
+
+
+async def _invoke_tool_once(
     payload: dict[str, Any],
     *,
     env: dict[str, str],
