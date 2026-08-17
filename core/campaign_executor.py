@@ -689,6 +689,42 @@ def record_episode_result(
     )
 
 
+def _assert_result_answers_request(
+    request: Mapping[str, Any], result: Mapping[str, Any]
+) -> None:
+    """Refuse a cycle result that was produced for a different question.
+
+    `cycle_runner` is a hook: it accepts whatever it is handed. That is useful
+    for tests and for resuming a cycle whose runner died, and it is also a back
+    door into the one property that makes an episode evidence - that the cycle
+    actually ran for THIS claim.
+
+    It was walked through on 2026-08-16. A cycle job from an unrelated project,
+    an adversarial manuscript review, happened to be running in the same minute
+    as a campaign step; its result was fed in by hand and the ledger gained a
+    SUPPORTS record whose validator checks holonomy lifts, attached to a claim
+    about the null energy condition. Nothing downstream could have caught it:
+    every axis, every gate and every hash was correct about a result that
+    answered another question.
+
+    The binding used here is the shared objective, which a cycle echoes back in
+    `shared_goal`. It is not a complete guarantee - two branches of one campaign
+    share an objective - but it is exact, free, and it closes the failure that
+    actually happened. A result carrying no `shared_goal` cannot be checked this
+    way and is allowed through, which is what test doubles rely on.
+    """
+    expected = str(request.get("objective") or "").strip()
+    actual = str(result.get("shared_goal") or "").strip()
+    if not expected or not actual or actual == expected:
+        return
+    raise CampaignExecutorError(
+        "The cycle result answers a different objective than the episode "
+        "requested, so it is not evidence for this campaign.\n"
+        f"  requested: {expected[:160]!r}\n"
+        f"  answered : {actual[:160]!r}"
+    )
+
+
 async def run_episode(
     store: CampaignStore,
     branch_id: str,
@@ -741,6 +777,7 @@ async def run_episode(
         raise CampaignExecutorError(
             f"Cycle runner returned a non-mapping result: {type(result).__name__}"
         )
+    _assert_result_answers_request(request, result)
     if result.get("cached"):
         # A replayed cycle is not an observation. The cycle cache exists so a
         # research loop revisiting a similar direction does not re-burn the
