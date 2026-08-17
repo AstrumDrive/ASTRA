@@ -741,6 +741,21 @@ async def run_episode(
         raise CampaignExecutorError(
             f"Cycle runner returned a non-mapping result: {type(result).__name__}"
         )
+    if result.get("cached"):
+        # A replayed cycle is not an observation. The cycle cache exists so a
+        # research loop revisiting a similar direction does not re-burn the
+        # pipeline, which is right for exploration and wrong for a ledger: the
+        # replay would mint a second Evidence record identical to the first,
+        # charge a cycle of budget, and let a decision rest on two episodes
+        # where only one experiment happened. Observed live 2026-08-16, campaign
+        # cmp_5e3c37c77e7b4841: two episodes with byte-identical timings, the
+        # second returned in seconds.
+        raise CampaignExecutorError(
+            "The cycle returned a cached replay of an earlier identical "
+            "request, which is not new evidence. Change the branch direction or "
+            "run the campaign with ASTRA_CYCLE_CACHE=0 so every episode is a "
+            "fresh observation."
+        )
     return record_episode_result(
         store,
         branch_id,
