@@ -34,6 +34,7 @@ from core.campaign_models import (
     validate_source_commit,
 )
 from core.campaign_policy import CampaignPolicyError, CampaignState
+from core.runtime_resources import _pid_alive
 
 EVENTS_FILENAME = "events.jsonl"
 CHECKPOINT_FILENAME = "checkpoint.json"
@@ -96,21 +97,47 @@ class CampaignStore:
 
     # -- writer lock -------------------------------------------------------
 
+    def _lock_holder_pid(self) -> int | None:
+        """The pid recorded in the lock file, if it is readable."""
+        try:
+            for line in self.lock_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("pid="):
+                    return int(line.partition("=")[2].strip())
+        except (OSError, ValueError):
+            return None
+        return None
+
     def _acquire_writer(self) -> None:
         if self._lock_fd is not None:
             return
         self.campaign_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            fd = os.open(
-                self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        for attempt in range(2):
+            try:
+                fd = os.open(
+                    self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                )
+            except FileExistsError as exc:
+                # A single-writer lock with no liveness check turns any crash
+                # into a permanently wedged campaign, which a long-running
+                # research programme cannot afford - it bit twice on 2026-08-16,
+                # once from a script that raised mid-append and once from one
+                # that never called close(). The cycle lock in
+                # core/runtime_resources.py already solves this the same way, so
+                # the behaviour is consistent rather than new.
+                holder = self._lock_holder_pid()
+                if attempt == 0 and (holder is None or not _pid_alive(holder)):
+                    with contextlib.suppress(FileNotFoundError):
+                        os.unlink(self.lock_path)
+                    continue
+                raise SingleWriterError(
+                    f"Another writer (pid {holder}) holds {self.lock_path}; "
+                    "the first slice is single-writer"
+                ) from exc
+            os.write(
+                fd, f"pid={os.getpid()}\nacquired={utc_now_iso()}\n".encode()
             )
-        except FileExistsError as exc:
-            raise SingleWriterError(
-                f"Another writer holds {self.lock_path}; the first slice is "
-                "single-writer"
-            ) from exc
-        os.write(fd, f"pid={os.getpid()}\nacquired={utc_now_iso()}\n".encode())
-        self._lock_fd = fd
+            self._lock_fd = fd
+            return
 
     def close(self) -> None:
         if self._lock_fd is not None:
