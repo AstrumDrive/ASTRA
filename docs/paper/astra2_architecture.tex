@@ -99,6 +99,29 @@ ASTRA is built on the premise that these failures are architectural, not
 prompting problems, and that the cure is to make refutation \emph{cheap,
 mandatory and mechanical}. Every cycle must end with something a machine ran.
 
+\subsection{Scope: commercially available models}
+\label{sec:scope}
+
+ASTRA does research with the models anyone can buy---subscription-tier CLIs from
+three providers, on one workstation, under ordinary quota. It is not built on,
+and makes no claim about, the private or unreleased higher-capability systems
+the provider companies hold internally.
+
+That is the premise of the design rather than a limitation to apologise for, and
+every distinctive choice descends from it. Independence is bought by
+\emph{heterogeneity} instead of scale: three model families with different blind
+spots give a cross-check no single model can give itself. Refutation is
+\emph{mechanical} because no available model reliably reports when its own
+argument fails, so a deterministic auditor, an executable validator and an
+oracle stand where self-assessment would otherwise go. Budget discipline is
+\emph{structural}---phase ceilings, downstream reserves, a machine-wide
+single-cycle lock---because quota is scarce and shared rather than elastic.
+
+The consequence deserves stating plainly: a substantially stronger model would
+not make this architecture unnecessary, only cheaper to run, because fewer
+repair rounds would be needed. The question it answers is \emph{where evidence
+comes from}, and that question does not dissolve with model capability.
+
 \subsection{What ASTRA already does}
 
 The production system implements one \emph{atomic cycle}: a bounded
