@@ -52,12 +52,10 @@ progressive widening, and resume---so that a research \emph{programme}, not a
 single question, can be driven to a decision and audited afterwards.
 
 This report states the differences precisely, separates what is already
-established from what is not, and is explicit about one number that does not yet
-exist: a head-to-head quality measurement. ASTRA 1.0's only deposited benchmark
-data is eight execution smoke runs with zero scientific and zero audit cases, so
-the comparison everyone expects to see cannot honestly be printed today. The
-measurement is running; this document is written so the numbers can be dropped
-into it without rewriting the argument around them.
+established from what is not, and carries the head-to-head measurement that until 17 August did not exist. On the same 43-record suite, 1.0 accepts 41.7\% of false claims and 2.0 accepts
+none; but the difference in overall accuracy is not statistically significant.
+What changed is the kind of error, not the rate of correctness: 1.0 fails by
+asserting falsehoods and 2.0 fails by running out of time.
 \end{abstract}
 
 \section{Scope: this is an architecture for commercial models}
@@ -212,39 +210,78 @@ not persist a research record.
 
 \section{What is not measured yet}
 
-\subsection{The head-to-head number does not exist}
+\subsection{The head-to-head measurement}
 
-The figures usually quoted for ASTRA---false acceptance $0.0$, false rejection
-$0.0$, strict accuracy $0.696$, audit recall $1.0$, sound-validator false alarm
-$0.0$, over 43 cases---were produced by the \emph{2.0 code} running production's
-\emph{configuration}. They measure 2.0.
-
-ASTRA 1.0's own deposited benchmark data is eight runs, all smoke tier, whose
-summaries read \code{scientific: \{cases: 0\}} and \code{audit: \{cases: 0\}}.
-The only quantity ever measured on that line is execution reproducibility
-(verdict accuracy $1.0$, cross-run agreement $1.0$, $n=8$).
+Both lines were run on the same suite, tier and oracle: 43 records, 23 paired
+scientific cases, 14 audit, 6 execution.
 
 \begin{center}
 \small
 \begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{Standard tier, 43 cases} & \textbf{ASTRA 1.0} & \textbf{ASTRA 2.0} \\
+\textbf{Standard tier} & \textbf{ASTRA 1.0} & \textbf{ASTRA 2.0} \\
 \midrule
-scientific cases                 & \pending & 23 \\
-false acceptance                 & \pending & 0.0 \\
-false rejection                  & \pending & 0.0 \\
-strict accuracy                  & \pending & 0.696 \\
-audit: critical defect recall    & \pending & 1.0 \\
-audit: false alarm, sound code   & \pending & 0.0 \\
-execution: verdict accuracy      & 1.0 ($n{=}8$, smoke) & 1.0 \\
+\textbf{false acceptance}            & \textbf{0.4167} & \textbf{0.0} \\
+false rejection                      & 0.0    & 0.0 \\
+strict accuracy                      & 0.5217 & 0.6957 \\
+95\% CI                              & [0.330, 0.708] & [0.491, 0.844] \\
+operational failure rate             & 0.2609 & 0.2609 \\
+audit: critical defect recall        & 1.0    & 1.0 \\
+\textbf{audit: false alarm, sound code} & \textbf{0.3333} & \textbf{0.0} \\
+execution: verdict accuracy          & 1.0    & 1.0 \\
+latency p50 / p95                    & 187 / 676\,s & 327 / 946\,s \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The measurement is running on the production line with the same suite, tier and
-oracle. Two caveats belong with it when it lands: one audit case differs between
-the checkouts by a fixture correction, and---more importantly---this benchmark
-exercises the atomic cycle only.
+\paragraph{The result is the kind of error, not the rate of correctness.}
+Over the same 23 cases:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lp{9.4cm}@{}}
+\toprule
+\textbf{ASTRA 1.0} & 11 wrong: \textbf{5 \textsc{validated}}, 5 \textsc{api\_error}, 1 \textsc{code\_error} \\
+\textbf{ASTRA 2.0} & 7 wrong: 4 \textsc{timeout}, 2 \textsc{api\_error}, 1 \textsc{inconclusive} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The five \textsc{validated} entries are \emph{false} claims accepted as valid,
+and 2.0 refuted all five. They are the signature of the re-anchoring defect:
+production identifies the falsehood correctly, forms a corrected conjecture,
+validates the correction, and reports the status of \emph{its} conjecture rather
+than the claim it was asked about. Every step is right and the answer is to a
+different question.
+
+So 1.0 fails by asserting falsehoods; 2.0 fails by running out of time. A
+timeout is a budget problem. A false acceptance is a wrong answer delivered with
+confidence, and it is only discovered by re-reading the paper after it ships.
+
+\paragraph{What the statistics support, and what they do not.} With 23 paired
+cases, the difference in \emph{overall accuracy is not significant}: McNemar's
+exact test over the discordant pairs (5 favouring 1.0, 9 favouring 2.0) gives
+$p=0.42$, and the confidence intervals overlap widely. We do not claim 2.0 is
+more accurate.
+
+The false-acceptance difference is 5 of 12 false claims against 0 of 12, with
+all five discordant pairs in the same direction: exact $p=0.0625$. Suggestive,
+narrowly above the conventional threshold, and---worth stating---the smallest
+$p$ this design can produce with twelve false claims and five discordant pairs.
+
+Two caveats belong with the table. The audit case file differs between the
+checkouts by a fixture correction, so that row is not strictly paired; the 23
+scientific cases are (verified identical modulo line endings). And 1.0 was
+measured on today's production checkout, which already carries the two fixes
+ported on 13 August, so this is not the July production line.
+
+\subsection{What this measurement did not settle}
+
+One run per line, so the operational failure rates agreeing exactly (0.2609 on
+both) is evidence of comparable conditions rather than proof of them, and
+nothing here has been repeated. 2.0 also costs $1.75\times$ the wall time per
+case, which is the price of more review and more repair and shows up directly in
+its errors: four of its seven failures are timeouts.
 
 \subsection{The benchmark cannot see the main contribution}
 
