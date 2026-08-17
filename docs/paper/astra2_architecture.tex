@@ -62,16 +62,24 @@ driven to a decision.
 
 This report describes the architecture, the epistemic commitments that shape it,
 and the algorithm that implements them. It then documents, in detail, the
-failures encountered while making the system measurable. That second part turned
-out to carry most of the engineering content: of roughly eight defects found
-during evaluation, six were in the \emph{measurement infrastructure} rather than
-in the reasoning engine, and three of four benchmark runs measured the harness
-instead of the system. We report a cross-agent instruction injection observed in
-72\% of deliberations, a phase-budget allocation that starved the one step that
-converts a rejected validator into a result, and an output-token ceiling
-consumed entirely by internal reasoning. We also report, without softening it, a
-comparative evaluation that remains inconclusive and whose first measured signal
-runs against our own hypothesis.
+failures encountered while making the system measurable and then while running
+it. That second part carries most of the engineering content. Of the defects
+found during evaluation, most were in the \emph{measurement infrastructure}
+rather than in the reasoning engine, and three of four benchmark runs measured
+the harness instead of the system: we report a cross-agent instruction injection
+present in 72\% of deliberations, a phase-budget allocation that starved the one
+step that converts a rejected validator into a result, and an output-token
+ceiling consumed entirely by internal reasoning. Four further defects appeared
+only once the campaign layer drove real research, because a benchmark counts
+outcomes while a campaign acts on them---including an episode that recorded
+supporting evidence for a claim from a cycle that had answered an unrelated
+question. We also report, without softening it, a comparative evaluation that
+remains inconclusive and whose first measured signal runs against our own
+hypothesis.
+
+Scientific results obtained with the system are deliberately not reported here;
+where live research exposed a structural defect, the defect is described and the
+science is left to its own project.
 \end{abstract}
 
 \section{Introduction}
@@ -304,9 +312,10 @@ Scoped empirical claim & frozen data and protocol, stated uncertainty & replicat
 \end{center}
 
 An existential claim needs one witness; a universal claim needs an argument.
-This asymmetry is exploited directly in the case study of
-Section~\ref{sec:warp}, where an exact witness settles a question at a fraction
-of the cost of the global optimisation we had run by hand.
+The asymmetry is not decoration: in live use it is the difference between an
+obligation a cycle can discharge and one it cannot, and a campaign that states
+its claims in the wrong shape spends its budget on validators the reviewer will
+correctly refuse (Section~\ref{sec:claimshape}).
 
 \section{The campaign layer}
 \label{sec:campaign}
@@ -593,6 +602,90 @@ deliberately conservative: any \code{import} or \code{def} counts as an
 attempted script, so a validator with a typo keeps its right to a local repair,
 and only genuine prose triggers regeneration from a clean slate.
 
+\subsection{What only live research exposed}
+\label{sec:live}
+
+The defects above were found by benchmarking. Four more surfaced only when the
+campaign layer drove an actual research programme, and none of them could have
+appeared in a benchmark, because a benchmark \emph{counts} outcomes while a
+campaign \emph{acts} on them.
+
+\paragraph{A gate that declines is not a tool that broke.} The independent
+reviewer refused a validator---correctly, and with specific objections---and the
+campaign recorded it as \code{operation\_status: FAILED}. Two such episodes then
+promoted a second branch under progressive widening: a scientific decision taken
+from an operational signal, which is the collapse of Figure~\ref{fig:axes}
+happening inside the code written to prevent it. A refusal now maps to a
+completed pipeline with an untested claim; a reviewer that times out stays an
+operational failure. Same phase, opposite meaning.
+
+\paragraph{Widening must not be driven by episodes that never ran.} The same
+rule counted an episode that produced no phases, no models and no timings---the
+signature of a lost lock. A tool that broke says nothing about the promise of a
+research direction. The rule now skips such episodes without letting them extend
+or reset a streak, and deliberately still counts a validator that ran and
+crashed, because that \emph{does} say the direction is hard to test.
+
+\paragraph{A replayed cycle is not an observation.} Two consecutive episodes
+recorded byte-identical timings and two separate evidence records: the second
+step re-sent the same direction, hit the cycle cache and returned in seconds. The
+cache is right for a research loop revisiting a direction and wrong for a ledger,
+where it manufactures corroboration. Replays are now refused before they can
+reach the record.
+
+\paragraph{An episode is evidence only if the cycle ran for that claim.}
+\label{sec:foreign}
+The executor accepts a cycle result through a runner hook, which is useful for
+tests and for recovering a cycle whose runner died. A result from an entirely
+unrelated project---running in the same minute, on the same workstation---was
+fed in through that hook, and the ledger gained a \textsc{supports} record whose
+validator tested a completely different mathematical object. Every status axis,
+every gate and every hash was correct about a result that answered another
+question. Results are now bound to the request by their shared objective, and
+the ledger records the retraction rather than hiding it.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{5.2cm}p{4.3cm}p{4.5cm}@{}}
+\toprule
+\textbf{Defect} & \textbf{Invisible to benchmarks because} & \textbf{Structural fix} \\
+\midrule
+reviewer refusal recorded as breakage & benchmarks count it, campaigns act on it &
+five axes enforced at the campaign boundary \\
+widening driven by a lost lock & benchmarks have no branches to widen &
+episodes that did no work are skipped \\
+cached replay minted as evidence & benchmarks disable the cache &
+replays refused before the ledger \\
+foreign result accepted by the runner hook & benchmarks never hand-feed results &
+result bound to the request's objective \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Claim shape decides what a cycle can discharge}
+\label{sec:claimshape}
+
+A campaign spent three episodes without a single validator admitted, and the
+reviewer's three refusals were each correct. The cause was not the models: every
+branch obligation had been stated as an existential over a \emph{continuum}.
+Such a claim is not decided by evaluation---satisfying it needs a witness,
+refuting it needs an argument over the whole family---so the author kept
+attempting the middle route of sweeping and summarising, and the reviewer kept
+rejecting it.
+
+Restating each obligation at a concrete point produced a decided result in one
+episode. A second restatement mattered as much: asking whether a parameter
+\emph{moves} the quantity, rather than whether it solves the problem, so that
+the claim cannot be settled without the parameter being involved. The first
+formulation had produced a refutation whose witness was numerically identical to
+the baseline---a correct verdict about a sentence, establishing nothing about
+the idea.
+
+This is a protocol property, not a physics one. The evidence policy of
+Section~\ref{sec:axes} already said an existential is discharged by a witness;
+what was missing was any mechanism that stopped a campaign from seeding claims
+its own policy could not serve.
+
 \subsection{Failure attribution is infrastructure}
 \label{sec:attribution}
 
@@ -712,46 +805,6 @@ establishes that no known structural blocker remains, and, honestly, nothing
 more: no translation in it exceeded $296$\,s, so the new ceiling was never
 exercised.
 
-\section{Case study: energy conditions of a travelling-wave warp metric}
-\label{sec:warp}
-
-A physics question exercised the whole chain. For the $(3\!+\!1)$ ADM metric
-\[
-ds^{2}=-\alpha^{2}dt^{2}+\psi^{4}\left[(dx+\beta^{x}dt)^{2}+dy^{2}+dz^{2}\right],
-\qquad
-\alpha=1+\tfrac{f}{4},\;\;\beta^{x}=-\tfrac{f}{2},\;\;\psi=1+\tfrac{f}{5},
-\]
-with $f=\left[1+(r^{2}/R^{2})^{2}\right]^{-1}$, $\xi=x-vt$, $v=\tfrac12$, the
-system formed and decided the claim
-$m_{p}=\min_{|\mathbf{s}|=1} 8\pi R^{2}T_{\mu\nu}k^{\mu}k^{\nu}<0$ at the wall
-point $p=(0,0,R,0)$.
-
-The reviewer first returned \textsc{revise}, labelling the submitted validator
-\code{sampling\_as\_proof}: numerical optimisation proposes candidates, it does
-not prove a sign. Only after the author supplied an \emph{exact witness} did the
-review pass. The oracle then executed 15 of 15 checks:
-\[
-\mathbf{s}_{*}=(0,-1,0),\qquad
-q(\mathbf{s}_{*})=-\tfrac{23778856}{143496441}<0
-\quad\Longrightarrow\quad m_{p_R}<0\ \ \forall R>0 .
-\]
-
-Two aspects are worth isolating. First, the \textbf{cross-check}: an
-independently written validator, using a different strategy (exact Lagrange
-minimisation rather than a witness), had obtained a global minimum of
-$-196091158785784/1172859407230599\approx-0.16719$. The witness value
-$\approx-0.16571$ lies \emph{above} it by $0.9\%$, which is the only ordering
-consistent with both being correct. Two independent implementations agreeing on
-a sign and standing in the right relation is worth more than either alone.
-
-Second, the \textbf{scoping}. The system reported
-\code{original\_claim\_verdict: INCONCLUSIVE} with the reason that an exact
-witness refutes this explicit configuration without excluding others, and marked
-goal coverage partial with seven deferred items. The cycle validated its own
-conjecture and stated separately that the human's question remained open. That
-is the re-anchoring axis of Section~\ref{sec:axes} doing exactly what it was
-built for: pruning one branch is useful, negative, and not a closed programme.
-
 \section{Why we believe this helps research}
 
 \begin{description}[leftmargin=0pt, style=nextline, itemsep=3pt]
@@ -772,7 +825,7 @@ answering the question asked.
 its hash, its output and the model that wrote it. A reader can re-run the
 evidence rather than trust the narrative.
 
-\item[Negative results are first-class.] Pruning a metric family, exhausting a
+\item[Negative results are first-class.] Pruning a hypothesis family, exhausting a
 method, or reporting \textsc{inconclusive} are recorded outcomes with the same
 standing as a success. Most real research time is spent here, and systems that
 only recognise successes silently discard it.
@@ -816,9 +869,10 @@ values that exposed them.
 \hrule
 \vspace{2mm}
 \noindent\footnotesize
-\textbf{Note on scope.} This report describes an engineering system and its
-evaluation. It does not claim novel physics; the case study of
-Section~\ref{sec:warp} prunes one metric family and is reported as a negative
-result with its scope stated explicitly.
+\textbf{Note on scope.} This report describes an engineering system, its
+protocol and its evaluation. Scientific results obtained \emph{with} ASTRA
+belong to their own projects and are not reported here; where live research
+exposed a structural defect, the defect is described and the physics is not.
+A companion volume of worked examples is planned separately.
 
 \end{document}
