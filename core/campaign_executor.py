@@ -325,6 +325,45 @@ def gather_established_context(
     return "\n\n".join([header, *blocks])
 
 
+def _extract_reviewer_objection(result: Mapping[str, Any]) -> str:
+    """The reviewer's own words for why it declined, for the next author."""
+    review = result.get("code_review") or {}
+    if str(review.get("status") or "").upper() not in {"REVISE", "REJECT"}:
+        return ""
+    parts = [
+        str(review.get("reasoning") or "").strip(),
+        str(review.get("revision_instructions") or "").strip(),
+    ]
+    return "\n".join(part for part in parts if part)[:4000]
+
+
+def gather_prior_reviewer_objection(state: CampaignState, branch: Branch) -> str:
+    """The most recent reviewer refusal on THIS branch, for the next author.
+
+    The symmetric partner of gather_established_context. That surfaces a prior
+    SUPPORTED result; this surfaces a prior refusal, so a retry addresses the
+    exact objection instead of inventing a new shortcut the reviewer will refuse
+    for a different reason. Scoped to the active branch: an objection is about
+    this obligation's attempts, not another branch's.
+    """
+    for episode in reversed(list(state.episodes.values())):
+        if episode.branch_id != branch.branch_id:
+            continue
+        if episode.claim_status is not ClaimStatus.NOT_TESTED:
+            # The last thing that happened on this branch was not a refusal;
+            # a stale earlier objection should not haunt a later attempt.
+            return ""
+        for evidence_id in episode.evidence_refs:
+            evidence = state.evidence.get(evidence_id)
+            if evidence is None:
+                continue
+            objection = str((evidence.metadata or {}).get("reviewer_objection") or "")
+            if objection.strip():
+                return objection.strip()
+        return ""
+    return ""
+
+
 def build_episode_request(
     state: CampaignState,
     branch: Branch,
@@ -349,6 +388,15 @@ def build_episode_request(
     if established_context:
         lines.append("")
         lines.append(established_context)
+    prior_objection = gather_prior_reviewer_objection(state, branch)
+    if prior_objection:
+        lines.append("")
+        lines.append(
+            "PRIOR REVIEWER OBJECTION ON THIS BRANCH - the independent reviewer "
+            "refused the previous attempt for the reason below. You MUST satisfy "
+            "it explicitly; do not trade it for a different shortcut. The claim "
+            "and obligations are unchanged.\n" + prior_objection
+        )
     if cycle_timeout_seconds is None:
         remaining = state.remaining_budget()
         cycle_timeout_seconds = max(
@@ -673,6 +721,17 @@ def record_episode_result(
     if axes.evidence_outcome is not None and tested_claim_ids:
         kind = branch.evidence_plan.kind
         metadata = dict(evidence_metadata or {})
+        # Persist a reviewer refusal so the next episode on this branch can see
+        # what to fix. Without this the objection lives only in the cycle
+        # checkpoint and evaporates between episodes, and a fresh author cycles
+        # through new shortcuts the reviewer has already rejected. Observed live
+        # across four episodes of cmp_6804eb1d1eb8422e: re-derive, gate on an
+        # exact value, use QQ for a rational sign, reduce to a representative -
+        # each refused once, none carried forward.
+        if reviewer_withheld_approval(result):
+            objection = _extract_reviewer_objection(result)
+            if objection:
+                metadata.setdefault("reviewer_objection", objection)
         missing = [
             key
             for key in REQUIRED_EVIDENCE_METADATA[kind]

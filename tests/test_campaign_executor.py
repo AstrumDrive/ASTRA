@@ -673,6 +673,58 @@ class RunEpisodeTests(unittest.IsolatedAsyncioTestCase):
         episode = state.episodes[report.episode_id]
         self.assertIn("ATOMIC CLAIM UNDER TEST", episode.inputs["intuition"])
 
+    async def test_a_reviewer_objection_reaches_the_next_author(self):
+        """End-to-end: a refusal persists to the ledger and surfaces next time."""
+        store = seed_store(self.fresh_root(), self.addCleanup)
+        objection = "delta>0 is decided in QQ, not QQbar; wrap it as QQbar(...)."
+        id_factory = make_id_factory()  # shared, so ids do not collide across episodes
+
+        async def refusing_runner(_request):
+            return make_cycle_result(
+                status="TOOL_ERROR",
+                scientific_status="",
+                phase="reviewer",
+                error="Independent reviewer did not approve: " + objection,
+                code_review={
+                    "status": "REVISE",
+                    "reasoning": objection,
+                    "revision_instructions": "decide every sign in QQbar",
+                },
+            )
+
+        first = await run_episode(
+            store,
+            SEED_BRANCH_ID,
+            cycle_runner=refusing_runner,
+            id_factory=id_factory,
+            now_iso=fixed_now,
+        )
+        self.assertEqual(first.axes.claim_status, ClaimStatus.NOT_TESTED)
+
+        # The objection round-trips through the real Evidence record.
+        state = store.replay().state
+        episode = state.episodes[first.episode_id]
+        self.assertTrue(episode.evidence_refs)
+        evidence = state.evidence[episode.evidence_refs[0]]
+        self.assertIn("QQbar", evidence.metadata.get("reviewer_objection", ""))
+
+        # The next episode on the same branch receives it in its request.
+        captured = {}
+
+        async def capturing_runner(request):
+            captured.update(request)
+            return make_cycle_result()
+
+        await run_episode(
+            store,
+            SEED_BRANCH_ID,
+            cycle_runner=capturing_runner,
+            id_factory=id_factory,
+            now_iso=fixed_now,
+        )
+        self.assertIn("PRIOR REVIEWER OBJECTION ON THIS BRANCH", captured["intuition"])
+        self.assertIn("decide every sign in QQbar", captured["intuition"])
+
     async def test_pre_gates_block_the_cycle_before_any_model_call(self):
         called = {"n": 0}
 
