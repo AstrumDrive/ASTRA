@@ -73,9 +73,15 @@ ceiling consumed entirely by internal reasoning. Four further defects appeared
 only once the campaign layer drove real research, because a benchmark counts
 outcomes while a campaign acts on them---including an episode that recorded
 supporting evidence for a claim from a cycle that had answered an unrelated
-question. We also report, without softening it, a comparative evaluation that
-remains inconclusive and whose first measured signal runs against our own
-hypothesis.
+question. Five more surfaced from a single sustained campaign driven to one
+recorded verdict, and---arriving in sequence on one unbroken problem---they let
+us test the report's central claim directly: that keeping the status axes
+separate distinguishes a failure of transport from a failure of science. In one
+episode a one-part-in-$10^{11}$ transcription error in a consensus conjecture was
+stopped from being recorded as a refuted scientific claim by a single axis
+declining to collapse into another. We also report, without softening it, a
+comparative evaluation that remains inconclusive and whose first measured signal
+runs against our own hypothesis.
 
 Scientific results obtained with the system are deliberately not reported here;
 where live research exposed a structural defect, the defect is described and the
@@ -731,6 +737,124 @@ reviewer fails 15/15 & the reviewer & repair starved by a share rule \\
 translator needs more time & a small ceiling & output tokens spent on reasoning \\
 cycle dies writing a validator & model incapacity & injected instruction from a peer agent \\
 both arms fail 100\% of cycles & the architectures & a stale lock; BUSY scored as failure \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{A sustained campaign, and the thesis it tested}
+\label{sec:sustained}
+
+The defects of Sections~\ref{sec:live}--\ref{sec:attribution} surfaced in the
+first hours of campaign use. A longer test followed: one research question driven
+across two campaigns and eleven episodes, to a single recorded verdict. It
+exposed five further defects, and---because they arrived in sequence on one
+unbroken problem---it did more than lengthen the list. It tested this report's
+central claim, that keeping the five axes separate (Figure~\ref{fig:axes}) lets
+the system tell a failure of \emph{transport} from a failure of \emph{science}.
+Each of the five is infrastructure misread as a research signal, and in each the
+separation is what contained it.
+
+\paragraph{A provider outage counted as an uninformative episode.} The streak
+rule of Section~\ref{sec:live}, which pauses a branch after two episodes that
+teach nothing, used the absence of timings as its proxy for ``did no work.'' A
+provider returned HTTP~500 and killed the author after $935$\,s of conjecture and
+translation, so the episode carried timings and the outage counted---tripping the
+two-episode pause one episode early, on the strength of one genuine refusal plus
+one server error. The discriminator is not ``did the episode spend time'' but
+``did it record evidence about the direction,'' a line the axes already draw: an
+API error yields no evidence outcome, a code error an operational-error record, a
+refusal an inconclusive one. A failed episode that recorded no evidence is now
+skipped; one that recorded evidence, or completed, counts.
+
+\paragraph{A branch could not read what its ancestor had certified.} The request
+handed to a cycle carried the campaign objective, the branch direction and the
+branch's first claim---and nothing else. A branch created by progressive widening
+on an earlier result therefore could not receive that result. One branch
+published an exact matrix and reached \textsc{supported}; its successor, whose
+obligation began ``given that matrix,'' was handed no matrix, and its author
+re-derived the assembly the split existed to avoid---reproducing the exact
+failure the split had removed. The request now carries, for the active branch,
+the verbatim certified output of every \textsc{supported} episode in its
+ancestry, under an explicit instruction to load rather than re-derive it.
+
+\paragraph{A malformed repair patch destroyed an approved validator.} A validator
+passed the independent reviewer and executed with \code{VERDICT: PASS}; the
+analyst then returned \code{CODE\_ERROR} while its own written reasoning affirmed
+the proof, having read a Sage deprecation warning on \code{stderr} as a code
+fault. That spurious error triggered a repair, the repair model returned a reply
+that was not valid JSON, and the cycle took its failure path---erasing an
+approved, passing validator that had certified the result. Two changes close it.
+The deterministic guard, which already downgraded an over-confident
+\textsc{validated}, now reconciles the reverse: a \code{CODE\_ERROR} raised over a
+clean \code{VERDICT: PASS} with no correction to offer is the analyst mislabelling
+a warning, and is restored. And a failed or inapplicable patch now keeps the
+pre-patch validator and finalises on the honest status, rather than destroying a
+cycle that a malformed reply should never have been able to destroy.
+
+\paragraph{A reviewer's objection did not survive to the next author.} The
+symmetric partner of the ancestor-context defect above. Over one branch the
+reviewer refused four validators, each for a different and correct reason:
+re-deriving the data, gating on an exact value, deciding a rational sign outside
+\code{QQbar}, reducing to a representative tensor. Each objection lived only in
+the cycle checkpoint, unseen by the next fresh author, who invented the next
+shortcut; one episode reproduced two earlier shortcuts at once. The obligation
+was never wrong---the reviewer's feedback converged, repeatedly calling the
+mathematics sound---but that feedback evaporated between episodes. A withheld
+reviewer's reasoning is now persisted into the evidence record and surfaced to
+the next episode on the same branch, so a retry answers the objection instead of
+discovering a new way to fail.
+
+\paragraph{A Sage success that called \code{sys.exit} was misread as an error.}
+The last barrier was the smallest. A validator satisfied every clause of a
+demanding contract---literal data, every sign in \code{QQbar}, the verdict
+resting only on the decisive leg, the exact certificate printed---and the reviewer
+approved it. It ended its passing run with \code{sys.exit(0)}, and SageMath's
+runner reports a raised \code{SystemExit} as a nonzero exit, so the printed
+\code{VERDICT: PASS} was recorded as an operational error. The contract now tells
+every author to complete naturally on the success path; operational failures
+still exit nonzero, the distinction being success versus failure rather than exit
+versus return.
+
+\paragraph{The separation, caught in the act.} One episode shows the thesis
+working rather than being argued for. The ensemble's consensus conjecture stated
+the minimum of a quadratic form as $40864160967/722297701575$; the true value,
+computed from the data, is $40864160968/722297701575$---larger by one part in
+$7\times10^{11}$, and both strictly positive. A validator gated on the stated
+value, found the mismatch, and returned a refutation. Had \code{claim\_status}
+been the only axis, the ledger would now read \emph{the null-energy condition is
+refuted}. It does not: the re-anchoring axis recorded
+\code{original\_claim\_verdict: SUBSTITUTED}, marking the refutation as one of a
+mis-transcribed constant---a substituted question---while the physical claim, the
+sign of the minimum, was untouched. Figure~\ref{fig:axes} is not decoration; here
+a one-part-in-$10^{11}$ transcription slip was stopped from masquerading as a
+scientific result by a single axis refusing to collapse into another.
+
+\smallskip
+\noindent
+The quantity under test was confirmed by six independent routes before the clean
+verdict was ever recorded; what took two campaigns and eleven episodes was not the
+science but a single verdict that met every requirement at once, blocked at each
+step by one of the five artefacts above rather than by the physics. Each was fixed
+at its source, and each now serves any campaign rather than the one that exposed
+it. The scientific result itself belongs to its own project and is not reported
+here.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{4.7cm}p{4.6cm}p{4.7cm}@{}}
+\toprule
+\textbf{Defect} & \textbf{Misread as} & \textbf{Structural fix} \\
+\midrule
+provider 500 with timings & an uninformative research episode &
+streak keys on recorded evidence, not elapsed time \\
+ancestor result not in the request & a direction that must re-derive &
+certified ancestor output carried to the successor \\
+malformed patch on an approved validator & a cycle to be failed &
+guard reconciled both ways; last good validator kept \\
+reviewer objection lost between episodes & a fresh, uninformed retry &
+objection persisted and surfaced to the next author \\
+Sage \code{sys.exit(0)} on success & an operational error &
+contract: complete naturally on the passing path \\
 \bottomrule
 \end{tabular}
 \end{center}
