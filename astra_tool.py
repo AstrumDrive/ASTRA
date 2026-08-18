@@ -519,16 +519,45 @@ def _escalate_agent_models(agent):
 
 
 def _apply_guard(analysis: dict, exec_result: dict) -> dict:
-    """La auditoria determinista manda sobre el juicio del LLM: un VALIDATED
-    cuyo script no podia fallar (o con CHECKs en FAIL) se degrada a WEAK_PASS."""
+    """La auditoria determinista manda sobre el juicio del LLM, en ambos sentidos.
+
+    Un VALIDATED cuyo script no podia fallar (o con CHECKs en FAIL) se degrada a
+    WEAK_PASS. Y, simetricamente, un CODE_ERROR que el analista no sabe corregir
+    -sin `corrected_code`- sobre una ejecucion que imprimio VERDICT: PASS y que
+    el auditor determinista no marca como sospechosa NO es un error de codigo
+    accionable: es el analista leyendo un aviso de stderr como si fuera un fallo.
+    Se reconcilia a VALIDATED, anotando la etiqueta cruda.
+
+    Sin esta segunda rama ese CODE_ERROR espurio disparaba un parche de
+    reparacion, y si el modelo devolvia un JSON mal formado el ciclo destruia un
+    validador ya aprobado por el revisor y con VERDICT: PASS. Observado en vivo
+    2026-08-18, campaña cmp_6804eb1d1eb8422e, episodio 4: el cono NEC quedaba
+    resuelto (q_* = 40864160968/722297701575 > 0, certificado en QQbar) y el
+    ciclo lo tiraba a la basura.
+    """
     g = (exec_result or {}).get("guard") or {}
-    if analysis.get("status") == "VALIDATED" and g.get("verdict_suspect"):
+    status = analysis.get("status")
+    if status == "VALIDATED" and g.get("verdict_suspect"):
         analysis = dict(analysis)
         analysis["status"] = "WEAK_PASS"
         analysis["reasoning"] = ((analysis.get("reasoning") or "") +
                                  " | AUDITOR determinista: " +
                                  "; ".join(g.get("reasons") or []) +
                                  " -> PASS no creible tal cual.").strip(" |")
+    elif (
+        status == "CODE_ERROR"
+        and str((exec_result or {}).get("verdict") or "").upper() == "PASS"
+        and not g.get("verdict_suspect")
+        and not analysis.get("corrected_code")
+    ):
+        analysis = dict(analysis)
+        analysis["status"] = "VALIDATED"
+        analysis["reconciled_from"] = "CODE_ERROR"
+        analysis["reasoning"] = ((analysis.get("reasoning") or "") +
+                                 " | AUDITOR determinista: VERDICT PASS, guard "
+                                 "limpio y sin correccion propuesta -> el "
+                                 "CODE_ERROR del analista no es accionable; "
+                                 "reconciliado a VALIDATED.").strip(" |")
     return analysis
 
 
@@ -1952,13 +1981,18 @@ async def _do_cycle_impl(req: dict) -> dict:
                     "post_execution_weak_pass",
                 )
                 if patch_error:
-                    out = _fail(
-                        patch_error,
-                        "translator_retry",
-                        conjecture_text=conjecture,
-                    )
-                    out["validator_model_patch_history"] = model_patch_history
-                    return out
+                    # A malformed or inapplicable patch must not destroy the
+                    # validator we already have. Keep it and finalize on the
+                    # analyst's honest status (here WEAK_PASS) instead of failing
+                    # the whole cycle; the pre-patch code is unchanged.
+                    analysis = dict(analysis)
+                    analysis["patch_abandoned"] = patch_error
+                    analysis["reasoning"] = (
+                        (analysis.get("reasoning") or "")
+                        + " | PATCH abandonado: " + str(patch_error)
+                        + " -> se conserva el ultimo validador revisado."
+                    ).strip(" |")
+                    break
             else:
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR_REPAIR")
@@ -1991,13 +2025,21 @@ async def _do_cycle_impl(req: dict) -> dict:
                         "post_execution_code_error",
                     )
                     if patch_error:
-                        out = _fail(
-                            patch_error,
-                            "translator_retry",
-                            conjecture_text=conjecture,
-                        )
-                        out["validator_model_patch_history"] = model_patch_history
-                        return out
+                        # A malformed or inapplicable patch must not destroy a
+                        # validator that already passed review and executed. Keep
+                        # the pre-patch code (the patch left it unchanged) and
+                        # finalize on the analyst's honest status instead of
+                        # failing the whole cycle. 2026-08-18, cmp_6804...: a
+                        # non-JSON patch response was erasing an approved,
+                        # passing validator whose cone verdict was PASS.
+                        analysis = dict(analysis)
+                        analysis["patch_abandoned"] = patch_error
+                        analysis["reasoning"] = (
+                            (analysis.get("reasoning") or "")
+                            + " | PATCH abandonado: " + str(patch_error)
+                            + " -> se conserva el ultimo validador revisado."
+                        ).strip(" |")
+                        break
                 else:
                     t0 = time.monotonic()
                     _prepare_agent(trans, "TRANSLATOR_REPAIR")
