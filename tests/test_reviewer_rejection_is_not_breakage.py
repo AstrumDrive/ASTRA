@@ -74,11 +74,19 @@ class MappingTests(unittest.TestCase):
 
 
 class _Episode:
-    def __init__(self, branch_id, operation_status, claim_status, timings=None):
+    def __init__(
+        self,
+        branch_id,
+        operation_status,
+        claim_status,
+        timings=None,
+        evidence_refs=(),
+    ):
         self.branch_id = branch_id
         self.operation_status = operation_status
         self.claim_status = claim_status
         self.timings = timings or {}
+        self.evidence_refs = tuple(evidence_refs)
 
 
 class _State:
@@ -96,12 +104,40 @@ class WideningTests(unittest.TestCase):
         self.assertEqual(streak(never_ran, never_ran), 0)
 
     def test_a_validator_that_ran_and_crashed_still_counts(self):
-        """It informs the campaign: this direction is hard to test."""
+        """It informs the campaign: this direction is hard to test.
+
+        A CODE_ERROR is FAILED, but map_cycle_outcome gives it an
+        OPERATIONAL_ERROR evidence outcome, so the episode records evidence -
+        that recorded evidence is the signal a validator was authored and run.
+        """
         crashed = _Episode(
             "brn_x", OperationStatus.FAILED, ClaimStatus.NOT_TESTED,
             timings={"conjecture": 200.0, "translate": 400.0, "execute": 3.0},
+            evidence_refs=("evd_operational_error",),
         )
         self.assertEqual(streak(crashed, crashed), 2)
+
+    def test_a_provider_outage_mid_pipeline_does_not_count(self):
+        """The 2026-08-18 regression: an API 500 is not a signal about physics.
+
+        cmp_6804eb1d1eb8422e: a 500 killed the translator after 935 s of
+        conjecture-plus-translate. The old `not timings` proxy counted it
+        because timings were non-empty; the correct discriminator is that an
+        API_ERROR records no evidence, so it is infrastructure and is skipped.
+        """
+        outage = _Episode(
+            "brn_x", OperationStatus.FAILED, ClaimStatus.NOT_TESTED,
+            timings={"conjecture": 318.72, "translate": 617.19},
+            evidence_refs=(),
+        )
+        refusal = _Episode(
+            "brn_x", OperationStatus.COMPLETED, ClaimStatus.NOT_TESTED,
+            evidence_refs=("evd_inconclusive",),
+        )
+        # One real refusal after one outage is a streak of one, not two - so the
+        # campaign keeps running instead of pausing an episode early.
+        self.assertEqual(streak(outage, refusal), 1)
+        self.assertEqual(streak(outage, outage), 0)
 
     def test_a_declined_validator_does_count(self):
         """Two cycles the reviewer would not certify IS a signal about the branch."""

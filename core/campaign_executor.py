@@ -40,6 +40,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from core.campaign_models import (
@@ -218,11 +219,118 @@ def build_portfolio_context(state: CampaignState) -> dict[str, Any]:
     }
 
 
+ESTABLISHED_ARTIFACT_CHAR_CAP = 4000
+
+
+def gather_established_context(
+    state: CampaignState,
+    branch: Branch,
+    campaign_dir: Path | None,
+) -> str:
+    """Certified results from this branch's ancestry, verbatim.
+
+    A cycle used to see only the campaign objective, its own branch direction
+    and its own first claim - never a prior episode's result. So a branch built
+    by widening on an earlier one could not receive what that earlier one
+    established: the seeded PSD branch of cmp_6804eb1d1eb8422e said "given the
+    S-procedure data at p", but nothing carried the entries, and its cycle had
+    to re-derive the assembly it was meant to consume. That is the operation
+    that failed campaign 05 five times, reintroduced by the transport gap.
+
+    This surfaces, for the active branch, the exact published output of every
+    SUPPORTED episode in its ancestor chain (parent_branch_id) plus its named
+    parent episode, read straight from the stored stdout artifact so the author
+    loads the certified numbers rather than reconstructing them. The framing is
+    deliberately firm because the failure mode is an author re-deriving given
+    data: a validator that rebuilds A, b, c from the metric and then certifies a
+    quadratic form assembled from those same invariants is self-confirming, and
+    a reviewer will - correctly - refuse it.
+
+    Ancestor-scoped on purpose: a branch inherits what it descends from, not
+    every unrelated result in the campaign. Returns "" when there is nothing
+    established or no artifact directory, which keeps the request pure for the
+    seeding tests that patch this away.
+    """
+    if campaign_dir is None:
+        return ""
+    established_episode_ids: list[str] = []
+    seen: set[str] = set()
+
+    def _remember(episode_id: str | None) -> None:
+        if episode_id and episode_id not in seen:
+            seen.add(episode_id)
+            established_episode_ids.append(episode_id)
+
+    # Walk the ancestor chain; guard against a malformed cycle in parent links.
+    visited_branches: set[str] = set()
+    cursor: Branch | None = branch
+    while cursor is not None and cursor.branch_id not in visited_branches:
+        visited_branches.add(cursor.branch_id)
+        _remember(cursor.parent_episode_id)
+        for episode in state.episodes.values():
+            parent_id = cursor.parent_branch_id
+            if parent_id is None:
+                continue
+            if (
+                episode.branch_id == parent_id
+                and episode.claim_status is ClaimStatus.SUPPORTED
+            ):
+                _remember(episode.episode_id)
+        cursor = (
+            state.branches.get(cursor.parent_branch_id)
+            if cursor.parent_branch_id
+            else None
+        )
+
+    blocks: list[str] = []
+    for episode_id in established_episode_ids:
+        episode = state.episodes.get(episode_id)
+        if episode is None or episode.claim_status is not ClaimStatus.SUPPORTED:
+            continue
+        stdout_path = campaign_dir / "artifacts" / episode_id / "stdout.txt"
+        try:
+            text = stdout_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if not text.strip():
+            continue
+        if len(text) > ESTABLISHED_ARTIFACT_CHAR_CAP:
+            text = (
+                text[:ESTABLISHED_ARTIFACT_CHAR_CAP]
+                + "\n[... established output truncated ...]"
+            )
+        claim_statement = ""
+        for claim_id in episode.claim_refs:
+            claim = state.claims.get(claim_id)
+            if claim is not None:
+                claim_statement = claim.statement
+                break
+        blocks.append(
+            f"From episode {episode_id} (claim SUPPORTED):\n"
+            f"{claim_statement}\n"
+            "Its certified output, to be LOADED verbatim, not re-derived:\n"
+            f"{text.strip()}"
+        )
+
+    if not blocks:
+        return ""
+    header = (
+        "ESTABLISHED EARLIER IN THIS CAMPAIGN - these results are already "
+        "certified. Load these exact quantities directly; do NOT rebuild them "
+        "from the metric or from invariants, and do NOT let any verdict rest on "
+        "a reconstruction of them. Reconstructing given data and then "
+        "certifying a quantity assembled from that reconstruction is "
+        "self-confirming and will be refused."
+    )
+    return "\n\n".join([header, *blocks])
+
+
 def build_episode_request(
     state: CampaignState,
     branch: Branch,
     *,
     cycle_timeout_seconds: int | None = None,
+    established_context: str | None = None,
 ) -> dict[str, Any]:
     """The request dict handed to the atomic cycle for one episode."""
     campaign = state.require_campaign()
@@ -238,6 +346,9 @@ def build_episode_request(
             lines.append("CRUX / NEXT DISCRIMINATING OBLIGATION:")
             lines.extend(f"- {item}" for item in claim.unresolved_obligations)
         break
+    if established_context:
+        lines.append("")
+        lines.append(established_context)
     if cycle_timeout_seconds is None:
         remaining = state.remaining_budget()
         cycle_timeout_seconds = max(
@@ -765,8 +876,14 @@ async def run_episode(
             f"plan={plan_cost.to_dict()}"
         )
 
+    established_context = gather_established_context(
+        state, branch, store.campaign_dir
+    )
     request = build_episode_request(
-        state, branch, cycle_timeout_seconds=cycle_timeout_seconds
+        state,
+        branch,
+        cycle_timeout_seconds=cycle_timeout_seconds,
+        established_context=established_context,
     )
     if cycle_runner is None:
         from astra_tool import _do_cycle

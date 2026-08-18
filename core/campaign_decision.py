@@ -110,29 +110,41 @@ def branch_spent(state: CampaignState, branch_id: str) -> BudgetVector:
 def uninformative_streak(state: CampaignState, branch_id: str) -> int:
     """Trailing run of NOT_TESTED/INCONCLUSIVE episodes on one branch.
 
-    An episode that never ran is skipped entirely rather than counted. Observed
-    live on 2026-08-16, first episode of the travelling-wave campaign: a
-    duplicated launch lost the model-account lock and recorded an episode with
-    no phases, no models and no timings, which then helped promote a second
-    branch. Widening on that is the operation-into-branch collapse the five axes
-    exist to prevent - the campaign learned nothing about the direction, only
-    that two processes raced.
+    An episode that told us nothing about the DIRECTION is skipped entirely
+    rather than counted. Observed live on 2026-08-16, first episode of the
+    travelling-wave campaign: a duplicated launch lost the model-account lock
+    and recorded an episode with no phases, no models and no timings, which then
+    helped promote a second branch. Widening on that is the operation-into-
+    branch collapse the five axes exist to prevent - the campaign learned
+    nothing about the direction, only that two processes raced.
 
-    The discriminator is deliberately narrow: it skips episodes that did no
-    work at all, not every failure. A validator that was authored, reviewed and
-    then crashed HAS informed the campaign - it says this direction is hard to
-    test - so a CODE_ERROR still counts. Skipped episodes neither extend nor
+    The discriminator keys on whether the episode produced EVIDENCE, not on
+    whether it spent wall-clock. That is the line the five axes already draw:
+    ``map_cycle_outcome`` gives an API_ERROR no evidence outcome at all (a tool
+    broke - informative about nothing), a CODE_ERROR an OPERATIONAL_ERROR
+    outcome (a validator was authored and crashed - informative that the
+    direction is hard to test), and a reviewer refusal an INCONCLUSIVE outcome
+    (the gate declined - informative about the direction). So a FAILED episode
+    that recorded no evidence is infrastructure, and it is skipped; one that
+    recorded evidence, or that completed, is real and it counts.
+
+    This matters because the old ``not episode.timings`` proxy miscounted a
+    provider outage. Observed live 2026-08-18, campaign cmp_6804eb1d1eb8422e:
+    an API 500 killed the translator after 935 s of conjecture-plus-translate,
+    so ``timings`` was non-empty and the outage counted toward the streak; a
+    single genuine reviewer refusal on the next episode then tripped the
+    two-episode pause one episode early. Skipped episodes neither extend nor
     reset the run, because they are not evidence in either direction.
     """
     streak = 0
     for episode in reversed(list(state.episodes.values())):
         if episode.branch_id != branch_id:
             continue
-        never_ran = (
+        infrastructure_failure = (
             episode.operation_status is OperationStatus.FAILED
-            and not episode.timings
+            and not episode.evidence_refs
         )
-        if never_ran:
+        if infrastructure_failure:
             continue
         if episode.claim_status in _UNINFORMATIVE_CLAIM_STATUSES:
             streak += 1
