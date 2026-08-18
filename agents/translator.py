@@ -143,6 +143,12 @@ ASTRA VALIDATOR-REPAIR vNEXT CONTRACT:
    check, not independent validation.
 5. On repair, preserve sound code and patch the listed defects locally. Return the
    complete updated script, not a diff and not a wholesale unrelated rewrite.
+6. On the SUCCESS path, after printing "VERDICT: PASS", let the script COMPLETE
+   NATURALLY. Never call `sys.exit(0)` (or `exit(0)`) to end a passing run. In
+   SageMath especially, the runner reports an explicitly raised SystemExit as a
+   NONZERO exit, so a `sys.exit(0)` turns a printed VERDICT: PASS into a spurious
+   operational error. Operational FAILURES still exit nonzero per clause 1; this
+   applies only to the passing path.
 """
 
 
