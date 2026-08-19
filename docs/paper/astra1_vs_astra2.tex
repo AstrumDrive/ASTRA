@@ -53,9 +53,11 @@ single question, can be driven to a decision and audited afterwards.
 
 This report states the differences precisely, separates what is already
 established from what is not, and carries the head-to-head measurement that until 17 August did not exist. On the same 43-record suite, 1.0 accepts 41.7\% of false claims and 2.0 accepts
-none; but the difference in overall accuracy is not statistically significant.
-What changed is the kind of error, not the rate of correctness: 1.0 fails by
-asserting falsehoods and 2.0 fails by running out of time.
+none; the difference in \emph{overall} accuracy is not statistically significant,
+but the false-acceptance difference is, and becomes decisive once the false-claim
+sample is enlarged---0 of 22 for 2.0 against 11 of 22 for 1.0, exact
+$p\approx0.001$. What changed is the kind of error, not the rate of correctness:
+1.0 fails by asserting falsehoods and 2.0 fails by running out of time.
 \end{abstract}
 
 \section{Scope: this is an architecture for commercial models}
@@ -268,6 +270,29 @@ The false-acceptance difference is 5 of 12 false claims against 0 of 12, with
 all five discordant pairs in the same direction: exact $p=0.0625$. Suggestive,
 narrowly above the conventional threshold, and---worth stating---the smallest
 $p$ this design can produce with twelve false claims and five discordant pairs.
+
+\paragraph{Powering the false-acceptance test.} Because that $p$ was
+floor-limited by sample size rather than by effect, the suite was extended with
+ten more false claims and both lines were re-run on them under matching
+conditions (standard tier, local oracle, \code{--case-root} so 1.0 sees the same
+cases). The claims are representative false versions of true theorems across
+logic, GR, quantum, fluids and ODE, and were \emph{not} chosen to trigger the
+defect. 1.0 accepted \textbf{6 of the 10} as valid; 2.0 accepted none, refuting
+eight and timing out on two. Six discordant pairs, all favouring 2.0, give exact
+$p=0.03125$ on the new cases alone---below the conventional threshold; pooled with
+the original five, eleven discordant pairs all in one direction give exact
+$p\approx0.001$. The pre-registered false-acceptance advantage is now significant.
+
+\paragraph{What that number does and does not license.} The new claims lean
+toward the \emph{near-miss} type---false but close to a true statement---which is
+both the realistic case and precisely the regime where the re-anchoring defect
+bites, so the raw strict-accuracy gap they produce (1 of 10 for 1.0 against 8 of
+10 for 2.0) is inflated by that selection and is \emph{not} a general accuracy
+claim. What survives cleanly is the specific one: on false claims, 1.0 accepts
+about half (11 of 22 across both runs) and 2.0 accepts none (0 of 22). 2.0's two
+failures here are timeouts and three of 1.0's are operational errors---neither a
+false acceptance---and both are excluded from the discordant count, which is over
+acceptance alone.
 
 Two caveats belong with the table. The audit case file differs between the
 checkouts by a fixture correction, so that row is not strictly paired; the 23
