@@ -22,6 +22,8 @@
 
 \newcommand{\code}[1]{\texttt{\small #1}}
 \newcommand{\pending}{\textcolor{astragrey}{\textit{pending}}}
+\newcommand{\viol}[1]{\textcolor{astrared}{#1}}
+\newcommand{\okk}[1]{\textcolor{astragreen}{#1}}
 
 \tikzset{
   layer/.style={draw=astrablue, thick, fill=astrablue!8, rounded corners=2pt,
@@ -34,9 +36,10 @@
 }
 
 \title{\bfseries From ASTRA 1.0 to ASTRA 2.0\\
-\large What changed, what it buys, and what is still unmeasured}
+\large A complete comparative report: what changed, what it buys,
+what it costs, and what is still unmeasured}
 \author{Comparison report}
-\date{17 August 2026}
+\date{18 August 2026}
 
 \begin{document}
 \maketitle
@@ -59,6 +62,44 @@ sample is enlarged---0 of 22 for 2.0 against 11 of 22 for 1.0, exact
 $p\approx0.001$. What changed is the kind of error, not the rate of correctness:
 1.0 fails by asserting falsehoods and 2.0 fails by running out of time.
 \end{abstract}
+
+\section{Executive summary}
+
+ASTRA is a research engine that forces every claim through an executable
+falsification step. \textbf{1.0} runs one such step---the \emph{atomic cycle}: an
+ensemble proposes a decidable proposition, one model authors a validator, a
+second reviews it, a deterministic oracle runs it. \textbf{2.0} keeps that worker
+and adds a layer above it so that a research \emph{programme}, not a single
+question, can be driven to a decision and audited afterwards: an append-only
+evidence ledger, structured proposal portfolios, hard admissibility gates,
+progressive widening, resume, and---the epistemic core---five status axes that
+are never collapsed into one verdict.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{4.3cm}p{4.9cm}p{4.9cm}@{}}
+\toprule
+ & \textbf{ASTRA 1.0} & \textbf{ASTRA 2.0} \\
+\midrule
+Unit of work & one atomic cycle & a campaign of cycles over a ledger \\
+Verdict shape & a single status & five separate axes (operation, claim, evidence, branch, goal) \\
+False claims accepted & 11 of 22 (\viol{50\%}) & 0 of 22 (\okk{0\%}), exact $p\approx0.001$ \\
+Overall accuracy & lower, but not significantly & higher, but not significantly \\
+Dominant error & asserting a falsehood & running out of time \\
+Latency per case & p50 187\,s / p95 676\,s & p50 327\,s / p95 946\,s ($1.75\times$) \\
+Record & a transcript that scrolls past & auditable evidence with hashes \\
+Negative results & repeated & cumulative (a closed branch) \\
+Self-inflicted failures & cannot exhibit them & exhibits them, and can catch them \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The honest bottom line, stated once and not softened: \textbf{2.0 is
+demonstrably more careful, not demonstrably more accurate.} Its measured, pre-
+registered advantage is the elimination of \emph{false acceptances}---confident
+wrong answers---which is the error a downstream reader discovers only after acting
+on it. Its cost is latency and the operational complexity of a layer that acts on
+its own signals. Everything below documents both sides.
 
 \section{Scope: this is an architecture for commercial models}
 \label{sec:scope}
@@ -347,12 +388,94 @@ objection, the oracle's output, and the decision that followed. That is the
 difference between a transcript and evidence, and it is what makes an
 LLM-driven result quotable at all.
 
-\paragraph{It makes the system's own failures visible.} The defects found in
-2.0---a reviewer refusal recorded as breakage, a cached replay minted as
-evidence, a foreign result accepted through a runner hook---are defects 1.0
-cannot exhibit, because it never acts on its own signals. Acting on them is
-where the value is, and also where the risk is; the layer that creates the risk
-is the same layer that lets it be caught.
+\paragraph{It makes the system's own failures visible, and separable.} This is
+the deepest argument and the one the comparison benchmark cannot score, so it is
+made from live use. A campaign \emph{acts} on its own signals, and doing so
+exposes a class of defect 1.0 cannot exhibit: \emph{infrastructure mistaken for a
+research signal}. Six were found and fixed while a single research programme ran
+across two campaigns and more than a dozen episodes.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{5.4cm}p{8.6cm}@{}}
+\toprule
+\textbf{Transport failure} & \textbf{Was being scored as} \\
+\midrule
+a provider 500 mid-pipeline & an uninformative research episode (it paused a branch early) \\
+a branch blind to its ancestor's result & a direction that had to re-derive what was already certified \\
+a malformed repair patch & a reason to destroy an approved, passing validator \\
+a reviewer objection lost between episodes & a fresh author reinventing the rejected shortcut \\
+a Sage \code{sys.exit(0)} on success & an operational error masking a printed PASS \\
+a cold WSL boot exceeding a 10\,s probe & an installed engine reported as missing \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Each was fixed at its source. The point is not the list but its
+signature: every one is the five axes doing their job---keeping a failure of
+\emph{transport} from being recorded as a failure of \emph{science}. 1.0 has no
+place for these to happen, and equally no place to catch them; the layer that
+creates the risk is the layer that makes it visible.
+
+\subsection{A worked example: a research programme, end to end}
+
+The clearest evidence that the campaign layer buys something is that it drove a
+real physics question to certified verdicts of \emph{both} signs, auditable
+afterwards. The question---whether a modification to a warp ansatz repairs a
+pointwise energy-condition violation---produced, in sequence:
+
+\begin{itemize}[leftmargin=1.4em, itemsep=1pt]
+\item a \okk{certified positive}: the modification makes the condition hold over
+      an entire null cone at one point, exact rational certificate, two
+      independent methods agreeing;
+\item a \viol{certified negative}: at another point the same modification
+      \emph{fails}, with an exact witness direction---the fix is local, not
+      general.
+\end{itemize}
+
+\noindent Two features of that arc are exactly what 2.0 exists to provide. First,
+the negative result is a first-class deliverable, not a discarded branch: it
+closes the question (one counterexample refutes the universal) and it is recorded
+with its witness. Second, one episode showed the axes preventing a false record
+in real time: an ensemble stated a constant wrong by one part in $10^{11}$, a
+validator refuted \emph{that} constant, and the re-anchoring axis marked the
+verdict \code{SUBSTITUTED}---so a transcription slip was recorded as a refuted
+\emph{substituted} claim rather than as a refuted \emph{scientific} one. In 1.0,
+with a single verdict field, that same episode reads as a refutation of the
+physics. That difference---between a wrong headline and a correct one---is the
+whole thesis of the second version, caught happening.
+
+\section{When to use each line}
+
+The two are not rivals; 2.0 wraps 1.0, so the choice is whether a given task needs
+the wrapper.
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{6.6cm}p{7.4cm}@{}}
+\toprule
+\textbf{Reach for 1.0 (the bare atomic cycle) when} & \textbf{Reach for 2.0 (the campaign layer) when} \\
+\midrule
+the question is a single decidable proposition &
+the question is a programme---many linked claims, branches, dead ends \\
+you will read the verdict yourself, now &
+someone who was not there must audit the result later \\
+latency matters more than a durable record &
+a false acceptance would be expensive to discover downstream \\
+you are smoke-testing a validator or an engine &
+negative results must accumulate rather than be re-derived \\
+throughput per unit of quota is the priority &
+the cost of being confidently wrong exceeds the cost of a timeout \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Because 2.0's per-case latency is $1.75\times$ 1.0's and its accuracy
+advantage is not yet significant, the honest default for a one-off decidable
+check is 1.0. The case for 2.0 is not speed or raw accuracy; it is that the
+result is \emph{safe to quote}---no false acceptances, a full audit trail, and a
+verdict whose axes will not let an operational hiccup masquerade as a scientific
+finding.
 
 \section{Position}
 
