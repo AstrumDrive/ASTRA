@@ -1,0 +1,182 @@
+[
+  {
+    "id": "quality_nt_euler_prime_polynomial_false",
+    "track": "cycle",
+    "domain": "logic",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether n^2 + n + 41 is prime for every non-negative integer n.",
+    "intuition": "Test the universal primality claim for the Euler polynomial n^2 + n + 41.",
+    "success_criteria": [
+      "Exhibit an integer n for which n^2 + n + 41 is composite.",
+      "State the counterexample factorisation exactly."
+    ],
+    "failure_modes": [
+      "Check only small n where the value happens to be prime.",
+      "Report that the polynomial is 'usually' prime as if that settled the universal claim."
+    ]
+  },
+  {
+    "id": "quality_gr_schwarzschild_kretschmann_horizon_zero_false",
+    "track": "cycle",
+    "domain": "gr",
+    "difficulty": "standard",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the Kretschmann scalar of the Schwarzschild metric vanishes at the horizon r = 2M.",
+    "intuition": "Test the claim that curvature vanishes at the Schwarzschild horizon.",
+    "success_criteria": [
+      "Compute the Kretschmann scalar K = 48 M^2 / r^6 exactly.",
+      "Evaluate K at r = 2M and show it is finite and nonzero."
+    ],
+    "failure_modes": [
+      "Confuse the coordinate singularity of the metric component with a curvature singularity.",
+      "Conclude vanishing curvature from g_tt -> 0 at the horizon."
+    ]
+  },
+  {
+    "id": "quality_gr_ricci_flat_implies_flat_false",
+    "track": "cycle",
+    "domain": "gr",
+    "difficulty": "standard",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether every Ricci-flat spacetime (R_{ab} = 0) is flat (Riemann = 0).",
+    "intuition": "Test whether vanishing Ricci curvature forces vanishing Riemann curvature.",
+    "success_criteria": [
+      "Exhibit a Ricci-flat metric that is not flat.",
+      "Show the Schwarzschild metric has R_{ab} = 0 but a nonzero Weyl/Riemann tensor."
+    ],
+    "failure_modes": [
+      "Assume Ricci = 0 implies Riemann = 0 in dimension four.",
+      "Ignore the Weyl part of the curvature."
+    ]
+  },
+  {
+    "id": "quality_qm_pauli_x_eigenvalues_zero_one_false",
+    "track": "cycle",
+    "domain": "quantum",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the eigenvalues of the Pauli matrix sigma_x are 0 and 1.",
+    "intuition": "Test the claimed spectrum {0, 1} of sigma_x.",
+    "success_criteria": [
+      "Compute the characteristic polynomial of sigma_x.",
+      "Show its eigenvalues are +1 and -1, not 0 and 1."
+    ],
+    "failure_modes": [
+      "Confuse the spectrum of sigma_x with that of a projector.",
+      "Read eigenvalues off the diagonal of a non-diagonal matrix."
+    ]
+  },
+  {
+    "id": "quality_qm_position_momentum_commutator_zero_false",
+    "track": "cycle",
+    "domain": "quantum",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the canonical commutator [x, p] equals zero.",
+    "intuition": "Test the claim that position and momentum commute.",
+    "success_criteria": [
+      "Apply [x, p] to a test function with p = -i hbar d/dx.",
+      "Show [x, p] = i hbar, not 0."
+    ],
+    "failure_modes": [
+      "Treat x and p as commuting c-numbers.",
+      "Drop the derivative acting on the product x*psi."
+    ]
+  },
+  {
+    "id": "quality_fluids_poiseuille_linear_radius_false",
+    "track": "cycle",
+    "domain": "fluids",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the volumetric flow rate in Hagen-Poiseuille pipe flow scales linearly with the pipe radius, Q proportional to R.",
+    "intuition": "Test the radius scaling of laminar volumetric flow rate.",
+    "success_criteria": [
+      "Derive Q = pi R^4 (dP/dx) / (8 mu) from the parabolic profile.",
+      "Show Q scales as R^4, not R."
+    ],
+    "failure_modes": [
+      "Confuse the cross-sectional area scaling (R^2) or the mean velocity with the full flow-rate scaling.",
+      "Assume flow rate is proportional to radius by analogy with circumference."
+    ]
+  },
+  {
+    "id": "quality_dim_reynolds_velocity_dimension_false",
+    "track": "cycle",
+    "domain": "fluids",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the Reynolds number Re = rho v L / mu carries dimensions of velocity.",
+    "intuition": "Test the dimensional character of the Reynolds number.",
+    "success_criteria": [
+      "Reduce the dimensions of rho v L / mu.",
+      "Show the result is dimensionless, not a velocity."
+    ],
+    "failure_modes": [
+      "Cancel dimensions incorrectly and retain a spurious length or time.",
+      "Assume any group containing v inherits a velocity dimension."
+    ]
+  },
+  {
+    "id": "quality_ode_logistic_origin_stable_false",
+    "track": "cycle",
+    "domain": "ode",
+    "difficulty": "standard",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the equilibrium x = 0 of the logistic equation x' = x(1 - x) is asymptotically stable.",
+    "intuition": "Test the stability of the origin for the logistic flow.",
+    "success_criteria": [
+      "Linearise: f'(x) = 1 - 2x, so f'(0) = 1 > 0.",
+      "Conclude x = 0 is unstable; x = 1 is the stable equilibrium."
+    ],
+    "failure_modes": [
+      "Confuse the two equilibria x = 0 and x = 1.",
+      "Infer stability from x = 0 being a fixed point alone."
+    ]
+  },
+  {
+    "id": "quality_analysis_harmonic_series_converges_false",
+    "track": "cycle",
+    "domain": "logic",
+    "difficulty": "baseline",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether the harmonic series sum_{n=1}^infinity 1/n converges.",
+    "intuition": "Test convergence of the harmonic series.",
+    "success_criteria": [
+      "Apply the Cauchy condensation or 2^k block-grouping argument.",
+      "Show the partial sums exceed any bound, so the series diverges."
+    ],
+    "failure_modes": [
+      "Infer convergence from the terms 1/n tending to zero.",
+      "Treat a large finite partial sum as evidence of a finite limit."
+    ]
+  },
+  {
+    "id": "quality_linalg_symmetric_complex_eigenvalue_false",
+    "track": "cycle",
+    "domain": "logic",
+    "difficulty": "standard",
+    "expected": "REFUTED",
+    "tags": ["false_claim_v2"],
+    "objective": "Decide whether a real symmetric matrix can have a non-real (complex) eigenvalue.",
+    "intuition": "Test whether real symmetry permits complex eigenvalues.",
+    "success_criteria": [
+      "Use the spectral theorem: a real symmetric matrix is orthogonally diagonalisable with real eigenvalues.",
+      "Conclude every eigenvalue is real, refuting the claim."
+    ],
+    "failure_modes": [
+      "Confuse real symmetric with general real (non-symmetric) matrices, which can have complex eigenvalues.",
+      "Offer a non-symmetric rotation matrix as a purported counterexample."
+    ]
+  }
+]
