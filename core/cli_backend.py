@@ -36,6 +36,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 
 # Directorio de trabajo para el -C de codex (dir del proyecto/workspace).
@@ -497,6 +498,14 @@ def _kill_tree(pid: int) -> None:
         pass
 
 
+def _launch_attempts() -> int:
+    """Cuantas veces reintentar un lanzamiento que falla de forma transitoria."""
+    try:
+        return int(str(os.environ.get("ASTRA_CLI_LAUNCH_ATTEMPTS", "3")).strip().strip("'\""))
+    except ValueError:
+        return 3
+
+
 def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
                  ws: str, env: dict, timeout: int) -> CliResult:
     """Un intento contra un CLI con un modelo concreto (o el default)."""
@@ -516,24 +525,48 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         cmd = built
     else:
         cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", built]
-    try:
-        if stdin_file:
-            stdin_handle = open(stdin_file, "rb")
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdin=stdin_handle, text=True, encoding="utf-8",
-            errors="replace", env=env,
-            start_new_session=os.name != "nt",
-        )
-    except OSError as e:
-        return CliResult(False, error=f"lanzamiento fallo: {e}")
-    finally:
-        # Popen ya duplico el handle en el hijo (o fallo): el nuestro sobra.
-        if stdin_handle is not subprocess.DEVNULL:
-            try:
-                stdin_handle.close()
-            except Exception:
-                pass
+    # Un lanzamiento puede fallar de forma TRANSITORIA en Windows: el sandbox de
+    # Codex re-armandose devuelve [WinError 5] Access is denied, un antivirus
+    # reteniendo el binario recien escrito da una violacion de comparticion, etc.
+    # Eso se despeja en un momento; un bloqueo real no. Reintentar unas veces
+    # antes de rendirse evita que un transitorio mate un ciclo y se puntue como
+    # senal de investigacion (visto en vivo: cmp_3273027cac7a4fb7 episodio 3, el
+    # revisor no lanzo y se promovio una rama alternativa a partir de ese fallo).
+    # FileNotFoundError se exceptua: reintentar no instala un comando ausente.
+    proc = None
+    launch_attempts = max(1, _launch_attempts())
+    for attempt in range(launch_attempts):
+        try:
+            if stdin_file:
+                stdin_handle = open(stdin_file, "rb")
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                stdin=stdin_handle, text=True, encoding="utf-8",
+                errors="replace", env=env,
+                start_new_session=os.name != "nt",
+            )
+        except FileNotFoundError as e:
+            return CliResult(False, error=f"lanzamiento fallo (no instalado): {e}")
+        except OSError as e:
+            if stdin_handle is not subprocess.DEVNULL:
+                try:
+                    stdin_handle.close()
+                except Exception:
+                    pass
+                stdin_handle = subprocess.DEVNULL
+            if attempt == launch_attempts - 1:
+                return CliResult(False, error=f"lanzamiento fallo: {e}")
+            time.sleep(1.5 * (attempt + 1))
+            continue
+        finally:
+            # Popen ya duplico el handle en el hijo (o fallo): el nuestro sobra.
+            if stdin_handle is not subprocess.DEVNULL:
+                try:
+                    stdin_handle.close()
+                except Exception:
+                    pass
+                stdin_handle = subprocess.DEVNULL
+        break
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
