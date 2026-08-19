@@ -16,6 +16,15 @@ ENGINE_MARKER = re.compile(
 )
 
 
+# A cold WSL distro can take 30-60 s to answer its first command while it boots
+# the VM. A 10 s probe timed that out and reported an installed engine as
+# missing: campaign cmp_3273027cac7a4fb7 recorded a Sage validator as an
+# operational error with "sage is not available" purely because WSL was cold,
+# and the outage counted as an uninformative episode. The probe is a fast path
+# when WSL is warm and must not misread a cold boot as an absent engine.
+_WSL_PROBE_TIMEOUT = 60
+
+
 def _is_windows() -> bool:
     return sys.platform == "win32"
 
@@ -47,7 +56,7 @@ def _wsl_which(command: str) -> bool:
             [*_wsl_prefix(), "which", command],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=_WSL_PROBE_TIMEOUT,
         )
         return result.returncode == 0 and bool(result.stdout.strip())
     except Exception:
@@ -62,7 +71,7 @@ def _wsl_test(flag: str, path: str) -> bool:
             [*_wsl_prefix(), "test", flag, path],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=_WSL_PROBE_TIMEOUT,
         )
         return result.returncode == 0
     except Exception:
