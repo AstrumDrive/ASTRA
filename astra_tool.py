@@ -1942,6 +1942,8 @@ async def _do_cycle(req: dict) -> dict:
     cycles are serialized by default because they share the same Codex, Claude
     and AGY subscriptions and otherwise make each other's latency unpredictable.
     """
+    from core.astra_identity import banner
+    banner("cycle")
     from pathlib import Path
 
     from core.runtime_resources import (

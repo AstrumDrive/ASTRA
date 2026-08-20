@@ -501,4 +501,11 @@ def astra_engines() -> str:
 
 
 if __name__ == "__main__":
+    # Banner/title go to stderr and the window title only - never stdout, which
+    # carries the stdio JSON-RPC transport.
+    try:
+        from core.astra_identity import banner
+        banner("MCP server")
+    except Exception:
+        pass
     mcp.run()  # transporte stdio (lo que usan los CLIs de agentes)

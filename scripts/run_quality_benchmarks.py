@@ -445,6 +445,8 @@ async def run(args: argparse.Namespace) -> int:
                 for repeat in range(1, repeats + 1):
                     matrix.append((case, configuration, oracle, repeat))
 
+    from core.astra_identity import banner
+    banner("quality benchmark")
     print("ASTRA Quality Benchmark v1")
     print(
         f"tier={args.tier} cases={len(selected)} scheduled_runs={len(matrix)} "
