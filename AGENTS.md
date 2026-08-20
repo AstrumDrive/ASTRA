@@ -1,5 +1,15 @@
 # ASTRA Agent Notes
 
+## Shared project memory
+
+Before operating ASTRA for a project, read
+`C:\Users\Nelson\Dev\PROJECT_MEMORY.md` and resolve the target project or
+`WDR-###` key with `project-memory\scripts\project_memory.py query`. After a
+verified research or engineering work unit, record a concise event with
+`project_memory.py record`, including reproducible evidence and next actions.
+Never store credentials, model reasoning, or unsupported scientific claims.
+Jira mutations require Nelson's explicit instruction.
+
 ## Cross-platform collaborator onboarding
 
 On macOS, read `docs/onboarding/ASTRA_MACOS_INSTALL_EN.md` before installing or

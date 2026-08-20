@@ -127,6 +127,16 @@ def upload_doc():
             return jsonify({"error": "PyMuPDF not installed. Run: pip install PyMuPDF"}), 500
         except Exception as exc:
             return jsonify({"error": f"Failed to parse PDF: {exc}"}), 500
+    elif filename.lower().endswith('.tex'):
+        # LaTeX drafts: strip preamble/markup but keep prose and math so the
+        # conjecture engine reasons over the physics, not the formatting.
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                raw_tex = f.read()
+        except UnicodeDecodeError:
+            return jsonify({"error": "File encoding not supported. Use UTF-8 .tex files."}), 400
+        from core.latex_extract import extract_text_from_latex
+        extracted_text += extract_text_from_latex(raw_tex)
     else:
         try:
             with open(filepath, 'r', encoding='utf-8') as f:

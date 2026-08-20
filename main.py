@@ -370,7 +370,11 @@ async def _execute_one_cycle_legacy(intuition: str) -> dict:
                     state.add_log("LaTeX detected. Generating formal PDF report...")
                     try:
                         from core.pdf_generator import generate_pdf_report
-                        pdf_path = generate_pdf_report(conjecture)
+                        pdf_path = generate_pdf_report(
+                            conjecture,
+                            code=state.last_python_code,
+                            execution_result=state.last_execution_result,
+                        )
                         state.add_log(f"PDF Report compiled: {pdf_path}")
                     except Exception as exc:
                         state.add_log(f"Failed to generate PDF: {exc}")

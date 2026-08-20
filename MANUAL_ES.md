@@ -285,7 +285,7 @@ ASTRA soporta los siguientes proveedores LLM:
 |---|---|---|
 | `codex_cli` | GPT-5.6 Sol (`xhigh`) | Inicio de sesión de la suscripción Codex |
 | `claude_cli` | Claude Opus 4.8 | Inicio de sesión de Claude Code |
-| `agy_cli` | Gemini 3.1 Pro High mediante Antigravity | Inicio de sesión Google/Antigravity |
+| `agy_cli` | Gemini 3.1 Pro High primario y Gemini 3.7 Flash High como respaldo mediante Antigravity | Inicio de sesión Google/Antigravity |
 | `vertexai` | Gemini 2.5 Flash (vía GCP) | `VERTEX_PROJECT` + ADC |
 | `gemini` | Gemini 2.5 Flash | `GEMINI_API_KEY` |
 | `anthropic` | Claude Sonnet 4.6 | `ANTHROPIC_API_KEY` |

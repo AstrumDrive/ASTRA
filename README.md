@@ -34,8 +34,14 @@ The production role map is:
 | Role | Backend |
 |---|---|
 | Primary conjecture, synthesis, code review, final analysis | Codex CLI — `gpt-5.6-sol`, `xhigh` |
-| Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high`, effort `high` |
+| Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high` primary, `gemini-3.7-flash-high` fallback, effort `high` |
 | Formal translation and code revision | Claude Code CLI — `claude-opus-4-8` |
+
+Authorized subscription identities can be isolated and switched explicitly per
+provider without storing credentials in Git. See
+[`docs/CLI_ACCOUNT_PROFILES.md`](docs/CLI_ACCOUNT_PROFILES.md). ASTRA refuses a
+profile change while a deliberative cycle is active and records the profile
+label used by every phase.
 
 The browser UI, MCP server, and subprocess CLI all dispatch the same canonical
 guarded cycle. Run the non-secret architecture contract whenever providers,
