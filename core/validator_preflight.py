@@ -56,6 +56,50 @@ def _contains_verdict(node: ast.AST, verdict: str | None = None) -> bool:
     )
 
 
+def _handler_verdicts_are_nonscientific(handler: ast.ExceptHandler) -> bool:
+    """True cuando el handler emite al menos un VERDICT y ninguno es PASS/FAIL.
+
+    El peligro que persigue swallowed_exception es excepcion->veredicto
+    CIENTIFICO. Un handler que reporta la excepcion como veredicto operacional
+    (VERDICT: INDETERMINATE / UNKNOWN) no convierte nada en ciencia."""
+    found = False
+    for item in ast.walk(handler):
+        if (
+            isinstance(item, ast.Constant)
+            and isinstance(item.value, str)
+            and "VERDICT:" in item.value.upper()
+        ):
+            found = True
+            upper = item.value.upper()
+            if "VERDICT: PASS" in upper or "VERDICT: FAIL" in upper:
+                return False
+    return found
+
+
+def _handler_terminates_operationally(handler: ast.ExceptHandler) -> bool:
+    """True cuando la ULTIMA sentencia del handler garantiza que el proceso no
+    continua hacia codigo cientifico: re-raise, o sys.exit/os._exit con un
+    entero constante distinto de cero."""
+    if not handler.body:
+        return False
+    last = handler.body[-1]
+    if isinstance(last, ast.Raise):
+        return True
+    if isinstance(last, ast.Expr) and isinstance(last.value, ast.Call):
+        func = last.value.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name in {"exit", "_exit"}:
+            args = last.value.args
+            return bool(
+                args
+                and isinstance(args[0], ast.Constant)
+                and isinstance(args[0].value, int)
+                and not isinstance(args[0].value, bool)
+                and args[0].value != 0
+            )
+    return False
+
+
 def _enclosing_scope(
     node: ast.AST,
     parents: dict[ast.AST, ast.AST],
@@ -86,6 +130,18 @@ def _handler_can_contaminate_verdict(
     non-convergence loops while preserving the security regression cases.
     """
     if not verdict_fail_present:
+        return False
+    # Protocolo de TRES salidas (2026-08-20): un handler que reporta la
+    # excepcion como veredicto NO cientifico (VERDICT: INDETERMINATE) y
+    # termina en sys.exit(!=0) o re-raise es la conversion SEGURA que el
+    # revisor modelo exige. Sin esta exencion, esta regla y el auto-repair
+    # (que inserta `raise` ANTES del print) prohibian estructuralmente ese
+    # protocolo y entraban en bucle contra el revisor hasta agotar las
+    # revisiones del ciclo — visto en produccion con el validador W6.5.
+    if (
+        _handler_verdicts_are_nonscientific(handler)
+        and _handler_terminates_operationally(handler)
+    ):
         return False
     if _contains_verdict(handler):
         return True

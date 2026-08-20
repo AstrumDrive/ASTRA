@@ -101,6 +101,58 @@ print("VERDICT: PASS" if ok else "VERDICT: FAIL")
         self.assertIn("raise  # ASTRA vNext.1", result["code"])
         self.assertEqual(audit_validation_code(result["code"])["status"], "APPROVED")
 
+    def test_indeterminate_protocol_handler_is_not_blocked(self):
+        # Protocolo de tres salidas: reportar la excepcion como veredicto
+        # OPERACIONAL (INDETERMINATE) y salir con exit(2) es la conversion
+        # segura; no debe disparar swallowed_exception ni recibir el `raise`
+        # del auto-repair (que lo hacia inalcanzable).
+        code = """
+import sys
+try:
+    run_all_checks()
+    print("VERDICT: PASS" if all_ok else "VERDICT: FAIL")
+except Exception as exc:
+    print(f"operational failure: {exc}")
+    print("VERDICT: INDETERMINATE")
+    sys.exit(2)
+"""
+        audit = audit_validation_code(code)
+        labels = {item["label"] for item in audit["findings"]}
+        self.assertNotIn("swallowed_exception", labels)
+        result = repair_validation_code(code, audit)
+        self.assertNotIn("raise  # ASTRA vNext.1", result["code"])
+
+    def test_exception_to_fail_conversion_is_still_blocked(self):
+        # La exencion NO cubre handlers que emiten veredicto CIENTIFICO:
+        # excepcion->FAIL sigue siendo el peligro original.
+        code = """
+import sys
+try:
+    run_all_checks()
+    print("VERDICT: PASS")
+except Exception:
+    print("VERDICT: FAIL")
+    sys.exit(1)
+"""
+        audit = audit_validation_code(code)
+        labels = {item["label"] for item in audit["findings"]}
+        self.assertIn("swallowed_exception", labels)
+
+    def test_indeterminate_without_terminal_exit_is_still_blocked(self):
+        # Sin terminacion garantizada (exit!=0 o raise al FINAL), el flujo
+        # puede continuar hacia codigo cientifico: sigue bloqueado.
+        code = """
+try:
+    run_all_checks()
+    print("VERDICT: PASS" if all_ok else "VERDICT: FAIL")
+except Exception:
+    print("VERDICT: INDETERMINATE")
+print("continua la ejecucion")
+"""
+        audit = audit_validation_code(code)
+        labels = {item["label"] for item in audit["findings"]}
+        self.assertIn("swallowed_exception", labels)
+
     def test_expected_numeric_retry_inside_helper_is_not_overblocked(self):
         code = """
 def bootstrap(samples):
