@@ -15,6 +15,11 @@ ENGINE_MARKER = re.compile(
     re.I | re.M,
 )
 
+# Consola oculta para hijos de consola (wsl/ssh/engines) cuando el padre no
+# tiene consola: evita ventanas visibles vacias por cada ejecucion.
+# (os.name directo: _is_windows() se define mas abajo y esto corre al importar.)
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 
 def _is_windows() -> bool:
     return sys.platform == "win32"
@@ -48,6 +53,7 @@ def _wsl_which(command: str) -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+            creationflags=_NT_NO_WINDOW,
         )
         return result.returncode == 0 and bool(result.stdout.strip())
     except Exception:
@@ -63,6 +69,7 @@ def _wsl_test(flag: str, path: str) -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+            creationflags=_NT_NO_WINDOW,
         )
         return result.returncode == 0
     except Exception:
@@ -130,7 +137,8 @@ def _strip_engine_marker(code: str) -> str:
 
 def _run(cmd: list[str], timeout: int) -> dict:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                                creationflags=_NT_NO_WINDOW)
         return {"stdout": result.stdout, "stderr": result.stderr, "exit_code": result.returncode}
     except subprocess.TimeoutExpired:
         return {"stdout": "", "stderr": f"TimeoutError: Execution exceeded {timeout}s.", "exit_code": 124}

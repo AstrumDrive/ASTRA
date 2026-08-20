@@ -9,6 +9,11 @@ import subprocess
 
 logger = logging.getLogger("ASTRA_CORE.remote_executor")
 
+# Consola OCULTA para ssh.exe cuando el padre no tiene consola: evita la
+# ventana visible por cada llamada al oraculo remoto y ademas le da al hijo
+# una consola real (mitiga el gotcha Win32-OpenSSH exit 255 documentado abajo).
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 
 def _split_ssh_options(raw: str) -> list[str]:
     if not raw:
@@ -90,6 +95,7 @@ async def execute_remote_code(
                 capture_output=True,
                 text=True,
                 timeout=timeout + connect_timeout + 10,
+                creationflags=_NT_NO_WINDOW,
             )
 
         result = await asyncio.to_thread(_run_remote)

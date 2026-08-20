@@ -429,6 +429,29 @@ def _kill_tree(pid: int) -> None:
         pass
 
 
+def _dump_failure(kind: str, cmd, model, proc) -> None:
+    """Autopsia de un fallo de CLI: escribe comando + stdout/stderr COMPLETOS
+    en workspace/cli_failures/ (el error del CliResult solo lleva 400 chars).
+    Nunca puede tumbar la llamada: cualquier problema aqui se ignora."""
+    try:
+        import json as _json
+        import time as _time
+        d = os.path.join(_PROJECT_ROOT, "workspace", "cli_failures")
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, _time.strftime(f"%Y%m%d_%H%M%S_{kind}.json"))
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump({
+                "kind": kind,
+                "model": model,
+                "returncode": proc.returncode,
+                "cmd": cmd if isinstance(cmd, list) else [cmd],
+                "stdout": (proc.stdout or "")[-20000:],
+                "stderr": (proc.stderr or "")[-20000:],
+            }, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
 def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
                  ws: str, env: dict, timeout: int) -> CliResult:
     """Un intento contra un CLI con un modelo concreto (o el default)."""
@@ -488,6 +511,11 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         if sem:
             return CliResult(False, error=sem)
         tail = (proc.stderr or proc.stdout or "")[-400:]
+        # El tail de 400 chars ha resultado dos veces insuficiente para
+        # diagnosticar fallos de lanzamiento (el error de PowerShell "char:222"
+        # de codex llego truncado y sin CategoryInfo). Autopsia completa a
+        # disco: comando construido + stdout/stderr integros.
+        _dump_failure(kind, cmd, model, proc)
         return CliResult(False, error=f"exit {proc.returncode}: {tail.strip()}")
 
     try:
@@ -538,6 +566,14 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
 
     env = os.environ.copy()
     env["NO_COLOR"] = "1"
+    if os.name == "nt":
+        # Algunos hosts MCP lanzan el server con un entorno sin PATHEXT y los
+        # hijos lo heredan. PowerShell es el UNICO consumidor: sin PATHEXT
+        # clasifica codex.exe como "documento" y `... | & exe` muere con
+        # CantActivateDocumentInPipeline (reproducido byte a byte 2026-08-20;
+        # mato la fase codex de TODOS los ciclos lanzados desde ese host,
+        # mientras claude/agy/ssh — CreateProcess directo — ni lo miran).
+        env.setdefault("PATHEXT", ".COM;.EXE;.BAT;.CMD;.VBS;.JS;.WSH;.MSC")
     account_profile = ""
     if kind in ("codex", "claude", "agy"):
         try:

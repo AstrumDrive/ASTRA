@@ -10,6 +10,10 @@ import subprocess
 
 from core.remote_executor import _quote_remote_arg, _split_ssh_options
 
+# Sin este flag, cada RPC al cluster (ssh.exe) abre una ventana de consola
+# visible cuando el proceso padre no tiene consola (server MCP / runner).
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 
 def cluster_enabled() -> bool:
     return os.environ.get("ASTRA_REMOTE_SCHEDULER", "0").strip().lower() in {
@@ -63,6 +67,7 @@ async def cluster_rpc(request: dict, timeout: int = 60) -> dict:
             capture_output=True,
             text=True,
             timeout=max(1, int(timeout)) + connect_timeout,
+            creationflags=_NT_NO_WINDOW,
         )
 
     try:

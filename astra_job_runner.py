@@ -87,7 +87,11 @@ def main(jobdir: str) -> None:
                  open(errp, "w", encoding="utf-8") as se:
                 p = subprocess.Popen(
                     [sys.executable, script], stdout=so, stderr=se, cwd=ws,
-                    env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+                    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                    # consola oculta: sin esto, este runner (DETACHED, sin
+                    # consola) abria una ventana visible por cada job python.
+                    creationflags=(subprocess.CREATE_NO_WINDOW
+                                   if os.name == "nt" else 0))
                 rc = None
                 while True:
                     rc = p.poll()

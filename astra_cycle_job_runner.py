@@ -13,6 +13,10 @@ import time
 ROOT = Path(__file__).resolve().parent
 ASTRA_TOOL = ROOT / "astra_tool.py"
 
+# Este runner corre DETACHED (sin consola): sin este flag, el python de
+# astra_tool y el taskkill abren ventanas de consola visibles y vacias.
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 
 def _save(meta: dict, jobdir: Path) -> None:
     meta["ts"] = time.time()
@@ -26,6 +30,7 @@ def _kill_tree(pid: int) -> None:
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(pid)],
             capture_output=True,
+            creationflags=_NT_NO_WINDOW,
         )
         return
     try:
@@ -78,6 +83,7 @@ def main(jobdir_text: str) -> int:
             stderr=stderr_stream,
             text=True,
             encoding="utf-8",
+            creationflags=_NT_NO_WINDOW,
         )
         meta.update(
             status="running",
