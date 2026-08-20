@@ -28,8 +28,16 @@ class QualityBenchmarkTests(unittest.TestCase):
         )
 
     def test_truth_suite_is_balanced(self):
+        # The CORE truth suite stays balanced so accuracy is not biased by class
+        # imbalance. The false_claim_v2 pack is a deliberate false-only addition
+        # that powers the false-acceptance test specifically (0/22 vs 11/22, see
+        # the 1.0-vs-2.0 comparison), and is excluded from this balance invariant
+        # on purpose - it is not part of the accuracy suite.
         cases = load_quality_cases()
-        cycle = [case for case in cases if case.track == "cycle"]
+        cycle = [
+            case for case in cases
+            if case.track == "cycle" and "false_claim_v2" not in case.tags
+        ]
         validated = sum(case.expected == "VALIDATED" for case in cycle)
         refuted = sum(case.expected == "REFUTED" for case in cycle)
         self.assertLessEqual(abs(validated - refuted), 1)
