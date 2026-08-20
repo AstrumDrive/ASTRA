@@ -42,6 +42,17 @@ from dataclasses import dataclass
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEFAULT_WS = os.path.join(_PROJECT_ROOT, "workspace")
 
+# CREATE_NO_WINDOW: cuando el padre NO tiene consola (runner de ciclo lanzado
+# con DETACHED_PROCESS, o el server MCP lanzado por el host de escritorio),
+# cada hijo de consola (powershell, codex, claude, agy, taskkill) abria una
+# VENTANA visible y vacia que vivia lo que durase la fase (30-420 s) — las
+# "ventanas PowerShell sin nada" reportadas en produccion. Con este flag el
+# hijo recibe una consola OCULTA: sigue TENIENDO consola (no reaparece el
+# gotcha 2026-07-19 de "PowerShell sin consola pierde el stdout de sus hijos
+# nativos", que era el caso DETACHED/sin consola), y el stdout/stderr van por
+# pipes igual que antes.
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 
 @dataclass
 class CliResult:
@@ -51,6 +62,7 @@ class CliResult:
     cost_usd: float = 0.0     # proxy de consumo (contabilidad, NO cargo real)
     model_used: str = ""      # modelo que respondio ('default' = el configurado del CLI)
     warning: str = ""         # aviso cuando la respuesta vino de un modelo fallback
+    account_profile: str = "" # perfil local de credenciales usado por este proceso
 
 
 def _claude_bin() -> str:
@@ -339,10 +351,15 @@ _PARSERS = {"claude": _parse_claude, "codex": _parse_codex, "gemini": _parse_gem
 # (el CLI rechaza sin correr el modelo), asi que el fallback casi no anade
 # latencia ni consume ventana de uso.
 
+# "hit your weekly limit" es la redaccion ACTUAL de Claude Code y no encajaba
+# en "reached your ... limit" ni en "usage limit": la escalera rompia en el
+# primer peldano creyendo que era un error real, sin llegar a probar el
+# siguiente modelo ni emitir el diagnostico de cuota agotada.
 _QUOTA_PAT = re.compile(
-    r"(reached your .{0,40}?limit|usage limit|plan limit|usage-credits|"
-    r"rate.?limit|quota|too many requests|overloaded|credit balance|"
-    r"resource.?exhausted|\b429\b|tope de cuota)",
+    r"((?:reached|hit) your .{0,40}?limit|limit reached|weekly limit|"
+    r"usage limit|plan limit|usage-credits|rate.?limit|quota|"
+    r"too many requests|overloaded|credit balance|resource.?exhausted|"
+    r"\b429\b|tope de cuota)",
     re.IGNORECASE)
 
 
@@ -404,7 +421,8 @@ def _kill_tree(pid: int) -> None:
     try:
         if os.name == "nt":
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                           capture_output=True, timeout=15)
+                           capture_output=True, timeout=15,
+                           creationflags=_NT_NO_WINDOW)
         else:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
     except Exception:
@@ -438,6 +456,7 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
             stdin=stdin_handle, text=True, encoding="utf-8",
             errors="replace", env=env,
             start_new_session=os.name != "nt",
+            creationflags=_NT_NO_WINDOW,
         )
     except OSError as e:
         return CliResult(False, error=f"lanzamiento fallo: {e}")
@@ -519,6 +538,18 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
 
     env = os.environ.copy()
     env["NO_COLOR"] = "1"
+    account_profile = ""
+    if kind in ("codex", "claude", "agy"):
+        try:
+            from core.account_profiles import profile_environment
+            account_profile, profile_env = profile_environment(kind)
+            env.update(profile_env)
+        except Exception as exc:
+            return CliResult(
+                False,
+                error=f"perfil de cuenta {kind} invalido: {exc}",
+                account_profile=account_profile,
+            )
     if kind in ("gemini", "agy"):
         # gemini_cli / agy = OAuth de suscripcion (Code Assist / Antigravity), cuota de
         # la cuenta Google, NO API de pago. Sin esto el CLI ve la GEMINI_API_KEY del .env
@@ -540,6 +571,7 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
     fallidos = []   # [(etiqueta, error), ...] peldanos que no respondieron
     for mdl in ladder:
         res = _invoke_once(kind, promptfile, outfile, mdl, ws, env, timeout)
+        res.account_profile = account_profile
         label = mdl or "default"
         if res.ok:
             res.model_used = label
@@ -558,8 +590,8 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
             f"CUOTA AGOTADA en toda la escalera de {kind} "
             f"({', '.join(l for l, _ in fallidos)}): hay que ESPERAR la ventana "
             f"de uso o ampliar ASTRA_{kind.upper()}_MODELS / cambiar de cuenta. "
-            f"Detalle: {detalle}"))
-    return CliResult(False, error=detalle)
+            f"Detalle: {detalle}"), account_profile=account_profile)
+    return CliResult(False, error=detalle, account_profile=account_profile)
 
 
 if __name__ == "__main__":

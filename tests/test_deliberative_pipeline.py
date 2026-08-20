@@ -359,6 +359,223 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "CANNOT_PATCH")
         self.assertFalse(called)
 
+    async def test_author_api_error_during_regeneration_keeps_last_real_code(self):
+        """A quota failure must not be published as the validator source.
+
+        Historical defect (cycle_20260819_231945_f371): the translator hit its
+        weekly limit while REGENERATING after a failed preflight, and the error
+        string replaced `code`.  The preflight then reported "unterminated
+        string literal at line 1" on the error message itself, and the cycle
+        blamed the reviewer for a failure that belonged to the author.
+        """
+
+        class FakeIntelligence:
+            translations = 0
+
+            def __init__(self, provider, cli_models=None, cli_timeout=None):
+                self.provider = provider
+                self.cli_models = cli_models
+                self.cli_timeout = cli_timeout
+                self.cli_warnings = []
+                self.cli_last_model = None
+                self.cli_cost_usd = 0.0
+
+            async def generate_conjecture(self, axiomatic_base, intuition):
+                self.cli_last_model = "gpt-5.6-sol"
+                return "The candidate is refuted by x = 1."
+
+            async def translate_to_code(self, conjecture, **_kwargs):
+                FakeIntelligence.translations += 1
+                self.cli_last_model = "claude-opus-4-8"
+                if FakeIntelligence.translations == 1:
+                    # Not repairable by the deterministic preflight: forces the
+                    # regeneration branch.
+                    return "print('unterminated\n"
+                return (
+                    "API_ERROR: 'claude-opus-4-8': You've hit your weekly limit "
+                    "- resets 5am (America/Buenos_Aires)"
+                )
+
+            async def review_validation_code(self, **_kwargs):
+                return {
+                    "status": "REVISE",
+                    "reasoning": "Syntax error.",
+                    "revision_instructions": "Fix line 1.",
+                    "coverage": [],
+                    "defect_labels": ["syntax_error"],
+                    "runtime_checks": [],
+                }
+
+            async def analyze_results(self, *_args, **_kwargs):
+                return {"status": "REFUTED", "reasoning": "unused"}
+
+        providers = {
+            "conjecture": "codex_cli",
+            "translator": "claude_cli",
+            "reviewer": "codex_cli",
+            "analyst": "codex_cli",
+            "navigator": "agy_cli",
+            "synth": "codex_cli",
+        }
+        env = {
+            "ASTRA_CYCLE_CACHE": "0",
+            "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+            "ASTRA_VALIDATOR_REPAIR_VNEXT": "1",
+            "ASTRA_VALIDATOR_REPAIR_STRATEGY": "local-patch",
+            "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS": "1",
+            "ASTRA_VNEXT_REVIEW_MAX_REVISIONS": "1",
+            "ASTRA_REVIEW_MAX_REVISIONS": "1",
+            "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
+            "ASTRA_MAX_RETRIES": "0",
+            "ASTRA_ORACLE_MODE": "local",
+        }
+        with patch.dict("os.environ", env, clear=False), patch(
+            "core.preflight.phase_provider_map",
+            return_value=providers,
+        ), patch(
+            "core.llm_client.ASTRAIntelligence",
+            FakeIntelligence,
+        ):
+            result = await _do_cycle(
+                {
+                    "action": "cycle",
+                    "intuition": "Test author quota failure during regeneration.",
+                    "cycle_timeout_seconds": 120,
+                }
+            )
+
+        self.assertEqual(result["status"], "TOOL_ERROR")
+        # The failure belongs to the author, not to the reviewer that asked for
+        # the revision.
+        self.assertEqual(result["phase"], "translator")
+        self.assertTrue(str(result["error"]).startswith("API_ERROR:"))
+        # The regression itself: `code` must still hold the last real source.
+        self.assertFalse(str(result.get("code", "")).startswith("API_ERROR:"))
+        self.assertIn("unterminated", str(result.get("code", "")))
+        checkpoint = Path(result["checkpoint"])
+        if checkpoint.exists():
+            checkpoint.unlink()
+
+    async def test_author_api_error_during_bounded_patch_aborts_immediately(self):
+        """A provider failure in the bounded patch is a tool error, not a verdict.
+
+        Sibling of the regeneration defect above.  `repair_validation_code`
+        reports a quota failure as `status=API_ERROR`, but the cycle wrapped it
+        as "Bounded model patch was not applicable", which (a) dropped the
+        `API_ERROR:` prefix every downstream consumer keys on and (b) fell
+        through to a regeneration that could only burn another call against the
+        same exhausted account.
+        """
+        valid_validator = (
+            "import sympy as sp\n"
+            "\n"
+            "x = sp.symbols('x')\n"
+            "CHECK_1 = sp.simplify(sp.expand((x + 1) ** 2)"
+            " - (x ** 2 + 2 * x + 1)) == 0\n"
+            "print('CHECK_1 identity:', CHECK_1)\n"
+            "print('VERDICT: PASS' if CHECK_1 else 'VERDICT: FAIL')\n"
+        )
+        quota_error = (
+            "API_ERROR: 'claude-opus-4-8': You've hit your weekly limit "
+            "- resets 5am (America/Buenos_Aires)"
+        )
+
+        class FakeIntelligence:
+            translations = 0
+            patches = 0
+
+            def __init__(self, provider, cli_models=None, cli_timeout=None):
+                self.provider = provider
+                self.cli_models = cli_models
+                self.cli_timeout = cli_timeout
+                self.cli_warnings = []
+                self.cli_last_model = None
+                self.cli_cost_usd = 0.0
+
+            async def generate_conjecture(self, axiomatic_base, intuition):
+                return "The expansion of (x + 1)^2 is x^2 + 2x + 1."
+
+            async def translate_to_code(self, conjecture, **_kwargs):
+                FakeIntelligence.translations += 1
+                self.cli_last_model = "claude-opus-4-8"
+                return valid_validator
+
+            async def review_validation_code(self, **_kwargs):
+                # Clean syntax: the reviewer asks for BROADER coverage, which is
+                # exactly the case routed to a bounded patch instead of a full
+                # regeneration.
+                return {
+                    "status": "REVISE",
+                    "reasoning": "Coverage is too narrow.",
+                    "revision_instructions": "Also check x = -1.",
+                    "coverage": [],
+                    "defect_labels": ["insufficient_coverage"],
+                    "runtime_checks": [],
+                }
+
+            async def repair_validation_code(self, *_args, **_kwargs):
+                FakeIntelligence.patches += 1
+                self.cli_last_model = "claude-opus-4-8"
+                return {
+                    "status": "API_ERROR",
+                    "reason": quota_error,
+                    "code": valid_validator,
+                    "edits": [],
+                }
+
+            async def analyze_results(self, *_args, **_kwargs):
+                return {"status": "REFUTED", "reasoning": "unused"}
+
+        providers = {
+            "conjecture": "codex_cli",
+            "translator": "claude_cli",
+            "reviewer": "codex_cli",
+            "analyst": "codex_cli",
+            "navigator": "agy_cli",
+            "synth": "codex_cli",
+        }
+        env = {
+            "ASTRA_CYCLE_CACHE": "0",
+            "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+            "ASTRA_VALIDATOR_REPAIR_VNEXT": "1",
+            "ASTRA_VALIDATOR_REPAIR_STRATEGY": "local-patch",
+            "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS": "1",
+            "ASTRA_VNEXT_REVIEW_MAX_REVISIONS": "1",
+            "ASTRA_REVIEW_MAX_REVISIONS": "1",
+            "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
+            "ASTRA_MAX_RETRIES": "0",
+            "ASTRA_ORACLE_MODE": "local",
+        }
+        with patch.dict("os.environ", env, clear=False), patch(
+            "core.preflight.phase_provider_map",
+            return_value=providers,
+        ), patch(
+            "core.llm_client.ASTRAIntelligence",
+            FakeIntelligence,
+        ):
+            result = await _do_cycle(
+                {
+                    "action": "cycle",
+                    "intuition": "Test author quota failure during bounded patch.",
+                    "cycle_timeout_seconds": 120,
+                }
+            )
+
+        self.assertEqual(result["status"], "TOOL_ERROR")
+        self.assertEqual(result["phase"], "translator")
+        # The provider error must reach the caller VERBATIM, prefix included.
+        self.assertTrue(str(result["error"]).startswith("API_ERROR:"))
+        self.assertIn("weekly limit", str(result["error"]))
+        self.assertNotIn("not applicable", str(result["error"]))
+        # The last real source survives; the error never becomes `code`.
+        self.assertEqual(result.get("code"), valid_validator)
+        # And the exhausted account is not asked to regenerate on the way out.
+        self.assertEqual(FakeIntelligence.patches, 1)
+        self.assertEqual(FakeIntelligence.translations, 1)
+        checkpoint = Path(result["checkpoint"])
+        if checkpoint.exists():
+            checkpoint.unlink()
+
     def test_conservative_analyst_consensus_uses_most_cautious_verdict(self):
         result = _combine_verdicts(
             [

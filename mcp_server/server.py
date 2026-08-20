@@ -31,6 +31,12 @@ if not os.path.exists(ASTRA_PY):
     ASTRA_PY = sys.executable
 ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 
+# El host de escritorio lanza este server SIN consola; sin este flag cada hijo
+# de consola (python astra_tool.py, taskkill) abre una ventana visible vacia.
+# La consola del hijo queda OCULTA (sigue existiendo: los pipes no se ven
+# afectados y los nietos nativos conservan stdout).
+_NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
 mcp = FastMCP("astra")
 
 
@@ -42,6 +48,7 @@ def _kill_tree(pid: int) -> None:
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
                 capture_output=True,
                 timeout=15,
+                creationflags=_NT_NO_WINDOW,
             )
         else:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
@@ -73,6 +80,7 @@ def _call_astra(req: dict, timeout: int = 300) -> dict:
         text=True, encoding="utf-8", errors="replace", cwd=ASTRA_ROOT,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         start_new_session=os.name != "nt",
+        creationflags=_NT_NO_WINDOW,
     )
     try:
         out, err = proc.communicate(input=json.dumps(req), timeout=timeout)

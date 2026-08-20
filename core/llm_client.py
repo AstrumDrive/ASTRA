@@ -135,6 +135,7 @@ class ASTRAIntelligence:
         self.completion_tokens = 0
         self.cli_kind = None   # set para proveedores de suscripcion claude_cli/codex_cli
         self.cli_last_model = None  # modelo CLI que respondio la ultima llamada (escalera)
+        self.cli_last_account_profile = None  # perfil de credenciales que atendio la fase
         self.cli_warnings = []      # avisos de cuota/fallback, expuestos en el JSON del ciclo
         self.cli_cost_usd = 0.0     # coste proxy acumulado (lo reporta el CLI de claude;
                                     # codex/agy devuelven 0) — telemetria de cuota, no cargo
@@ -235,6 +236,8 @@ class ASTRAIntelligence:
                                               timeout=self.cli_timeout)
                 if res.model_used:
                     self.cli_last_model = res.model_used
+                if getattr(res, "account_profile", None):
+                    self.cli_last_account_profile = res.account_profile
                 self.cli_cost_usd += float(getattr(res, "cost_usd", 0.0) or 0.0)
                 if res.warning:
                     # Hubo fallback por cuota: dejar rastro en el log y en el ciclo

@@ -468,16 +468,19 @@ def _cli_meta(agents):
     """Junta los avisos de cuota (escalera de cli_backend), que modelo CLI
     respondio cada fase y el coste proxy acumulado (solo el CLI de claude lo
     reporta; codex/agy devuelven 0), para exponerlos en el JSON del ciclo."""
-    warnings, models, costs = [], {}, {}
+    warnings, models, costs, accounts = [], {}, {}, {}
     for name, ag in agents:
         warnings.extend(getattr(ag, "cli_warnings", []) or [])
         m = getattr(ag, "cli_last_model", None)
         if m:
             models[name] = m
+        account = getattr(ag, "cli_last_account_profile", None)
+        if account:
+            accounts[name] = account
         c = getattr(ag, "cli_cost_usd", 0.0) or 0.0
         if c:
             costs[name] = round(c, 4)
-    return warnings, models, costs
+    return warnings, models, costs, accounts
 
 
 def _escalate_agent_models(agent):
@@ -585,12 +588,14 @@ async def _do_review(req: dict) -> dict:
         conjecture=str(req.get("conjecture") or req.get("objective") or ""),
         code=code,
     )
-    warnings, models, _costs = _cli_meta([("reviewer", reviewer)])
+    warnings, models, _costs, accounts = _cli_meta([("reviewer", reviewer)])
     out = {"review": review, "provider": provider}
     if warnings:
         out["warnings"] = warnings
     if models:
         out["cli_models"] = models
+    if accounts:
+        out["cli_account_profiles"] = accounts
     return out
 
 
@@ -1182,7 +1187,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         if timings:
             timings["total"] = round(time.monotonic() - t_start, 2)
             out["timings"] = timings
-        warnings, cli_models, cli_costs = _cli_meta(agents + ensemble_agents)
+        warnings, cli_models, cli_costs, cli_accounts = _cli_meta(agents + ensemble_agents)
         if warnings:
             out["warnings"] = warnings
         if cli_models:
@@ -1190,6 +1195,8 @@ async def _do_cycle_impl(req: dict) -> dict:
         if cli_costs:
             out["cli_cost_usd"] = {**cli_costs,
                                    "total": round(sum(cli_costs.values()), 4)}
+        if cli_accounts:
+            out["cli_account_profiles"] = cli_accounts
         if quality_escalations:
             out["quality_escalations"] = list(quality_escalations)
         _save_cycle_checkpoint(
@@ -1204,6 +1211,10 @@ async def _do_cycle_impl(req: dict) -> dict:
     preflight_history = []
     local_repair_history = []
     model_patch_history = []
+    # Quien fallo DENTRO de _review_or_revise: el revisor da su veredicto, pero
+    # la regeneracion la firma el traductor. Sin esto, un tope de cuota del
+    # autor se reportaba como fallo del revisor.
+    review_failure_phase = {}
 
     async def _request_model_patch(
         current_code,
@@ -1244,6 +1255,16 @@ async def _do_cycle_impl(req: dict) -> dict:
             }
         )
         model_patch_history.append(record)
+        if patch_result.get("status") == "API_ERROR":
+            # Fallo del PROVEEDOR del autor (cuota, timeout, transporte), no un
+            # veredicto sobre el parche. Envolverlo como "parche no aplicable"
+            # perdia el prefijo API_ERROR: del que dependen el corto circuito de
+            # fase y los consumidores aguas abajo, y disparaba una regeneracion
+            # condenada que quema otra llamada con la cuota ya agotada.
+            reason = str(patch_result.get("reason") or "").strip()
+            if not reason.startswith("API_ERROR:"):
+                reason = f"API_ERROR: {reason or 'bounded validator patch failed'}"
+            return current_code, reason
         if patch_result.get("status") != "APPLIED":
             return (
                 current_code,
@@ -1254,6 +1275,7 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     async def _review_or_revise(current_code, conjecture_text, translation_input):
         """Codex audits; Claude remains the sole generative code author."""
+        review_failure_phase.clear()
         enabled = (
             os.environ.get("ASTRA_CODE_REVIEW", "1").strip().strip("'\"").lower()
             not in ("0", "off", "false")
@@ -1424,6 +1446,13 @@ async def _do_cycle_impl(req: dict) -> dict:
                     patch_instructions,
                     "model_reviewer",
                 )
+                if patch_error and patch_error.startswith("API_ERROR:"):
+                    # El autor no llego a opinar sobre el parche: su proveedor
+                    # fallo. Abortar YA con el error del proveedor y conservar el
+                    # ultimo fuente REAL; regenerar aqui solo repetiria el mismo
+                    # fallo de cuota y enterraria la causa.
+                    review_failure_phase["phase"] = "translator"
+                    return current_code, review, patch_error
                 if patch_error:
                     # The bounded patch guard may correctly reject a model reply
                     # that rewrites too much source.  That is a strategy signal,
@@ -1438,7 +1467,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     )
                     t0 = time.monotonic()
                     _prepare_agent(trans, "TRANSLATOR")
-                    current_code = await trans.translate_to_code(
+                    regenerated = await trans.translate_to_code(
                         translation_input,
                         is_correction=True,
                         previous_error=patch_instructions,
@@ -1446,14 +1475,20 @@ async def _do_cycle_impl(req: dict) -> dict:
                     )
                     _mark("translate", t0)
                     if (
-                        isinstance(current_code, str)
-                        and current_code.startswith("API_ERROR:")
+                        isinstance(regenerated, str)
+                        and regenerated.startswith("API_ERROR:")
                     ):
-                        return current_code, review, current_code
+                        # Fallo del AUTOR (cuota, timeout, transporte). Conservar
+                        # el ultimo fuente REAL: publicar el texto del error como
+                        # `code` hace que el preflight denuncie un error de
+                        # sintaxis en la linea 1 y tapa la causa verdadera.
+                        review_failure_phase["phase"] = "translator"
+                        return current_code, review, regenerated
+                    current_code = regenerated
             else:
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR")
-                current_code = await trans.translate_to_code(
+                regenerated = await trans.translate_to_code(
                     translation_input,
                     is_correction=True,
                     previous_error=patch_instructions,
@@ -1461,10 +1496,14 @@ async def _do_cycle_impl(req: dict) -> dict:
                 )
                 _mark("translate", t0)
                 if (
-                    isinstance(current_code, str)
-                    and current_code.startswith("API_ERROR:")
+                    isinstance(regenerated, str)
+                    and regenerated.startswith("API_ERROR:")
                 ):
-                    return current_code, review, current_code
+                    # Mismo salvavidas que en la rama de parche acotado: el
+                    # error del autor no debe suplantar al codigo.
+                    review_failure_phase["phase"] = "translator"
+                    return current_code, review, regenerated
+                current_code = regenerated
             review_round += 1
 
     _progress("conjecture", timings=timings)
@@ -1543,7 +1582,11 @@ async def _do_cycle_impl(req: dict) -> dict:
         code, conjecture, translation_input
     )
     if review_error:
-        out = _fail(review_error, "reviewer", conjecture_text=conjecture)
+        out = _fail(
+            review_error,
+            review_failure_phase.get("phase", "reviewer"),
+            conjecture_text=conjecture,
+        )
         out["code"] = code
         out["code_review"] = code_review
         out["code_review_history"] = review_history
@@ -1715,7 +1758,11 @@ async def _do_cycle_impl(req: dict) -> dict:
             code, conjecture, translation_input
         )
         if review_error:
-            out = _fail(review_error, "reviewer_retry", conjecture_text=conjecture)
+            out = _fail(
+                review_error,
+                review_failure_phase.get("phase", "reviewer") + "_retry",
+                conjecture_text=conjecture,
+            )
             out["code"] = code
             out["code_review"] = code_review
             out["code_review_history"] = review_history
@@ -1855,7 +1902,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     }
     if est:
         out["est_runtime"] = est
-    warnings, cli_models, cli_costs = _cli_meta(agents + ensemble_agents)
+    warnings, cli_models, cli_costs, cli_accounts = _cli_meta(agents + ensemble_agents)
     if warnings:
         out["warnings"] = warnings      # avisos de cuota/fallback de los CLIs
     if cli_models:
@@ -1865,6 +1912,8 @@ async def _do_cycle_impl(req: dict) -> dict:
         # reportan y van a 0). Telemetria para la auditoria de cuota, NO cargo real.
         out["cli_cost_usd"] = {**cli_costs,
                                "total": round(sum(cli_costs.values()), 4)}
+    if cli_accounts:
+        out["cli_account_profiles"] = cli_accounts
     if quality_escalations:
         out["quality_escalations"] = quality_escalations
     if est == "long" and not exec_t:
