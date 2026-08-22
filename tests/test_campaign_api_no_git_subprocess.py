@@ -21,6 +21,7 @@ import unittest
 from pathlib import Path
 
 import core.campaign_api as api
+import core.git_head as git_head
 from core.campaign_api import (
     _git_dir,
     _read_head_commit,
@@ -31,25 +32,31 @@ from core.campaign_api import (
 
 
 class _NoGitSubprocess:
-    """Context manager that fails loudly if subprocess.run is called."""
+    """Context manager that fails loudly if a git subprocess is spawned.
+
+    The HEAD resolver is centralized in ``core.git_head``; that module holds
+    the only subprocess any provenance caller can reach, so guarding
+    ``git_head.subprocess.run`` catches a regression from every caller
+    (campaign_api, client_validation, external_benchmarks) at the source.
+    """
 
     def __init__(self):
         self.calls = 0
 
     def __enter__(self):
-        self._orig = api.subprocess.run
+        self._orig = git_head.subprocess.run
 
         def _boom(*args, **kwargs):
             self.calls += 1
             raise AssertionError(
-                f"git subprocess must not run on the campaign hot path: {args!r}"
+                f"git subprocess must not run on the hot path: {args!r}"
             )
 
-        api.subprocess.run = _boom
+        git_head.subprocess.run = _boom
         return self
 
     def __exit__(self, *exc):
-        api.subprocess.run = self._orig
+        git_head.subprocess.run = self._orig
         return False
 
 

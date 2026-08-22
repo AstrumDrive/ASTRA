@@ -643,8 +643,28 @@ sucios: se limpian reiniciando el cliente MCP. Nota importante: los servidores
 en marcha siguen ejecutando el `campaign_api` viejo hasta que el cliente MCP
 reconecte; para USAR este fix hay que reiniciar/reconectar `astra_dev`.
 
-Otros `git rev-parse HEAD` con el mismo patrón frágil viven fuera de la ruta de
-campañas (`core/client_validation.py`, `core/external_benchmarks.py`,
-`core/external_evaluators.py`, `core/formal_validators.py`); no se tocaron en
-este fix acotado, pero conviene blindarlos igual más adelante si llegan a correr
-bajo el server MCP.
+Otros `git rev-parse HEAD` con el mismo patrón frágil vivían fuera de la ruta de
+campañas. Blindados en el mismo barrido (2026-08-22): la lógica se centralizó en
+un módulo compartido `core/git_head.py` (`read_head_commit`/`git_dir` +
+`resolve_head_commit`, con un subprocess de último recurso blindado idéntico) y
+ahora los TRES consumidores locales lo usan:
+
+- `core/campaign_api.py::_resolve_source_commit` (antes tenía su copia; ahora
+  delega — se eliminó la duplicación introducida el 22-ago);
+- `core/client_validation.py::_git_commit` (ruta de `astra_client_validate`);
+- `core/external_benchmarks.py::_git_commit` (auditoría de fuentes).
+
+Se quitó `import subprocess` de esos tres (ya sin uso local). Cobertura nueva:
+`tests/test_git_head_callers.py` prueba que los dos consumidores adicionales
+resuelven HEAD por lectura de archivos sin lanzar git y conservan su centinela
+(`""` / `"unknown"`) cuando no hay `.git`.
+
+Los `git rev-parse HEAD` restantes en `core/external_evaluators.py:521` y
+`core/formal_validators.py:250` NO son un riesgo local: viven dentro de strings
+de script (`inspector = r'''…'''` y `remote_code = f"""…"""`) que se
+base64-codifican y se ejecutan en un **proceso/contenedor remoto** (udocker /
+Lean remoto), no en el proceso del server MCP, así que no pueden heredar el
+transporte stdio ni colgar el servidor. Se dejan como están.
+
+Verificación del barrido: `pytest -q` → `519 passed, 7 skipped, 100 subtests`;
+`audit_architecture.py` → `required_failures: []`.

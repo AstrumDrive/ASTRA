@@ -26,8 +26,6 @@ cycle when no ``cycle_runner`` is injected.
 from __future__ import annotations
 
 import os
-import re
-import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -59,6 +57,14 @@ from core.campaign_resume import resume_campaign
 from core.campaign_store import CampaignStore
 from core.campaign_executor import EpisodeRunReport
 
+# Re-exported so existing callers/tests keep importing them from here; the
+# implementation now lives in one shared, hardened place (see HANDOFF.md §12).
+from core.git_head import (  # noqa: F401
+    git_dir as _git_dir,
+    read_head_commit as _read_head_commit,
+    resolve_head_commit as _resolve_head_commit,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CAMPAIGNS_ROOT = ROOT / "workspace" / "campaigns"
 
@@ -67,121 +73,18 @@ class CampaignApiError(RuntimeError):
     """A development interface refused an invalid request."""
 
 
-_HEX_RE = re.compile(r"^[0-9a-f]{7,40}$")
-
-
-def _git_dir(root: Path) -> Path | None:
-    """Resolve ``root``'s git directory, handling the worktree/submodule
-    ``gitdir: <path>`` file form. Pure filesystem, never a subprocess."""
-    dot_git = root / ".git"
-    if dot_git.is_dir():
-        return dot_git
-    if dot_git.is_file():
-        try:
-            text = dot_git.read_text(encoding="utf-8").strip()
-        except OSError:
-            return None
-        if text.startswith("gitdir:"):
-            target = text[len("gitdir:") :].strip()
-            path = Path(target) if os.path.isabs(target) else (root / target).resolve()
-            return path if path.exists() else None
-    return None
-
-
-def _read_head_commit(root: Path) -> str | None:
-    """Return HEAD's commit id by reading git ref files directly, or ``None``.
-
-    Deliberately does NOT shell out to ``git``. A ``git`` subprocess on the
-    MCP server's hot path can wedge indefinitely in this environment — a
-    ``git rev-parse HEAD`` was observed stuck for 30+ minutes despite a 10 s
-    timeout, hanging every ``astra_campaign_*`` call that funnels through here
-    before it touches disk. Reading the ref files is pure local I/O and cannot
-    block on a child process, an inherited stdio handle, or a credential
-    helper.
-    """
-    gitdir = _git_dir(root)
-    if gitdir is None:
-        return None
-    # In a linked worktree, loose/packed refs live in the common dir.
-    commondir = gitdir
-    commondir_file = gitdir / "commondir"
-    if commondir_file.is_file():
-        try:
-            rel = commondir_file.read_text(encoding="utf-8").strip()
-            commondir = (
-                Path(rel) if os.path.isabs(rel) else (gitdir / rel).resolve()
-            )
-        except OSError:
-            commondir = gitdir
-    try:
-        head = (gitdir / "HEAD").read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    if not head.startswith("ref:"):
-        # Detached HEAD: the file holds the raw object id.
-        return head.lower() if _HEX_RE.match(head) else None
-    ref = head[len("ref:") :].strip()
-    # 1) loose ref, checked in the worktree gitdir then the common dir
-    for base in (gitdir, commondir):
-        loose = base / ref
-        try:
-            if loose.is_file():
-                sha = loose.read_text(encoding="utf-8").strip()
-                if _HEX_RE.match(sha):
-                    return sha.lower()
-        except OSError:
-            pass
-    # 2) packed-refs
-    try:
-        for raw in (commondir / "packed-refs").read_text(
-            encoding="utf-8"
-        ).splitlines():
-            line = raw.strip()
-            if not line or line[0] in "#^":
-                continue
-            parts = line.split(" ", 1)
-            if len(parts) == 2 and parts[1].strip() == ref and _HEX_RE.match(parts[0]):
-                return parts[0].lower()
-    except OSError:
-        pass
-    return None
-
-
 def _resolve_source_commit(explicit: str | None) -> str:
-    if explicit:
-        return explicit
-    env = (os.environ.get("ASTRA_SOURCE_COMMIT") or "").strip()
-    if env:
-        return env
-    commit = _read_head_commit(ROOT)
+    """HEAD commit for provenance, resolved without a hang-prone subprocess.
+
+    Delegates to the shared, hardened resolver (explicit -> env -> direct
+    ref-file read -> hardened last-resort git); raises only when every source
+    fails.
+    """
+    commit = _resolve_head_commit(
+        ROOT, explicit=explicit, env_var="ASTRA_SOURCE_COMMIT"
+    )
     if commit:
         return commit
-    # Last-resort fallback for an exotic git layout the direct reader missed.
-    # Never reached in a normal checkout, and hardened so it cannot reproduce
-    # the hang above: stdin is /dev/null (git can neither block on nor inherit
-    # the MCP stdio transport), interactive prompts and credential UIs are
-    # disabled, and the timeout is short.
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=ROOT,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
-            env={
-                **os.environ,
-                "GIT_TERMINAL_PROMPT": "0",
-                "GIT_OPTIONAL_LOCKS": "0",
-                "GCM_INTERACTIVE": "never",
-            },
-        )
-        sha = completed.stdout.strip()
-        if _HEX_RE.match(sha):
-            return sha.lower()
-    except (OSError, subprocess.SubprocessError):
-        pass
     raise CampaignApiError(
         "Cannot resolve source_commit: pass it explicitly or set "
         "ASTRA_SOURCE_COMMIT"

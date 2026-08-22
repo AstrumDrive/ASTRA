@@ -7,13 +7,14 @@ import os
 import platform
 import re
 import sys
-import subprocess
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from core.git_head import resolve_head_commit
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -180,16 +181,10 @@ def select_oracles(case: ClientValidationCase, requested: str) -> list[str]:
 
 
 def _git_commit(path: Path) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(path), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return result.stdout.strip() if result.returncode == 0 else ""
-    except Exception:
-        return ""
+    # Read the ref files directly instead of shelling out: a git subprocess on
+    # the MCP server's hot path can wedge indefinitely (HANDOFF.md §12). Empty
+    # string keeps the previous "unknown provenance" contract.
+    return resolve_head_commit(path) or ""
 
 
 def _resolve_adapter(name: str) -> dict[str, Any]:
