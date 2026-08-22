@@ -1,6 +1,6 @@
 # ASTRA 2.0 — handoff de desarrollo
 
-Actualizado: 2026-08-21
+Actualizado: 2026-08-22
 
 Estado: **DEVELOPMENT ONLY — no usar como ASTRA de producción**
 
@@ -685,3 +685,65 @@ al instante** (antes: 1800 s) creando `cmp_5539745bf8414e86` HEALTHY/ACTIVE, y
 `astra_campaign_list` **devolvió al instante** resolviendo el HEAD de ambas
 campañas por lectura de archivos. La campaña de prueba se canceló. El cuelgue
 queda cerrado y confirmado end-to-end, no sólo en tests.
+
+## 13. RFC del servicio unificado — Fase 1 y Fase 2 (2026-08-22)
+
+`docs/architecture/ASTRA_UNIFIED_MCP_RFC.md` describe el plan de unificación en
+5 fases (§11). Autorizadas y ejecutadas hasta ahora, en unidades separadas y
+auditables (regla de la sección 9 de este documento):
+
+**Fase 1 — frenar la deriva.** Los dos fixes de §11/§12 (concurrencia async;
+`git rev-parse HEAD` sin subprocess) se portaron al checkout de **producción**
+(`C:\Users\Nelson\Dev\ASTRA`, rama `claude/wolfram-engine`, commit local
+`5d5d780`, sin push). Port quirúrgico, no copia de archivo: se preservaron
+`_NT_NO_WINDOW` y `FastMCP("astra")`, propios de producción y ausentes en 2.0;
+no se introdujo ninguna tool de campaña. Suite de producción: `171 passed, 11
+subtests` (antes 165). Verificado además EN VIVO contra el server `astra` de
+producción reconectado: `astra_probe` respondió al instante dos veces mientras
+un `astra_cycle` real (multi-modelo, providers `codex_cli`/`agy_cli`/
+`claude_cli`) seguía `in_flight` — la prueba directa de que el fix de
+concurrencia sostiene en producción, no sólo en el checkout de desarrollo.
+
+**Fase 2 — abstracción de perfil.** En `ASTRA-2.0/mcp_server/server.py`:
+reemplazadas las dos banderas independientes (nombre del server, gate de
+campañas) por un único `ASTRA_PROFILE` (`production` | `campaign` | `dev`,
+tabla en el RFC §6), sin cambiar ningún comportamiento por defecto — verificado
+matemáticamente caso por caso antes de escribir el código, y fijado con 13
+tests nuevos (`tests/test_mcp_server_profile.py`). Los env vars existentes
+siguen funcionando como overrides explícitos sobre el perfil:
+`ASTRA_MCP_SERVER_NAME` y `ASTRA_CAMPAIGN_TOOLS` no cambiaron de nombre ni de
+semántica. Se preservó, deliberadamente, el acoplamiento de seguridad
+existente: `_campaign_tools_enabled()` sigue leyendo del **nombre resuelto del
+server**, no del perfil directamente, así que renombrar a `astra` (la ruta de
+promoción documentada) sigue apagando las campañas por sí solo, incluso sin
+tocar `ASTRA_PROFILE` — un test (`test_promotion_override_disables_campaigns_
+even_without_astra_profile`) fija exactamente ese caso. La tabla del RFC §6
+también menciona motores/oráculo por perfil; **deliberadamente no
+implementado** en esta fase (no existe hoy como mecanismo de código, y
+añadirlo habría sido una excepción a "no behavior change yet"). Esta fase sólo
+tocó `ASTRA-2.0`; producción no tiene código de campañas que gatear todavía —
+eso es la Fase 3. Suite completa: `532 passed, 7 skipped, 100 subtests` (antes
+519); `audit_architecture.py` → `required_failures: []`.
+
+**Fase 4 — no es una acción.** Es la compuerta de aceptación
+(`ASTRA2_ACCEPTANCE.md`, G3–G6 `PENDING`), que ya se cumple hoy (producción no
+tiene tools de campaña) y que la Fase 2 fija en código, no sólo en prosa:
+`test_a_production_checkout_defaults_to_astra_with_campaigns_off` es
+exactamente la invariante que el RFC §12 pedía como mitigación ("a test
+asserts `production` exposes no `astra_campaign_*`").
+
+**Fase 3 — bloqueada en una decisión de Nelson, no iniciada.** El RFC la
+describe como "un único `mcp_server/server.py`... desde un único código base".
+Tal como está escrito hoy, eso implica mover el subsistema de campañas
+(`core/campaign_*.py`, las tools `astra_campaign_*`, sus tests) DENTRO del
+checkout de producción (aunque apagado por perfil) — la única decisión
+verdaderamente irreversible de todo el RFC, y toca directamente el checkout que
+usa Nelson a diario. El propio RFC la dejó como decisión abierta explícita
+(§14.1: "Base of record") y HANDOFF §9 prohíbe repetidamente trabajar tareas de
+2.0 dentro de `ASTRA`. No se ejecuta sin que Nelson confirme el mecanismo
+exacto (¿mover archivos a producción con el gate de perfil? ¿otra forma de
+lograr "un código base" sin fusionar los checkouts?).
+
+**Fase 5 — bloqueada por definición.** "Colapsar el registro" requiere que
+G3–G6 hayan pasado. Eso es trabajo científico de campañas de largo horizonte,
+no un cambio de código; no se puede completar escribiendo software.

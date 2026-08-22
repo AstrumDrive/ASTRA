@@ -101,6 +101,31 @@
       "commits": ["934a8ff", "2da8005"],
       "evidence_doc": "HANDOFF.md section 12"
     },
+    "unified_service_rfc": {
+      "rfc": "docs/architecture/ASTRA_UNIFIED_MCP_RFC.md",
+      "date": "2026-08-22",
+      "phase1_stop_the_drift": {
+        "status": "DONE",
+        "detail": "Ported the concurrency + git-hang fixes to production ASTRA (checkout C:/Users/Nelson/Dev/ASTRA, branch claude/wolfram-engine, commit 5d5d780, local only -- not pushed). Surgical port, not a file copy: preserved production-only _NT_NO_WINDOW and FastMCP(\"astra\"); introduced zero campaign tools. Production suite: 171 passed, 11 subtests (was 165). Live-verified against the reconnected production astra server: astra_probe returned instantly twice while a real astra_cycle (providers codex_cli/agy_cli/claude_cli) stayed in_flight."
+      },
+      "phase2_profile_abstraction": {
+        "status": "DONE",
+        "detail": "ASTRA-2.0 only. Replaced the two independently-defaulted flags (server name, campaign-tools gate) with one ASTRA_PROFILE (production|campaign|dev, RFC section 6), zero default-behavior change (verified case-by-case before coding). Existing env vars (ASTRA_MCP_SERVER_NAME, ASTRA_CAMPAIGN_TOOLS) keep working as explicit overrides. Preserved the safety coupling: campaign-tools gating still keys off the resolved server NAME, not the profile directly, so renaming to \"astra\" keeps disabling campaigns even without ASTRA_PROFILE set. Engine/oracle allow-list per profile (also in the RFC's table) deliberately NOT implemented -- no such mechanism exists in code today, would have been new behavior. New tests/test_mcp_server_profile.py (13 tests). Suite: 532 passed, 7 skipped, 100 subtests (was 519). audit_architecture.py: required_failures: []."
+      },
+      "phase4_acceptance_gate": {
+        "status": "NOT_AN_ACTION -- already holds",
+        "detail": "Gated on ASTRA2_ACCEPTANCE.md G3-G6 (PENDING). Already true today (production has no campaign tools); phase 2 fixed it in code, not just prose: test_a_production_checkout_defaults_to_astra_with_campaigns_off is exactly the mitigation the RFC section 12 risk table asked for."
+      },
+      "phase3_single_binary_two_registrations": {
+        "status": "BLOCKED -- awaiting Nelson's decision",
+        "detail": "As literally specified (\"one codebase\"), this means moving the campaign subsystem (core/campaign_*.py, astra_campaign_* tools, their tests) INTO the production checkout, gated off by profile. That is the single least-reversible action in the whole RFC and touches Nelson's daily-driver checkout directly. Left as RFC open decision 14.1 (\"base of record\"), unanswered; HANDOFF.md section 9 repeatedly forbids 2.0 work inside ASTRA. Not started."
+      },
+      "phase5_collapse_registration": {
+        "status": "BLOCKED by definition",
+        "detail": "Requires G3-G6 to pass first -- long-horizon campaign science, not a code change. Cannot be completed by writing software."
+      },
+      "evidence_doc": "HANDOFF.md section 13"
+    },
     "mcp_server_concurrency": {
       "date": "2026-08-21",
       "problem": "A synchronous @mcp.tool() function was called directly on FastMCP's single event-loop thread, so one long call (e.g. astra_campaign_step) froze every other in-flight call on the same connection, including calls from a different chat/project",
@@ -153,7 +178,8 @@
       "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)",
       "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)",
       "MCP server concurrency fix: async tool dispatch via asyncio.to_thread, plus astra_campaign_step_submit/poll (2026-08-21, requested by Nelson)",
-      "Campaign hot-path git-subprocess hang fixed: HEAD resolved by direct ref-file read, no subprocess; blinding consolidated in core/git_head.py across all three local callers; verified live through the restarted MCP server (astra_campaign_start/list return instantly) (2026-08-22, reported by an agent, requested by Nelson)"
+      "Campaign hot-path git-subprocess hang fixed: HEAD resolved by direct ref-file read, no subprocess; blinding consolidated in core/git_head.py across all three local callers; verified live through the restarted MCP server (astra_campaign_start/list return instantly) (2026-08-22, reported by an agent, requested by Nelson)",
+      "Unified-service RFC phase 1: both hot-path fixes ported to and live-verified in production ASTRA (commit 5d5d780, not pushed); phase 2: ASTRA_PROFILE abstraction in ASTRA-2.0, zero default-behavior change; phases 3 and 5 correctly left blocked (2026-08-22, authorized by Nelson)"
     ],
     "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the H3 comparative pilot, which needs at least two seeds per cell to be interpretable at all",
     "updated": "2026-08-22",

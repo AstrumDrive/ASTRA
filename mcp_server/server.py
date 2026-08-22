@@ -32,16 +32,40 @@ if not os.path.exists(ASTRA_PY):
     ASTRA_PY = sys.executable
 ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 
-# The development line runs beside production in the same clients, so it must
-# not introduce itself with production's name: a client listing two servers
-# both called "astra" gives the operator no way to tell which one answered.
-# The name says "development" rather than "version 2" on purpose - promotion
-# is still blocked at G6, and once it lands this checkout BECOMES astra and
-# the dev entry disappears, instead of leaving a stale version number behind.
-# ASTRA_MCP_SERVER_NAME overrides it for exactly that promotion.
-MCP_SERVER_NAME = os.environ.get("ASTRA_MCP_SERVER_NAME") or (
-    "astra_dev" if os.path.basename(ASTRA_ROOT).endswith("2.0") else "astra"
-)
+# ASTRA_PROFILE selects the capability bundle this server exposes -- the
+# "profile" of docs/architecture/ASTRA_UNIFIED_MCP_RFC.md §6, replacing what
+# used to be two independently-defaulted flags (server name, campaign tools).
+# Each still has its own explicit env-var override for backward compatibility;
+# the profile only changes what they default to when unset.
+_VALID_PROFILES = {"production", "campaign", "dev"}
+
+
+def _resolve_profile(root: str | None = None, env: "os._Environ | dict" = None) -> str:
+    root = ASTRA_ROOT if root is None else root
+    env = os.environ if env is None else env
+    explicit = (env.get("ASTRA_PROFILE") or "").strip().strip("'\"").lower()
+    if explicit in _VALID_PROFILES:
+        return explicit
+    # Default: infer from the checkout, exactly like the pre-profile heuristic.
+    return "campaign" if os.path.basename(root).endswith("2.0") else "production"
+
+
+def _resolve_server_name(profile: str, env: "os._Environ | dict" = None) -> str:
+    # The development line runs beside production in the same clients, so it
+    # must not introduce itself with production's name: a client listing two
+    # servers both called "astra" gives the operator no way to tell which one
+    # answered. The name says "development" rather than "version 2" on
+    # purpose - promotion is still blocked at G6, and once it lands this
+    # checkout BECOMES astra and the dev entry disappears, instead of leaving
+    # a stale version number behind. ASTRA_MCP_SERVER_NAME overrides it for
+    # exactly that promotion.
+    env = os.environ if env is None else env
+    override = (env.get("ASTRA_MCP_SERVER_NAME") or "").strip()
+    return override or ("astra" if profile == "production" else "astra_dev")
+
+
+PROFILE = _resolve_profile()
+MCP_SERVER_NAME = _resolve_server_name(PROFILE)
 mcp = FastMCP(MCP_SERVER_NAME)
 
 
@@ -523,11 +547,20 @@ async def astra_engines() -> str:
 # deliberately. ASTRA_CAMPAIGN_TOOLS=0 disables them regardless.
 # ---------------------------------------------------------------------------
 
-def _campaign_tools_enabled() -> bool:
-    flag = (os.environ.get("ASTRA_CAMPAIGN_TOOLS") or "").strip().strip("'\"")
+def _campaign_tools_enabled_for(server_name: str, env: "os._Environ | dict" = None) -> bool:
+    env = os.environ if env is None else env
+    flag = (env.get("ASTRA_CAMPAIGN_TOOLS") or "").strip().strip("'\"")
     if flag:
         return flag.lower() in {"1", "true", "on", "yes"}
-    return MCP_SERVER_NAME != "astra"
+    # Keyed off the resolved server NAME, not the profile directly: renaming to
+    # "astra" (the documented promotion override) must keep disabling campaign
+    # tools even if ASTRA_PROFILE alone would say otherwise, so a promoted
+    # checkout cannot advertise them by omission.
+    return server_name != "astra"
+
+
+def _campaign_tools_enabled() -> bool:
+    return _campaign_tools_enabled_for(MCP_SERVER_NAME)
 
 
 def _campaign_api():
