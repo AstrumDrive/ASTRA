@@ -668,3 +668,20 @@ transporte stdio ni colgar el servidor. Se dejan como están.
 
 Verificación del barrido: `pytest -q` → `519 passed, 7 skipped, 100 subtests`;
 `audit_architecture.py` → `required_failures: []`.
+
+Commits del fix + barrido: `934a8ff` (fix del hot path) y `2da8005`
+(consolidación en `git_head.py` + blindaje de los otros dos). Empujados a
+`company` y `production` el 2026-08-22 (autorización explícita de Nelson;
+`pushurl` reactivados sólo para el push y devueltos a
+`DISABLED_UNTIL_ASTRA2_ACCEPTANCE` acto seguido).
+
+Verificación EN VIVO contra el server MCP real (2026-08-22): como no hay
+hot-reload de Python, se reinició `astra_dev` matando sus procesos (el par
+actual + dos pares huérfanos de sesiones previas) para forzar al cliente a
+relanzarlo; el cliente levantó un único par limpio (`42136`→`35552`) con el
+código nuevo. Con ese server se ejecutó el repro exacto del reporte:
+`astra_campaign_start` (parámetros mínimos, sin `initial_portfolio`) **devolvió
+al instante** (antes: 1800 s) creando `cmp_5539745bf8414e86` HEALTHY/ACTIVE, y
+`astra_campaign_list` **devolvió al instante** resolviendo el HEAD de ambas
+campañas por lectura de archivos. La campaña de prueba se canceló. El cuelgue
+queda cerrado y confirmado end-to-end, no sólo en tests.
