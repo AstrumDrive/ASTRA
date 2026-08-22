@@ -9,6 +9,7 @@ La idea: tu agente favorito se vuelve tu enlace a ASTRA. El agente RAZONA
 (conjetura, navega) y llama a estas tools para VERIFICAR con computo real en
 ASTRUM (tu RTX 3080) o local.
 """
+import asyncio
 import json
 import os
 import signal
@@ -115,7 +116,7 @@ def _call_astra(req: dict, timeout: int = 300) -> dict:
 
 
 @mcp.tool()
-def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
+async def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
     """
     Run a verification script through ASTRA's oracle and return real results.
 
@@ -136,7 +137,8 @@ def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
     Returns a JSON string with: stdout, stderr, exit_code, verdict (PASS/FAIL/NONE),
     oracle_used, engine.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "execute", "code": code, "oracle": oracle, "timeout": timeout},
         timeout=timeout + 60,
     )
@@ -144,7 +146,7 @@ def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
 
 
 @mcp.tool()
-def astra_client_validate(
+async def astra_client_validate(
     case_id: str = "",
     oracle: str = "auto",
     timeout: int = 300,
@@ -164,7 +166,8 @@ def astra_client_validate(
                 are skipped rather than silently rerouted.
         timeout: per-evidence-bundle execution limit in seconds.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "client_validate",
             "case_id": case_id,
@@ -177,7 +180,7 @@ def astra_client_validate(
 
 
 @mcp.tool()
-def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
+async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
                 exec_timeout: int = 0, objective: str = "") -> str:
     """
     Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
@@ -225,12 +228,12 @@ def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
-    res = _call_astra(req, timeout=timeout)
+    res = await asyncio.to_thread(_call_astra, req, timeout=timeout)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_cycle_submit(
+async def astra_cycle_submit(
     intuition: str,
     oracle: str = "local",
     max_seconds: int = 7200,
@@ -266,12 +269,12 @@ def astra_cycle_submit(
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
-    res = _call_astra(req, timeout=60)
+    res = await asyncio.to_thread(_call_astra, req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> str:
+async def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> str:
     """
     Submit a LONG computation as a DETACHED background job; returns immediately.
 
@@ -289,15 +292,19 @@ def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> 
 
     Returns JSON: job_id, runner_pid, oracle, max_seconds.
     """
-    res = _call_astra({"action": "submit", "code": code, "oracle": oracle,
-                       "max_seconds": max_seconds}, timeout=60)
+    res = await asyncio.to_thread(
+        _call_astra,
+        {"action": "submit", "code": code, "oracle": oracle, "max_seconds": max_seconds},
+        timeout=60,
+    )
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_job(job_id: str = "") -> str:
+async def astra_job(job_id: str = "") -> str:
     """
-    Poll an async job started with astra_submit or astra_cycle_submit.
+    Poll an async job started with astra_submit, astra_cycle_submit, or
+    astra_campaign_step_submit.
 
     Returns status (queued/running/done/failed/killed), heartbeat age, elapsed
     seconds, a LIVE stdout tail (local python jobs stream their output), and the
@@ -305,12 +312,12 @@ def astra_job(job_id: str = "") -> str:
     lists the 10 most recent jobs. Poll every 1-5 min on long runs; a running
     job with a fresh heartbeat is healthy even if stdout is quiet.
     """
-    res = _call_astra({"action": "job", "job_id": job_id}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "job", "job_id": job_id}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_capacity() -> str:
+async def astra_capacity() -> str:
     """
     Report local CPU/thread capacity and ASTRA's safe parallelism policy.
 
@@ -319,12 +326,12 @@ def astra_capacity() -> str:
     local validators/benchmarks may use those workers; complete deliberative
     cycles remain serialized because they share model subscriptions.
     """
-    res = _call_astra({"action": "capacity"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "capacity"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_cluster_submit(
+async def astra_cluster_submit(
     code: str,
     project: str = "",
     priority: int = 0,
@@ -351,7 +358,8 @@ def astra_cluster_submit(
         memory_mb: advisory memory reservation; 0 leaves it unspecified.
         max_seconds: execution timeout after the job starts.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "cluster_submit",
             "code": code,
@@ -368,7 +376,7 @@ def astra_cluster_submit(
 
 
 @mcp.tool()
-def astra_cluster_job(
+async def astra_cluster_job(
     job_id: str = "",
     client_filter: str = "",
     limit: int = 20,
@@ -380,7 +388,8 @@ def astra_cluster_job(
     include their result, evidence tails, resource claims, attribution, events,
     and artifact directory.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "cluster_job",
             "job_id": job_id,
@@ -393,9 +402,10 @@ def astra_cluster_job(
 
 
 @mcp.tool()
-def astra_cluster_cancel(job_id: str) -> str:
+async def astra_cluster_cancel(job_id: str) -> str:
     """Cancel a queued/running ASTRUM job and record who requested it."""
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "cluster_cancel", "job_id": job_id},
         timeout=60,
     )
@@ -403,9 +413,9 @@ def astra_cluster_cancel(job_id: str) -> str:
 
 
 @mcp.tool()
-def astra_cluster_capacity() -> str:
+async def astra_cluster_capacity() -> str:
     """Report ASTRUM's shared CPU/GPU slots, usage, queue depth, and reserve."""
-    res = _call_astra({"action": "cluster_capacity"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "cluster_capacity"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
@@ -472,12 +482,13 @@ def astra_probe() -> str:
 
 
 @mcp.tool()
-def astra_status() -> str:
+async def astra_status() -> str:
     """
     Health check for ASTRA: confirms whether ASTRUM (the remote GPU workstation)
     is reachable right now and reports its hostname. Call this before a heavy run.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "execute",
          "code": "import platform; print('HOST', platform.node()); print('VERDICT: PASS')",
          "oracle": "astrum", "timeout": 30},
@@ -491,14 +502,14 @@ def astra_status() -> str:
 
 
 @mcp.tool()
-def astra_engines() -> str:
+async def astra_engines() -> str:
     """
     List ASTRUM's authoritative scientific-engine registry.
 
     Use this instead of PATH discovery. It reports the managed oracle, sci,
     SageMath, Cadabra, Maxima, Lean, and company-package (`pkgs`) environments.
     """
-    res = _call_astra({"action": "engines"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "engines"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
@@ -530,10 +541,83 @@ def _campaign_result(payload) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False, default=str)
 
 
+def _submit_campaign_step_job(
+    campaign_id: str,
+    root: str | None,
+    max_seconds: int,
+    cycle_timeout_seconds: int | None,
+) -> dict:
+    """Launch one campaign step as a DETACHED process; return instantly with a
+    job_id pollable via astra_job. Mirrors astra_tool.py's _do_submit_cycle
+    detached-process pattern, but runs under THIS server's own interpreter:
+    campaign_api is 3.12-native here (see _campaign_api above), unlike the
+    other *_submit tools, which cross into the venv-3.9 astra_tool.py dispatch.
+    Writes into the same workspace/jobs/<job_id>/job.json schema astra_tool.py
+    already reads, so astra_job polls it without any change on that side."""
+    import uuid
+
+    job_id = time.strftime("campaign_step_%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:4]
+    jobdir = os.path.join(ASTRA_ROOT, "workspace", "jobs", job_id)
+    os.makedirs(jobdir, exist_ok=True)
+    request = {
+        "campaign_id": campaign_id,
+        "root": root,
+        "cycle_timeout_seconds": cycle_timeout_seconds,
+    }
+    with open(os.path.join(jobdir, "request.json"), "w", encoding="utf-8") as f:
+        json.dump(request, f, ensure_ascii=False, indent=2)
+    meta = {
+        "id": job_id,
+        "kind": "campaign_step",
+        "status": "queued",
+        "campaign_id": campaign_id,
+        "max_seconds": max_seconds,
+        "created_ts": time.time(),
+        "ts": time.time(),
+    }
+    with open(os.path.join(jobdir, "job.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+
+    runner = os.path.join(ASTRA_ROOT, "astra_campaign_step_job_runner.py")
+    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP (+ BREAKAWAY_FROM_JOB first,
+    # falling back without it): same Windows-only convention _do_submit_cycle
+    # already uses; not a new platform gap.
+    flags = 0x00000008 | 0x00000200
+    runner_err = open(os.path.join(jobdir, "runner.err"), "w")
+    kwargs = dict(
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=runner_err,
+        cwd=ASTRA_ROOT,
+        close_fds=True,
+    )
+    try:
+        try:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir],
+                creationflags=flags | 0x01000000,
+                **kwargs,
+            )
+        except OSError:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir], creationflags=flags, **kwargs
+            )
+    finally:
+        runner_err.close()
+    return {
+        "job_id": job_id,
+        "kind": "campaign_step",
+        "runner_pid": process.pid,
+        "campaign_id": campaign_id,
+        "max_seconds": max_seconds,
+        "poll_with": "astra_job",
+    }
+
+
 if _campaign_tools_enabled():
 
     @mcp.tool()
-    def astra_campaign_start(
+    async def astra_campaign_start(
         objective: str,
         success_definition: str,
         deliverables: list[str],
@@ -559,7 +643,8 @@ if _campaign_tools_enabled():
         """
         api = _campaign_api()
         try:
-            result = api.astra_campaign_start(
+            result = await asyncio.to_thread(
+                api.astra_campaign_start,
                 objective=objective,
                 success_definition=success_definition,
                 deliverables=list(deliverables),
@@ -582,7 +667,7 @@ if _campaign_tools_enabled():
         return _campaign_result(result)
 
     @mcp.tool()
-    def astra_campaign_status(campaign_id: str) -> str:
+    async def astra_campaign_status(campaign_id: str) -> str:
         """
         Read-only state of a campaign: recommended next action, active branch,
         unresolved deliverables, budget spent and remaining, and the last
@@ -590,12 +675,13 @@ if _campaign_tools_enabled():
         """
         api = _campaign_api()
         try:
-            return _campaign_result(api.astra_campaign_status(campaign_id))
+            result = await asyncio.to_thread(api.astra_campaign_status, campaign_id)
+            return _campaign_result(result)
         except Exception as exc:
             return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
 
     @mcp.tool()
-    def astra_campaign_step(campaign_id: str) -> str:
+    async def astra_campaign_step(campaign_id: str) -> str:
         """
         Run ONE campaign step: a full atomic cycle on the active branch, then
         the deterministic decision that follows from its evidence.
@@ -605,18 +691,61 @@ if _campaign_tools_enabled():
         artifacts, any materially different alternatives the synthesis
         proposed, and the decision, then checkpoints. Returns what happened
         and the campaign status afterwards.
+
+        Runs off the server's event loop (a worker thread drives its own
+        asyncio.run), so other MCP calls on this same connection — status
+        checks, probes, other campaigns — stay responsive while this one runs.
+        For a step long enough to risk a client-side wall timeout, prefer
+        `astra_campaign_step_submit` and poll `astra_job`.
         """
         api = _campaign_api()
         try:
-            import asyncio
-
-            result = asyncio.run(api.astra_campaign_step(campaign_id))
+            result = await asyncio.to_thread(
+                asyncio.run, api.astra_campaign_step(campaign_id)
+            )
         except Exception as exc:
             return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
         return _campaign_result(result)
 
     @mcp.tool()
-    def astra_campaign_stop(
+    async def astra_campaign_step_submit(
+        campaign_id: str,
+        root: str = "",
+        max_seconds: int = 7200,
+        cycle_timeout_seconds: int = 0,
+    ) -> str:
+        """
+        Queue ONE campaign step as a persistent DETACHED background job.
+
+        Prefer this over `astra_campaign_step` for a step long enough to risk a
+        client-side wall timeout (adversarial audits commonly run 15-30 min).
+        Returns instantly with a job_id; survives this session, the MCP server,
+        and even a client restart. Poll it with `astra_job`, same as
+        `astra_cycle_submit` jobs — it writes into the identical job schema.
+
+        Args:
+            campaign_id: the campaign to step.
+            root: campaign-store root; empty uses ASTRA's default campaigns
+                root (the same default `astra_campaign_step` uses today).
+            max_seconds: advisory ceiling recorded on the job (not yet enforced
+                by a watchdog; the step's own cycle_timeout_seconds bounds it).
+            cycle_timeout_seconds: forwarded to the step's atomic cycle; 0 uses
+                ASTRA's configured default.
+        """
+        try:
+            result = await asyncio.to_thread(
+                _submit_campaign_step_job,
+                campaign_id,
+                root or None,
+                int(max_seconds),
+                int(cycle_timeout_seconds) or None,
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    async def astra_campaign_stop(
         campaign_id: str, mode: str = "pause", reason: str = ""
     ) -> str:
         """
@@ -625,29 +754,33 @@ if _campaign_tools_enabled():
         """
         api = _campaign_api()
         try:
-            return _campaign_result(
-                api.astra_campaign_stop(
-                    campaign_id, mode=mode, reason=reason or None
-                )
+            result = await asyncio.to_thread(
+                api.astra_campaign_stop,
+                campaign_id,
+                mode=mode,
+                reason=reason or None,
             )
+            return _campaign_result(result)
         except Exception as exc:
             return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
 
     @mcp.tool()
-    def astra_campaign_reactivate(campaign_id: str) -> str:
+    async def astra_campaign_reactivate(campaign_id: str) -> str:
         """Return a PAUSED campaign to ACTIVE after a human review."""
         api = _campaign_api()
         try:
-            return _campaign_result(api.astra_campaign_reactivate(campaign_id))
+            result = await asyncio.to_thread(api.astra_campaign_reactivate, campaign_id)
+            return _campaign_result(result)
         except Exception as exc:
             return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
 
     @mcp.tool()
-    def astra_campaign_list() -> str:
+    async def astra_campaign_list() -> str:
         """List every campaign in this checkout with its status and progress."""
         api = _campaign_api()
         try:
-            return _campaign_result(api.astra_campaign_list())
+            result = await asyncio.to_thread(api.astra_campaign_list)
+            return _campaign_result(result)
         except Exception as exc:
             return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
 

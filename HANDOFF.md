@@ -1,6 +1,6 @@
 # ASTRA 2.0 — handoff de desarrollo
 
-Actualizado: 2026-08-12
+Actualizado: 2026-08-21
 
 Estado: **DEVELOPMENT ONLY — no usar como ASTRA de producción**
 
@@ -538,3 +538,49 @@ negativa, calidad ciega de trayectoria o costo de progreso parcial útil.
 
 Si sólo produce más ramas, más texto o más ciclos sin evidencia más fuerte, la
 arquitectura falla y no debe reemplazar al ASTRA actual.
+
+## 11. Concurrencia del MCP de desarrollo (2026-08-21)
+
+Motivación: Nelson reportó que ASTRA 2.0 no se podía usar desde más de un chat
+a la vez — una llamada larga (p. ej. `astra_campaign_step`) congelaba el
+servidor MCP entero, incluidas llamadas triviales de otra conversación en la
+misma conexión.
+
+Causa raíz confirmada leyendo el SDK: el bucle de despliegue de FastMCP
+(`mcp/server/lowlevel/server.py`) ya despacha cada mensaje entrante en su
+propia tarea de `anyio`, pero `func_metadata.py` invocaba una tool `def`
+síncrona directamente sobre el único hilo del event loop
+(`else: return fn(**arguments_parsed_dict)`), sin offload. Una tool síncrona
+lenta bloqueaba el loop entero, no sólo su propia llamada.
+
+Cambios (`mcp_server/server.py`, sólo este checkout de desarrollo):
+
+- Las 19 tools que hacen trabajo bloqueante (`astra_execute`,
+  `astra_client_validate`, `astra_cycle`, `astra_cycle_submit`,
+  `astra_submit`, `astra_job`, `astra_capacity`, `astra_cluster_*`,
+  `astra_status`, `astra_engines`, y las seis `astra_campaign_*`) pasaron de
+  `def` a `async def`, envolviendo su llamada bloqueante en
+  `await asyncio.to_thread(...)`. `astra_probe` se dejó deliberadamente
+  síncrona (sólo lee heartbeat local, costo cero) — ver el test que lo guarda.
+- Nueva tool `astra_campaign_step_submit` + runner
+  `astra_campaign_step_job_runner.py`, que reutiliza sin cambios el esquema de
+  `workspace/jobs/<job_id>/job.json` y la tool `astra_job` ya existentes
+  (mismo patrón que `astra_cycle_submit`/`astra_job`). No se tocó
+  `astra_tool.py`.
+- `tests/test_mcp_server_concurrency.py` (nuevo): prueba que dos llamadas
+  lentas se solapan en vez de serializarse, que `astra_probe` sigue síncrona a
+  propósito, y que `astra_campaign_step_submit` escribe un job encuestable y
+  lanza el runner correcto.
+
+Verificación: `pytest -q` completo → `505 passed, 7 skipped, 100 subtests
+passed`; `scripts\audit_architecture.py` → `required_failures: []`.
+
+Nota sobre §8: esa lista describe `mcp_server/server.py` como "MCP vigente; no
+modificar en la primera vertical slice" — una compuerta de la fase inicial de
+bootstrap del motor de campañas (ago-12), ya superada por el propio desarrollo
+posterior (las tools `astra_campaign_*` que ese slice añadió ya viven en este
+archivo). Este cambio fue pedido explícitamente por Nelson y es ortogonal al
+motor de campañas: no cambia contratos, esquemas ni la política determinista,
+sólo cómo el servidor MCP despacha llamadas bloqueantes.
+
+No pusheado. Commit local únicamente, según la regla de la sección 9.
