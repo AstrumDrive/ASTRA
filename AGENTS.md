@@ -1,5 +1,15 @@
 # ASTRA Agent Notes
 
+## Shared project memory
+
+Before using this development checkout for a project, read
+`C:\Users\Nelson\Dev\PROJECT_MEMORY.md` and resolve the project or `WDR-###`
+key with `project-memory\scripts\project_memory.py query`. Record verified
+milestones with `project_memory.py record`, while preserving every isolation
+and acceptance constraint below. Never store credentials, model reasoning, or
+unsupported scientific claims. Jira mutations require Nelson's explicit
+instruction.
+
 ## ASTRA 2.0 development isolation
 
 This checkout is the isolated ASTRA 2.0 development line. **Read `HANDOFF.md`
