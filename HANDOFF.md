@@ -583,4 +583,11 @@ archivo). Este cambio fue pedido explícitamente por Nelson y es ortogonal al
 motor de campañas: no cambia contratos, esquemas ni la política determinista,
 sólo cómo el servidor MCP despacha llamadas bloqueantes.
 
-No pusheado. Commit local únicamente, según la regla de la sección 9.
+Empujado el 2026-08-21 (autorizado explícitamente por Nelson, incluyendo el
+remoto compartido `company`): rama `astra-2.0` en `company`
+(`AstrumDrive/ASTRA`) y `production` (`xys004/ASTRA_Production`) en
+`cc549ae`. Los `pushurl` de ambos remotos se reactivaron sólo para ese push y
+se devolvieron de inmediato a `DISABLED_UNTIL_ASTRA2_ACCEPTANCE`: la
+autorización cubrió este push puntual, no un desbloqueo permanente. Cualquier
+push futuro necesita reactivar el `pushurl` de nuevo con autorización
+explícita.

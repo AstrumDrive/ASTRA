@@ -87,8 +87,11 @@
       "fix": "All 19 blocking tools in mcp_server/server.py converted def -> async def, each offloading its blocking call via asyncio.to_thread; astra_probe deliberately left synchronous (zero-cost local heartbeat read)",
       "added": "astra_campaign_step_submit + astra_campaign_step_job_runner.py, mirroring astra_cycle_submit/astra_job, reusing astra_tool.py's job.json schema unchanged",
       "pytest": "505 passed, 7 skipped, 100 subtests passed (was 502/7 before the 3 new tests)",
-      "commits": ["7128acb", "d94e930"],
-      "pushed": false,
+      "commits": ["7128acb", "d94e930", "cc549ae"],
+      "pushed": true,
+      "pushed_to": ["company (AstrumDrive/ASTRA)", "production (xys004/ASTRA_Production)"],
+      "pushed_date": "2026-08-21",
+      "pushed_authorized_by": "Nelson (explicit, this push only; pushurl re-disabled immediately after)",
       "evidence_doc": "HANDOFF.md section 11"
     },
     "trajectory_dry_run": {
