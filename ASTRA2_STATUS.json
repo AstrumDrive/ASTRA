@@ -81,6 +81,16 @@
       "evidence_doc": "docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md"
     },
     "architecture_audit": "PASS; no required failures",
+    "mcp_server_concurrency": {
+      "date": "2026-08-21",
+      "problem": "A synchronous @mcp.tool() function was called directly on FastMCP's single event-loop thread, so one long call (e.g. astra_campaign_step) froze every other in-flight call on the same connection, including calls from a different chat/project",
+      "fix": "All 19 blocking tools in mcp_server/server.py converted def -> async def, each offloading its blocking call via asyncio.to_thread; astra_probe deliberately left synchronous (zero-cost local heartbeat read)",
+      "added": "astra_campaign_step_submit + astra_campaign_step_job_runner.py, mirroring astra_cycle_submit/astra_job, reusing astra_tool.py's job.json schema unchanged",
+      "pytest": "505 passed, 7 skipped, 100 subtests passed (was 502/7 before the 3 new tests)",
+      "commits": ["7128acb", "d94e930"],
+      "pushed": false,
+      "evidence_doc": "HANDOFF.md section 11"
+    },
     "trajectory_dry_run": {
       "status": "PASS",
       "cells": 8,
@@ -118,10 +128,11 @@
       "Cross-line drift check (2026-08-13)",
       "G2 local half: doctor PASS and 6/6 engine smokes (2026-08-13)",
       "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)",
-      "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)"
+      "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)",
+      "MCP server concurrency fix: async tool dispatch via asyncio.to_thread, plus astra_campaign_step_submit/poll (2026-08-21, requested by Nelson)"
     ],
     "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the H3 comparative pilot, which needs at least two seeds per cell to be interpretable at all",
-    "updated": "2026-08-13",
+    "updated": "2026-08-21",
     "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md",
     "g2_closed_evidence": "docs/evidence/ASTRA2_G2_CLOSED_20260813.md"
   },
