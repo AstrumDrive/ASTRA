@@ -117,8 +117,9 @@
         "detail": "Gated on ASTRA2_ACCEPTANCE.md G3-G6 (PENDING). Already true today (production has no campaign tools); phase 2 fixed it in code, not just prose: test_a_production_checkout_defaults_to_astra_with_campaigns_off is exactly the mitigation the RFC section 12 risk table asked for."
       },
       "phase3_single_binary_two_registrations": {
-        "status": "BLOCKED -- awaiting Nelson's decision",
-        "detail": "As literally specified (\"one codebase\"), this means moving the campaign subsystem (core/campaign_*.py, astra_campaign_* tools, their tests) INTO the production checkout, gated off by profile. That is the single least-reversible action in the whole RFC and touches Nelson's daily-driver checkout directly. Left as RFC open decision 14.1 (\"base of record\"), unanswered; HANDOFF.md section 9 repeatedly forbids 2.0 work inside ASTRA. Not started."
+        "status": "DONE",
+        "date": "2026-08-22",
+        "detail": "Nelson chose the mechanism (RFC 14.1): move the campaign subsystem into production, gated off by profile. Pre-move dependency inventory found astra_tool.py's cycle engine itself had grown 2.0-only enhancements (structured-portfolio synthesis, default ON; review-round budget reservation; phase-starvation handling) that would have changed astra_cycle/astra_execute's default behavior in daily production use -- deliberately NOT ported; campaign_executor.py degrades gracefully without them (defensive .get(), explicit portfolio-is-None branch). Ported additively to C:/Users/Nelson/Dev/ASTRA (branch claude/wolfram-engine, commit a40fefd, not pushed): 8 core/campaign_*.py modules, astra_campaign_step_job_runner.py, the astra_campaign_* tool block gated by ASTRA_PROFILE (ported from phase 2, behavior-preserving by construction here), tests/conftest.py, 9 of 10 campaign test files, test_mcp_server_profile.py (unmodified, checkout-agnostic by design). Excluded test_campaign_portfolio.py (tests the unported astra_tool.py integration specifically) and campaign_trajectory_metrics.py (serves an offline canary script, not the MCP surface). Verified with zero env vars: PROFILE=production, MCP_SERVER_NAME=astra, campaign_tools_enabled=False, astra_campaign_start/list not even defined as module attributes. Full production suite: 333 passed, 37 subtests (was 171/11; arithmetic 171+13+149=333 confirms no double-count). audit_architecture.py: required_failures: []."
       },
       "phase5_collapse_registration": {
         "status": "BLOCKED by definition",
@@ -179,7 +180,8 @@
       "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)",
       "MCP server concurrency fix: async tool dispatch via asyncio.to_thread, plus astra_campaign_step_submit/poll (2026-08-21, requested by Nelson)",
       "Campaign hot-path git-subprocess hang fixed: HEAD resolved by direct ref-file read, no subprocess; blinding consolidated in core/git_head.py across all three local callers; verified live through the restarted MCP server (astra_campaign_start/list return instantly) (2026-08-22, reported by an agent, requested by Nelson)",
-      "Unified-service RFC phase 1: both hot-path fixes ported to and live-verified in production ASTRA (commit 5d5d780, not pushed); phase 2: ASTRA_PROFILE abstraction in ASTRA-2.0, zero default-behavior change; phases 3 and 5 correctly left blocked (2026-08-22, authorized by Nelson)"
+      "Unified-service RFC phase 1: both hot-path fixes ported to and live-verified in production ASTRA (commit 5d5d780, not pushed); phase 2: ASTRA_PROFILE abstraction in ASTRA-2.0, zero default-behavior change; phases 3 and 5 correctly left blocked (2026-08-22, authorized by Nelson)",
+      "Unified-service RFC phase 3: campaign subsystem ported to production ASTRA, off by default (commit a40fefd, not pushed); astra_tool.py's 2.0-only cycle-engine enhancements deliberately excluded to avoid changing astra_cycle's daily-use default behavior; phase 5 remains blocked on G3-G6 (2026-08-22, mechanism authorized by Nelson)"
     ],
     "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the H3 comparative pilot, which needs at least two seeds per cell to be interpretable at all",
     "updated": "2026-08-22",

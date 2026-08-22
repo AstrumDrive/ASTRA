@@ -747,3 +747,63 @@ lograr "un código base" sin fusionar los checkouts?).
 **Fase 5 — bloqueada por definición.** "Colapsar el registro" requiere que
 G3–G6 hayan pasado. Eso es trabajo científico de campañas de largo horizonte,
 no un cambio de código; no se puede completar escribiendo software.
+
+**Fase 3 — HECHA (2026-08-22), tras confirmación explícita de Nelson.**
+Preguntado el mecanismo exacto (§14.1 del RFC — "base de referencia"), Nelson
+eligió: mover el subsistema de campañas a producción, apagado por perfil.
+
+Antes de mover una sola línea se hizo un inventario de dependencias (solo
+lectura) que reveló algo que la autorización original no anticipaba: el
+`astra_tool.py` de 2.0 no es sólo "producción + campañas" — el propio motor de
+ciclos (`_do_cycle_impl`) creció con síntesis de portafolio estructurado
+(**default ON**, `_portfolio_synth_enabled()`), presupuesto de rondas de
+revisión (`review_round_reserve`, sin flag) y manejo de "phase starvation".
+Portar eso habría cambiado el comportamiento por defecto de `astra_cycle`/
+`astra_execute` — las tools que Nelson usa a diario — sin que nadie lo hubiera
+decidido explícitamente. Se verificó que `core/campaign_executor.py` accede a
+los datos de portafolio de forma completamente defensiva (`.get()`, con rama
+explícita para `portfolio is None`), así que un episodio de campaña se registra
+igual sin ese motor, sólo sin el ensanchamiento de ramas guiado por portafolio.
+**Decisión: NO se porta el motor de ciclos.** Sólo el subsistema de campañas,
+aditivo y apagado.
+
+Portado a producción (`C:\Users\Nelson\Dev\ASTRA`, rama `claude/wolfram-engine`,
+commit local `a40fefd`, sin push):
+
+- `core/campaign_{api,decision,executor,models,policy,portfolio,resume,store}.py`
+  y `astra_campaign_step_job_runner.py` — copia verbatim, cero colisión de
+  nombres con nada existente en producción (confirmado antes de copiar).
+- El bloque `astra_campaign_*` en `mcp_server/server.py`, registrado sólo
+  `if _campaign_tools_enabled()`. Para que el gate exista ahí, se portó primero
+  la abstracción `ASTRA_PROFILE` de la Fase 2 (mismo mecanismo, comportamiento
+  preservado por construcción: en este checkout el heurístico ya resolvía a
+  "production"/"astra" antes de este cambio).
+- `tests/conftest.py` (aislamiento del lock máquina-wide por sesión de test) —
+  producción NO lo tenía y estaba expuesta al mismo riesgo de flakiness por
+  `BUSY` que esto arregla en 2.0; se portó aunque no es específico de campañas,
+  porque hacía falta para validar el port con limpieza.
+- 9 de los 10 archivos de test de campañas + `test_mcp_server_profile.py`
+  (éste sin modificar: se diseñó en la Fase 2 con `root=`/`env=` explícitos,
+  así que es agnóstico de checkout por construcción).
+
+**Excluido deliberadamente:** `tests/test_campaign_portfolio.py` — sus 6
+fallos confirmados (`_ensemble_conjecture() got an unexpected keyword argument
+'portfolio_context'`, prompt sin la frase de neutralidad) son exactamente la
+integración con el motor de ciclos NO portado, no un defecto de
+`core/campaign_portfolio.py` en sí. `core/campaign_trajectory_metrics.py` y su
+test de canary tampoco se portaron: sirven a un script de benchmarking offline
+(`scripts/run_campaign_canary.py`), no a la superficie MCP.
+
+Verificación crítica de seguridad, con cero variables de entorno:
+`PROFILE=production`, `MCP_SERVER_NAME=astra`, `campaign_tools_enabled=False`,
+y `astra_campaign_start`/`astra_campaign_list` **ni siquiera existen** como
+atributos del módulo — no es sólo que estén ocultas, es que nunca se definen.
+
+Suite completa de producción: `333 passed, 37 subtests` (antes `171, 11` tras
+la Fase 1; la aritmética cierra exacta: `171 + 13 (perfil) + 149 (campañas) =
+333`, sin doble conteo). `audit_architecture.py` → `required_failures: []`.
+Ningún archivo fuera de lo planeado se tocó (los PDFs sin trackear de Nelson en
+`output/pdf/` siguen intactos).
+
+No pusheado — igual que la Fase 1, queda a la espera de autorización explícita
+para empujar `claude/wolfram-engine`.
