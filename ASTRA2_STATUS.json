@@ -81,6 +81,16 @@
       "evidence_doc": "docs/evidence/ASTRA2_H1_SMOKE_CLEAN_20260812.md"
     },
     "architecture_audit": "PASS; no required failures",
+    "campaign_hot_path_git_hang": {
+      "date": "2026-08-22",
+      "problem": "_resolve_source_commit shelled out to `git rev-parse HEAD` on the hot path of every astra_campaign_* call before touching disk; that subprocess could wedge indefinitely (a git rev-parse HEAD was found stuck 30+ min despite timeout=10), hanging astra_campaign_start AND the read-only astra_campaign_list for the full 1800s client timeout. Distinct from the 2026-08-21 concurrency fix: here each call hangs itself, not others.",
+      "fix": "Removed the subprocess from the hot path. Pure-Python _read_head_commit/_git_dir resolve HEAD by reading git ref files directly (HEAD -> loose ref -> packed-refs; handles detached HEAD, .git-file worktree form, commondir). _resolve_source_commit order: explicit -> ASTRA_SOURCE_COMMIT env -> direct read -> hardened last-resort git subprocess (stdin=DEVNULL, no prompt, timeout=5) never reached in a normal checkout.",
+      "verification": "Direct reader matches `git rev-parse HEAD` in ~1.3ms; real start+list roundtrip in 18ms+2ms with zero subprocess spawns (spy-verified). tests/test_campaign_api_no_git_subprocess.py: 10 new tests.",
+      "pytest": "515 passed, 7 skipped, 100 subtests passed",
+      "process_hygiene": "Terminated the wedged orphan git rev-parse HEAD (PID 29800). The venv+Python312 process pair per server is by design (re-exec into the 3.12 SDK), not duplicate servers; orphan pairs from prior sessions clear on MCP client restart. Running servers keep the old campaign_api until the MCP client reconnects.",
+      "pushed": false,
+      "evidence_doc": "HANDOFF.md section 12"
+    },
     "mcp_server_concurrency": {
       "date": "2026-08-21",
       "problem": "A synchronous @mcp.tool() function was called directly on FastMCP's single event-loop thread, so one long call (e.g. astra_campaign_step) froze every other in-flight call on the same connection, including calls from a different chat/project",
@@ -132,10 +142,11 @@
       "G2 local half: doctor PASS and 6/6 engine smokes (2026-08-13)",
       "G2 ASTRUM inventory with verified identical Lean/Mathlib pin (2026-08-13, authorized)",
       "G2 CLOSED: cross-oracle agreement 1.0 and 4/4 scheduler checks (2026-08-13, authorized)",
-      "MCP server concurrency fix: async tool dispatch via asyncio.to_thread, plus astra_campaign_step_submit/poll (2026-08-21, requested by Nelson)"
+      "MCP server concurrency fix: async tool dispatch via asyncio.to_thread, plus astra_campaign_step_submit/poll (2026-08-21, requested by Nelson)",
+      "Campaign hot-path git-subprocess hang fixed: HEAD resolved by direct ref-file read, no subprocess (2026-08-22, reported by an agent, requested by Nelson)"
     ],
     "next_milestone": "One standard-tier run with every fix active: it validates PHASE_BUDGET_SHARE live and provides the post-fix G3 baseline in the same night. Then the H3 comparative pilot, which needs at least two seeds per cell to be interpretable at all",
-    "updated": "2026-08-21",
+    "updated": "2026-08-22",
     "g2_astrum_inventory_evidence": "docs/evidence/ASTRA2_G2_ASTRUM_INVENTORY_20260813.md",
     "g2_closed_evidence": "docs/evidence/ASTRA2_G2_CLOSED_20260813.md"
   },

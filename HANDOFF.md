@@ -591,3 +591,60 @@ se devolvieron de inmediato a `DISABLED_UNTIL_ASTRA2_ACCEPTANCE`: la
 autorización cubrió este push puntual, no un desbloqueo permanente. Cualquier
 push futuro necesita reactivar el `pushurl` de nuevo con autorización
 explícita.
+
+## 12. `astra_campaign_start`/`list` colgados 1800 s — subprocess de git (2026-08-22)
+
+Síntoma reportado: `astra_campaign_start` (parámetros mínimos, sin
+`initial_portfolio`) se colgó los 1800 s completos del timeout del cliente MCP,
+y acto seguido `astra_campaign_list` — de solo lectura — se colgó igual, sin
+error ni resultado. NO es el freeze de concurrencia de §11: ese evitaba que UNA
+llamada larga congelara a OTRAS; aquí cada llamada se cuelga sola.
+
+Causa raíz: `core/campaign_api.py::_resolve_source_commit` shelleaba
+`git rev-parse HEAD` en la ruta caliente de **toda** llamada de campaña, antes
+de tocar disco. `astra_campaign_start` pasa por ahí vía `_open_store`;
+`astra_campaign_list` también, porque enumera el `cmp_...` existente y llama a
+`astra_campaign_status` → `_open_store` → `_resolve_source_commit`. Ese
+subprocess puede quedar wedgeado indefinidamente en este entorno Windows: se
+encontró **en vivo** un `git rev-parse HEAD` huérfano atascado 30+ minutos
+(PID 29800, padre ya muerto, sin hijos), pese al `timeout=10` del código — el
+`timeout` de `subprocess.run` no siempre reapea al hijo en Windows cuando hay
+handles heredados de por medio. Un subprocess colgado dentro de
+`asyncio.to_thread` = tool que nunca responde = el cuelgue de 1800 s.
+
+Fix (`core/campaign_api.py`): se eliminó el subprocess de la ruta caliente. Un
+lector en Python puro (`_read_head_commit` + `_git_dir`) resuelve el commit de
+HEAD leyendo directamente los ref files de git (`HEAD` → ref suelto →
+`packed-refs`; maneja HEAD desprendido, `.git` como archivo de worktree y
+`commondir`). Es I/O local puro: no lanza procesos, no hereda handles del
+transporte stdio, no puede colgarse. `_resolve_source_commit` ahora hace:
+explícito → env `ASTRA_SOURCE_COMMIT` → lectura directa → (último recurso, sólo
+para layouts exóticos que la lectura no cubra) un subprocess de git blindado
+(`stdin=DEVNULL`, `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`,
+`timeout=5`) → error. En un checkout normal la lectura directa siempre gana, así
+que el subprocess jamás se alcanza.
+
+Verificado: el lector directo devuelve el MISMO commit que `git rev-parse HEAD`
+en 1.3 ms; roundtrip real `start`+`list` en 18 ms + 2 ms con **cero** llamadas
+a subprocess (probado con un espía). `tests/test_campaign_api_no_git_subprocess.py`
+(nuevo, 10 tests) fija: lectura correcta contra el repo real, ref suelto,
+`packed-refs`, HEAD desprendido, forma `.git`-archivo de worktree, ausencia de
+`.git`, precedencia de `_resolve_source_commit`, y —la regresión central— que
+`start`+`list` no lanzan ningún git. `pytest -q` completo → `515 passed, 7
+skipped, 100 subtests`; `audit_architecture.py` → `required_failures: []`.
+
+Higiene de procesos: se terminó el `git rev-parse HEAD` huérfano wedgeado
+(PID 29800). Sobre los procesos "duplicados" que notó el reporte: cada arranque
+del server MCP crea un par por diseño — el intérprete `venv` re-ejecuta un hijo
+bajo el Python312 del sistema (que tiene el SDK 3.12); NO son dos servidores
+compitiendo. Lo que sí hay es acumulación de pares huérfanos de sesiones
+anteriores (varias generaciones con distinto shell padre), inofensivos pero
+sucios: se limpian reiniciando el cliente MCP. Nota importante: los servidores
+en marcha siguen ejecutando el `campaign_api` viejo hasta que el cliente MCP
+reconecte; para USAR este fix hay que reiniciar/reconectar `astra_dev`.
+
+Otros `git rev-parse HEAD` con el mismo patrón frágil viven fuera de la ruta de
+campañas (`core/client_validation.py`, `core/external_benchmarks.py`,
+`core/external_evaluators.py`, `core/formal_validators.py`); no se tocaron en
+este fix acotado, pero conviene blindarlos igual más adelante si llegan a correr
+bajo el server MCP.
