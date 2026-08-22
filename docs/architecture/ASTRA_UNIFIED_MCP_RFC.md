@@ -159,8 +159,8 @@ before the registrations merge.
 | `astra_cluster_*`, `astra_capacity`, `astra_engines`, `astra_status` | resource/ASTRUM | all |
 | `astra_probe` | resource (read-only) | all |
 | `astra_campaign_*` (incl. `astra_campaign_step_submit`) | orchestration | `campaign`, `dev` only |
-| `astra_manuscript_review` / `astra_manuscript_edit` (proposed) | orchestration (authoring) | `ASTRA_AUTHORING_TOOLS` |
-| `detector_*` (AI-signature; from `detector-ia`) | orchestration (authoring) | `ASTRA_AUTHORING_TOOLS` |
+| `astra_manuscript_review` / `astra_manuscript_edit` (proposed, class-aware) | orchestration (authoring) | `ASTRA_AUTHORING_TOOLS` |
+| `detector_*` (AI-signature; from `detector-ia`) | orchestration (authoring) — **dual-mode**: in-loop + standalone on external docs | `ASTRA_AUTHORING_TOOLS` |
 
 ## 8. Policy layers made explicit ("políticas claras y organizadas")
 
@@ -193,25 +193,42 @@ two servers issuing conflicting remote work under one quota.
 
 Unification gives the service an **output side** that mirrors its compute side.
 The science pipeline ends at accepted, reproducible evidence; the authoring
-capability turns that evidence into a publication-ready manuscript, in English
-or Spanish, under one explicit policy. It is built from three complementary
-loops.
+capability turns that evidence into a finished document, in English or Spanish,
+under a policy chosen by **document class** (the two are not written the same
+way — see below). It is built from three complementary loops.
 
 **1 — Evidence and acceptance (already in the RFC).** The campaign/cycle layers
 plus `PUBLICATION_POLICY.md` guarantee the science is real, reproducible, and
 extracted as a standalone artefact with a DOI.
 
-**2 — Editorial policy.** `docs/policy/EDITORIAL_POLICY_ES.md` (Nelson's
-canonical text) defines a senior-scientific-editor role for writing, review,
-self-review and drafting: global structure first, then argument logic, section
-and paragraph organization, text–equation–figure coherence, claim strength,
-narrative, style, and only last grammar. It fixes the invariants the service
-must always honour — N. Bolívar with both affiliations; co-authors never
+**2 — Editorial policy (per document class).** `docs/policy/EDITORIAL_POLICY_ES.md`
+(Nelson's canonical text) defines a senior-scientific-editor role for writing,
+review, self-review and drafting: global structure first, then argument logic,
+section and paragraph organization, text–equation–figure coherence, claim
+strength, narrative, style, and only last grammar. It fixes the invariants the
+service must always honour — N. Bolívar with both affiliations; co-authors never
 invented, reordered or re-affiliated without authorization; equations, numbers,
 figures and references never altered silently (flagged with
 `[Scientific consistency check]`, `[Author decision required]`, etc.); the exact
 acknowledgment string; author voice preserved; no over-claiming beyond the
 evidence.
+
+  That policy governs the **article** class — manuscripts for a journal,
+  preprint or conference. **Reports are a different class** and are written
+  differently: an internal-to-collaborator engineering report (the
+  `astrum-labtest` "r11" family — comparative study, momentum report, vacuum
+  protocol/spec) legitimately discusses protocols, specifications, test rounds
+  and internal comparisons — exactly the material the article policy's §8
+  *strips out*. A report class therefore needs its **own** policy, derived from
+  the r11-style documents, that relaxes §8, allows internal/engineering
+  vocabulary for a known audience, and follows report structure (objective →
+  method → data → comparison → recommendation) rather than the article arc.
+  Both classes share the invariants (authorship, no invented facts, numbers and
+  figures never altered silently, claim strength matched to evidence); they
+  differ in audience, structure and what may be said. The document class is a
+  parameter of the authoring capability, not a fork. The report policy is
+  **not yet written** — it is the natural next artefact, extracted from the r11
+  exemplars.
 
   Crucially, its §8 (no references to internal audit / validation campaign /
   pipeline / pass-fail / certification) is the **same rule** as the frozen
@@ -222,22 +239,32 @@ evidence.
   this policy is the output filter that keeps that vocabulary out of the paper —
   the editorial complement of the evidence/acceptance policy.
 
-**3 — AI-signature check.** The existing `detector-ia` (a local detector of
-AI-assisted writing) is exposed as an authoring-capability check. It is the
-*empirical counterpart* of the editorial policy's §10/§45: the policy can only
-*ask* that the prose keep the author's voice and not read as "una respuesta
-generada mecánicamente"; the detector *measures* it. Editorial review and the
-detector form a tight loop — edit toward the policy, measure the signature,
-iterate — rather than either standing alone.
+**3 — AI-signature check (dual-mode).** The existing `detector-ia` (a local
+detector of AI-assisted writing) serves two modes and must remain usable in
+both:
+
+- **Inside** the authoring loop, it is the *empirical counterpart* of the
+  editorial policy's §10/§45: the policy can only *ask* that the prose keep the
+  author's voice and not read as "una respuesta generada mecánicamente"; the
+  detector *measures* it. Editorial review and the detector form a tight loop —
+  edit toward the policy, measure the signature, iterate.
+- **Outside** any manuscript, it is a **general-purpose check on arbitrary or
+  external documents** — anything Nelson wants to screen, not only his own
+  drafts. It therefore stays reachable standalone, not locked behind the
+  authoring pipeline.
 
 Integration follows the same unification argument as the science servers:
 `detector-ia` is a separate MCP today, exactly as `astra`/`astra_dev` are;
-folding its `detector_*` tools behind `ASTRA_AUTHORING_TOOLS` removes one more
-divergent surface. Manuscript review/edit itself is delivered as (a) the
-versioned policy file, injected into the authoring role's instructions when the
-capability is on, and (b) optional `astra_manuscript_*` tools (proposed) for a
-structured review → edit → signature-check pass. Bilingual by construction: the
-policy keeps each manuscript in its original language unless asked otherwise.
+folding its `detector_*` tools into the one service removes a divergent surface
+while keeping the standalone mode. Concretely: the `detector_*` tools are
+available whenever `ASTRA_AUTHORING_TOOLS` is on (independent of document class,
+so they work on external input), and the authoring loop also calls them
+internally. Manuscript/report review-and-edit itself is delivered as (a) the
+per-class versioned policy file, injected into the authoring role's instructions
+when the capability is on, and (b) optional `astra_manuscript_*` tools
+(proposed, class-aware) for a structured review → edit → signature-check pass.
+Bilingual by construction: the policy keeps each document in its original
+language unless asked otherwise.
 
 ## 11. Migration plan (phased, gated)
 
@@ -291,11 +318,16 @@ that requires acceptance to be complete.
    through phase 3 (single binary, two registrations)?
 4. **Naming:** keep `astra` / `astra_dev` as the two registrations through
    phase 4, or rename earlier?
-5. **Authoring scope (§10):** adopt the editorial policy as a document now and
-   wire `detector-ia` behind `ASTRA_AUTHORING_TOOLS` in the same service, or keep
-   `detector-ia` a separate MCP and adopt only the policy file? And do the
-   `astra_manuscript_*` tools belong in this service, or in the existing
-   `tesis-ia` authoring toolchain?
+5. **Authoring scope (§10):** confirmed — `detector-ia` folds **into** the
+   service *and* stays usable **standalone** on external documents (dual-mode);
+   the article editorial policy is in place; a separate **report** policy is to
+   be derived from the `astrum-labtest` r11 exemplars. Remaining sub-questions:
+   (a) do the `astra_manuscript_*` tools live in this service or in the existing
+   `tesis-ia` authoring toolchain? (b) rename `EDITORIAL_POLICY_ES.md` →
+   `EDITORIAL_POLICY_ARTICLE_ES.md` once the report policy exists, for symmetry?
+6. **Report policy:** shall I draft `docs/policy/EDITORIAL_POLICY_REPORT_ES.md`
+   from the r11 documents (`report_en/astrumdrive_*`) — same invariants, relaxed
+   §8, report structure — as the next artefact?
 
 ## 15. Rollback
 
