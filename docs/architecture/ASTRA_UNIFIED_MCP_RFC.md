@@ -15,9 +15,12 @@ orchestration strategies, and one remote node**, currently split across two
 divergent checkouts and two MCP servers. This RFC proposes collapsing them into
 **one codebase and one MCP binary whose capabilities are selected by a named
 profile**, with the previously-implicit policies (execution, concurrency,
-acceptance, evidence, quota) made explicit and centralized. It does **not**
-propose weakening the acceptance boundary that keeps the production verifier
-safe; that boundary becomes a runtime profile instead of a separate checkout.
+acceptance, evidence, quota, and the manuscript-authoring/editorial policy —
+§10) made explicit and centralized. The same service therefore covers the whole
+research lifecycle, from conjecture and evidence to a publication-ready
+manuscript. It does **not** propose weakening the acceptance boundary that keeps
+the production verifier safe; that boundary becomes a runtime profile instead of
+a separate checkout.
 
 ## 2. Context and problem
 
@@ -67,8 +70,11 @@ the defect this RFC removes.
 2. One MCP binary; the client connects to one server, not two.
 3. Capabilities selected by an explicit, named **profile**, not by which
    checkout happened to spawn.
-4. The five policy areas (below) written down and centralized.
+4. The policy areas (below) written down and centralized.
 5. The acceptance boundary preserved exactly, as configuration.
+6. One home for the *output* side too — the editorial policy and the
+   AI-signature check that turn accepted evidence into a publication-ready,
+   author-voiced manuscript (§10).
 
 **Non-goals**
 
@@ -100,11 +106,13 @@ production profile* until acceptance.
 │   always:  execute, cycle, cycle_submit, submit, job,        │
 │            capacity, cluster_*, status, engines, probe       │
 │   gated:   campaign_start/step/step_submit/status/stop/...   │
-│            (enabled only when the profile allows it)         │
+│            manuscript review/edit + AI-signature check        │
+│            (each enabled only when the profile allows it)    │
 ├─────────────────────────────────────────────────────────────┤
-│ Orchestration layer:  two strategies on one worker          │
+│ Orchestration layer:  strategies + authoring on one worker  │
 │   • Research Loop        (1.0)  depth-first chaining         │
 │   • Campaign controller  (2.0)  ledger, branches, budgets   │
+│   • Authoring/editorial         manuscript ← evidence (§10)  │
 ├─────────────────────────────────────────────────────────────┤
 │ Engine / worker layer:  the atomic astra_cycle              │
 │   conjecture → critique → translate → review → oracle →      │
@@ -132,6 +140,11 @@ RFC makes it one explicit table instead of scattered env vars.
 | `campaign` | **on** | full | local + ASTRUM | long-horizon campaigns, once G3–G6 pass |
 | `dev` | on | full | local (+ASTRUM opt-in) | development, tests, offline smoke |
 
+Authoring is a **composable capability**, not a fourth exclusive profile:
+`ASTRA_AUTHORING_TOOLS` (analogous to the existing `ASTRA_CAMPAIGN_TOOLS`) turns
+the editorial/AI-signature tools on or off independently, so it can ride on any
+science profile — or run alone when the task is purely manuscript work.
+
 Until acceptance, `production` and `campaign` map to the two servers we have
 today — but from **one codebase**, so the divergence stops immediately even
 before the registrations merge.
@@ -146,6 +159,8 @@ before the registrations merge.
 | `astra_cluster_*`, `astra_capacity`, `astra_engines`, `astra_status` | resource/ASTRUM | all |
 | `astra_probe` | resource (read-only) | all |
 | `astra_campaign_*` (incl. `astra_campaign_step_submit`) | orchestration | `campaign`, `dev` only |
+| `astra_manuscript_review` / `astra_manuscript_edit` (proposed) | orchestration (authoring) | `ASTRA_AUTHORING_TOOLS` |
+| `detector_*` (AI-signature; from `detector-ia`) | orchestration (authoring) | `ASTRA_AUTHORING_TOOLS` |
 
 ## 8. Policy layers made explicit ("políticas claras y organizadas")
 
@@ -159,6 +174,8 @@ The point of unification is not one process; it is one place per policy.
 | **Acceptance / promotion** | what may each profile touch? | checkout isolation + HANDOFF prose | the profile table (§6), enforced in code |
 | **Evidence / provenance** | HEAD stamping, allowed engines, hashing | `git_head.py` (HEAD, now shared) + per-caller | one provenance module, one engine allow-list per profile |
 | **Resource / quota** | budgets, worker counts, lock root | env vars in `runtime_resources` | same env vars, surfaced through the profile |
+| **Editorial / manuscript** | is the prose rigorous, clear, self-contained, in the author's voice, free of internal-process leakage? | `PUBLICATION_POLICY.md` (frozen) + tacit editing | `docs/policy/EDITORIAL_POLICY_ES.md`, which operationalizes and defers to `PUBLICATION_POLICY.md` (§10) |
+| **AI-signature** | does the finished prose read as author-voiced, not machine-generated? | separate `detector-ia` MCP | `detector-ia` exposed as an authoring-capability check (§10) |
 
 `core/git_head.py` (this week) is the pattern in miniature: three callers with
 private copies of one fragile routine, consolidated into a single hardened
@@ -172,7 +189,57 @@ it today. Unification changes nothing about ASTRUM except that it is configured
 and rate-limited in **one** resource layer instead of two — removing the risk of
 two servers issuing conflicting remote work under one quota.
 
-## 10. Migration plan (phased, gated)
+## 10. Authoring, editorial and AI-signature capability
+
+Unification gives the service an **output side** that mirrors its compute side.
+The science pipeline ends at accepted, reproducible evidence; the authoring
+capability turns that evidence into a publication-ready manuscript, in English
+or Spanish, under one explicit policy. It is built from three complementary
+loops.
+
+**1 — Evidence and acceptance (already in the RFC).** The campaign/cycle layers
+plus `PUBLICATION_POLICY.md` guarantee the science is real, reproducible, and
+extracted as a standalone artefact with a DOI.
+
+**2 — Editorial policy.** `docs/policy/EDITORIAL_POLICY_ES.md` (Nelson's
+canonical text) defines a senior-scientific-editor role for writing, review,
+self-review and drafting: global structure first, then argument logic, section
+and paragraph organization, text–equation–figure coherence, claim strength,
+narrative, style, and only last grammar. It fixes the invariants the service
+must always honour — N. Bolívar with both affiliations; co-authors never
+invented, reordered or re-affiliated without authorization; equations, numbers,
+figures and references never altered silently (flagged with
+`[Scientific consistency check]`, `[Author decision required]`, etc.); the exact
+acknowledgment string; author voice preserved; no over-claiming beyond the
+evidence.
+
+  Crucially, its §8 (no references to internal audit / validation campaign /
+  pipeline / pass-fail / certification) is the **same rule** as the frozen
+  `PUBLICATION_POLICY.md` §1, seen from the writing side. The editorial policy
+  *operationalizes* the frozen policy and defers to it on that point; they are
+  linked, not duplicated. This closes a real loop: ASTRA campaigns produce
+  evidence carrying internal audit/verdict vocabulary (VALIDATED/REFUTED/…), and
+  this policy is the output filter that keeps that vocabulary out of the paper —
+  the editorial complement of the evidence/acceptance policy.
+
+**3 — AI-signature check.** The existing `detector-ia` (a local detector of
+AI-assisted writing) is exposed as an authoring-capability check. It is the
+*empirical counterpart* of the editorial policy's §10/§45: the policy can only
+*ask* that the prose keep the author's voice and not read as "una respuesta
+generada mecánicamente"; the detector *measures* it. Editorial review and the
+detector form a tight loop — edit toward the policy, measure the signature,
+iterate — rather than either standing alone.
+
+Integration follows the same unification argument as the science servers:
+`detector-ia` is a separate MCP today, exactly as `astra`/`astra_dev` are;
+folding its `detector_*` tools behind `ASTRA_AUTHORING_TOOLS` removes one more
+divergent surface. Manuscript review/edit itself is delivered as (a) the
+versioned policy file, injected into the authoring role's instructions when the
+capability is on, and (b) optional `astra_manuscript_*` tools (proposed) for a
+structured review → edit → signature-check pass. Bilingual by construction: the
+policy keeps each manuscript in its original language unless asked otherwise.
+
+## 11. Migration plan (phased, gated)
 
 1. **Stop the drift (low risk).** Make `ASTRA-2.0` track production as its base
    and carry campaigns as an additive module, so an infra fix lands once. As the
@@ -193,7 +260,7 @@ two servers issuing conflicting remote work under one quota.
 Phases 1–3 are reversible and do not touch the science; phase 5 is the only one
 that requires acceptance to be complete.
 
-## 11. Risks and mitigations
+## 12. Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -203,7 +270,7 @@ that requires acceptance to be complete.
 | A shared ASTRUM client lets experiments starve production quota | One resource layer with per-profile budget ceilings |
 | Big-bang refactor breaks the working verifier | Phased, reversible; each phase keeps the full suite green (currently 519 tests) |
 
-## 12. Alternatives considered
+## 13. Alternatives considered
 
 - **Keep two servers (status quo).** Rejected: the manual-sync tax is real and
   already causing production to lag on fixes (§2).
@@ -213,7 +280,7 @@ that requires acceptance to be complete.
   tool surfaces and two registrations to reason about; the profile model
   subsumes it at lower cost.
 
-## 13. Open decisions for Nelson
+## 14. Open decisions for Nelson
 
 1. **Base of record:** production as base with campaigns additive (recommended),
    or 2.0 as base with a production profile? (Recommended: production, to respect
@@ -224,8 +291,13 @@ that requires acceptance to be complete.
    through phase 3 (single binary, two registrations)?
 4. **Naming:** keep `astra` / `astra_dev` as the two registrations through
    phase 4, or rename earlier?
+5. **Authoring scope (§10):** adopt the editorial policy as a document now and
+   wire `detector-ia` behind `ASTRA_AUTHORING_TOOLS` in the same service, or keep
+   `detector-ia` a separate MCP and adopt only the policy file? And do the
+   `astra_manuscript_*` tools belong in this service, or in the existing
+   `tesis-ia` authoring toolchain?
 
-## 14. Rollback
+## 15. Rollback
 
 Each phase is a separate commit on `astra-2.0` and is revertible. The production
 checkout is not modified until phase 1's fix-port, which is itself a small,
