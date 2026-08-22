@@ -1,7 +1,7 @@
-# Política editorial — escritura, revisión y autorrevisión de artículos
+# Política editorial — escritura, revisión y autorrevisión de ARTÍCULOS
 
 - **Estado:** canónica (texto de Nelson, verbatim abajo)
-- **Ámbito:** redacción, revisión, autorrevisión y autocreación de manuscritos científicos, en inglés y en español.
+- **Ámbito:** redacción, revisión, autorrevisión y autocreación de **artículos** científicos (revista, preprint, conferencia), en inglés y en español. Para **reportes** técnicos/de ingeniería internos, ver [`EDITORIAL_POLICY_REPORT_ES.md`](EDITORIAL_POLICY_REPORT_ES.md), que comparte los invariantes pero relaja el §8 y cambia estructura y audiencia.
 - **Relación con otras políticas:**
   - Delega en [`../../PUBLICATION_POLICY.md`](../../PUBLICATION_POLICY.md) para la regla **congelada** de no citar auditorías internas y de extraer el código con DOI aparte. El §8 de esta política editorial (prohibición de referencias a procesos internos) es la operacionalización de esa regla durante la escritura; en caso de conflicto, `PUBLICATION_POLICY.md` es la versión autoritativa de ese punto.
   - Se complementa con el detector de firma-IA (`detector-ia`), que mide empíricamente lo que los §10/§45 piden: que la prosa conserve la voz del autor y no se lea como texto generado mecánicamente.

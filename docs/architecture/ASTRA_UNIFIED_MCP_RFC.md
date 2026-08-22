@@ -226,9 +226,13 @@ evidence.
   Both classes share the invariants (authorship, no invented facts, numbers and
   figures never altered silently, claim strength matched to evidence); they
   differ in audience, structure and what may be said. The document class is a
-  parameter of the authoring capability, not a fork. The report policy is
-  **not yet written** — it is the natural next artefact, extracted from the r11
-  exemplars.
+  parameter of the authoring capability, not a fork. The report policy now
+  exists: `docs/policy/EDITORIAL_POLICY_REPORT_ES.md`, derived from the r11
+  exemplars and the `astrum-labtest` house rules. It relaxes §8 for a known
+  audience, keeps the revision label and date, adds the "In plain terms" and
+  confidentiality conventions, and — notably — **permits deliberate omissions**
+  (the r11 report intentionally withholds the cable channel so the team
+  rediscovers it), which inverts the article's self-contained requirement.
 
   Crucially, its §8 (no references to internal audit / validation campaign /
   pipeline / pass-fail / certification) is the **same rule** as the frozen
@@ -325,9 +329,12 @@ that requires acceptance to be complete.
    (a) do the `astra_manuscript_*` tools live in this service or in the existing
    `tesis-ia` authoring toolchain? (b) rename `EDITORIAL_POLICY_ES.md` →
    `EDITORIAL_POLICY_ARTICLE_ES.md` once the report policy exists, for symmetry?
-6. **Report policy:** shall I draft `docs/policy/EDITORIAL_POLICY_REPORT_ES.md`
-   from the r11 documents (`report_en/astrumdrive_*`) — same invariants, relaxed
-   §8, report structure — as the next artefact?
+6. **Report policy:** drafted — `docs/policy/EDITORIAL_POLICY_REPORT_ES.md`,
+   derived from the r11 documents (`report_en/astrumdrive_*`): same invariants,
+   relaxed §8, report structure, revision+date kept, deliberate omissions
+   permitted. Open sub-question: unify the `AstrumDrive`/`Astrum Drive` and
+   `Aerospace`/`Technologies` naming across articles and reports, or keep each
+   document's current form? (Left as `[Author decision required]` in the policy.)
 
 ## 15. Rollback
 
