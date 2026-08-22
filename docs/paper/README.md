@@ -1,7 +1,7 @@
 # Architecture report
 
 `astra2_architecture.tex` — ASTRA 2.0: architecture, algorithm, measured failure
-modes and evaluation. 11 pages, six figures, English.
+modes and evaluation. 15 pages, six figures, English.
 
 ```bash
 pdflatex -interaction=nonstopmode astra2_architecture.tex   # twice, for refs
@@ -25,6 +25,9 @@ appear in `docs/evidence/`.
 | revisión final rechazada con 571,83 s libres | idem |
 | corrida corta 4/4 sin averías | `ASTRA2_SHORT_VERIFY_20260816.md` |
 | caso NEC: testigo exacto y contraste con el cálculo aparte | `ASTRA2_WARP_NEC_TEST_20260814.md` |
+| defecto de serialización del server MCP y fix async/to_thread | `../../HANDOFF.md` §11 |
+| cuelgue de `git rev-parse HEAD` (30+ min) en la ruta caliente y su fix | `../../HANDOFF.md` §12 |
+| suite de regresión en 519 tests; verificación en vivo del fix | `../../HANDOFF.md` §12 |
 
 Regla de la casa: ninguna cifra entra en el documento sin log depositado. Si una
 medición se retracta, se corrige **aquí y en el documento**, no solo en el

@@ -43,7 +43,7 @@
 for Multi-Model Scientific Research}
 
 \author{Architecture and engineering report}
-\date{16 August 2026}
+\date{16 August 2026 (revised 22 August 2026)}
 
 \begin{document}
 \maketitle
@@ -691,6 +691,39 @@ result bound to the request's objective \\
 \end{tabular}
 \end{center}
 
+\subsection{Defects in the interface, not the algorithm}
+\label{sec:interface}
+
+Two further defects lived below the campaign layer, in the development MCP
+server that exposes \code{astra\_campaign\_*} to a chat client. Neither could
+appear in the test suite, which drives the tools in-process: both need the real
+server, speaking over stdio to more than one client at once---the intended way
+of running several projects through one instance.
+
+\paragraph{One event loop served every call in series.} The server framework
+dispatches each incoming request as its own task, but a synchronous tool
+function runs directly on the single event-loop thread with no offload. One long
+call---an \code{astra\_campaign\_step} of tens of minutes---therefore blocked
+every other call on the connection, including a trivial read issued from a
+different chat, and the server appeared hung. Each blocking tool is now
+asynchronous and offloads its body to a worker thread, so independent calls
+overlap; a long step can additionally be submitted as a detached job and polled,
+exactly as a full cycle already could.
+
+\paragraph{A provenance subprocess could wedge the hot path.} Every campaign call
+stamped the repository's \code{HEAD} by shelling out to \code{git rev-parse
+HEAD} before it touched disk. On this platform that child could hang
+indefinitely despite a timeout---one was found alive after thirty minutes---and
+inside the server it took the calling tool with it, so both
+\code{astra\_campaign\_start} and the read-only \code{astra\_campaign\_list}
+stalled for the full client timeout. \code{HEAD} is now read directly from the
+git ref files: local file I/O that spawns no process and inherits no transport
+handle. A hardened subprocess (no inherited stdin, prompts disabled, short
+timeout) remains only as a last resort for an exotic layout the reader does not
+cover, and the three call sites that resolved \code{HEAD} this way now share one
+implementation. The fix was confirmed against the live server: after a restart
+on the corrected code, the two calls that had stalled returned instantly.
+
 \subsection{Claim shape decides what a cycle can discharge}
 \label{sec:claimshape}
 
@@ -997,7 +1030,11 @@ only recognise successes silently discard it.
         experimental apparatus, as Section~\ref{sec:eval} shows at some cost.
   \item \textbf{Single-workstation quota.} One deliberative cycle runs at a
         time, machine-wide, because concurrent cycles share model accounts. This
-        bounds throughput independently of the architecture.
+        bounds throughput independently of the architecture. It is a deliberate
+        quota lock, distinct from the server-serialisation defect of
+        Section~\ref{sec:interface}: read-only and status calls from several
+        chats now overlap freely; only the deliberative cycle itself is
+        serialised, and by design.
 \end{itemize}
 
 \section{Reproducibility}
@@ -1008,9 +1045,12 @@ oracle stdout and their hashes are stored beside them; the benchmark protocol is
 content-addressed, and an amendment to it (widening the per-cycle budget from
 $1800$\,s to $2400$\,s) changed that fingerprint, was dated, justified and
 recorded in a fingerprint history rather than applied silently. The regression
-suite stands at 435 tests, and the defects described in
-Section~\ref{sec:failures} are each pinned by a test that replays the measured
-values that exposed them.
+suite stands at 519 tests, and the defects described in
+Sections~\ref{sec:failures} and~\ref{sec:interface} are each pinned by a test
+that replays the values or the property that exposed them---for the interface
+defects, one proving that two independent tool calls overlap rather than
+serialise, and one proving that \code{HEAD} resolves with no subprocess on the
+hot path.
 
 \vspace{4mm}
 \hrule
