@@ -38,7 +38,40 @@ ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 # afectados y los nietos nativos conservan stdout).
 _NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
-mcp = FastMCP("astra")
+# ASTRA_PROFILE selects the capability bundle this server exposes -- the
+# "profile" of docs/architecture/ASTRA_UNIFIED_MCP_RFC.md §6, replacing what
+# used to be two independently-defaulted flags (server name, campaign tools).
+# Each still has its own explicit env-var override for backward compatibility;
+# the profile only changes what they default to when unset. Ported from the
+# 2.0 line 2026-08-22 (RFC phase 3): for THIS checkout the heuristic below
+# resolves to "production" exactly as the hardcoded FastMCP("astra") did
+# before, so this port changes nothing by default.
+_VALID_PROFILES = {"production", "campaign", "dev"}
+
+
+def _resolve_profile(root: str | None = None, env: "os._Environ | dict" = None) -> str:
+    root = ASTRA_ROOT if root is None else root
+    env = os.environ if env is None else env
+    explicit = (env.get("ASTRA_PROFILE") or "").strip().strip("'\"").lower()
+    if explicit in _VALID_PROFILES:
+        return explicit
+    # Default: infer from the checkout, exactly like the pre-profile heuristic.
+    return "campaign" if os.path.basename(root).endswith("2.0") else "production"
+
+
+def _resolve_server_name(profile: str, env: "os._Environ | dict" = None) -> str:
+    # The development line runs beside production in the same clients, so it
+    # must not introduce itself with production's name: a client listing two
+    # servers both called "astra" gives the operator no way to tell which one
+    # answered. ASTRA_MCP_SERVER_NAME overrides it for a deliberate promotion.
+    env = os.environ if env is None else env
+    override = (env.get("ASTRA_MCP_SERVER_NAME") or "").strip()
+    return override or ("astra" if profile == "production" else "astra_dev")
+
+
+PROFILE = _resolve_profile()
+MCP_SERVER_NAME = _resolve_server_name(PROFILE)
+mcp = FastMCP(MCP_SERVER_NAME)
 
 
 def _kill_tree(pid: int) -> None:
@@ -508,6 +541,295 @@ async def astra_engines() -> str:
     """
     res = await asyncio.to_thread(_call_astra, {"action": "engines"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# ASTRA 2.0 campaign tools — OFF BY DEFAULT ON THIS (production) CHECKOUT.
+#
+# `ASTRA2_ACCEPTANCE.md` forbids exposing these through the PRODUCTION MCP
+# before promotion (G3-G6, still PENDING). They register only when the
+# resolved profile/server name says so; on a bare production checkout with no
+# env vars set that is always false (see the EndToEndEquivalenceTests-style
+# invariant test in tests/test_mcp_server_profile.py, ported alongside this).
+# ASTRA_CAMPAIGN_TOOLS=0 disables them regardless of profile; ASTRA_PROFILE
+# must be explicitly set to "campaign" or "dev" (or ASTRA_CAMPAIGN_TOOLS=1) to
+# turn them on here. Ported from the ASTRA-2.0 development line 2026-08-22
+# (RFC phase 3, docs/architecture/ASTRA_UNIFIED_MCP_RFC.md); verbatim except
+# for this header. The underlying campaign_executor falls back gracefully
+# (no crash) if the cycle it drives does not emit the 2.0 line's structured
+# portfolio, which this checkout's astra_tool.py does not -- that enhancement
+# was deliberately NOT ported here; see HANDOFF entry for this phase.
+# ---------------------------------------------------------------------------
+
+def _campaign_tools_enabled_for(server_name: str, env: "os._Environ | dict" = None) -> bool:
+    env = os.environ if env is None else env
+    flag = (env.get("ASTRA_CAMPAIGN_TOOLS") or "").strip().strip("'\"")
+    if flag:
+        return flag.lower() in {"1", "true", "on", "yes"}
+    # Keyed off the resolved server NAME, not the profile directly: renaming to
+    # "astra" (the documented promotion override) must keep disabling campaign
+    # tools even if ASTRA_PROFILE alone would say otherwise, so a promoted
+    # checkout cannot advertise them by omission.
+    return server_name != "astra"
+
+
+def _campaign_tools_enabled() -> bool:
+    return _campaign_tools_enabled_for(MCP_SERVER_NAME)
+
+
+def _campaign_api():
+    sys.path.insert(0, ASTRA_ROOT) if ASTRA_ROOT not in sys.path else None
+    from core import campaign_api
+
+    return campaign_api
+
+
+def _campaign_result(payload) -> str:
+    return json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+
+
+def _submit_campaign_step_job(
+    campaign_id: str,
+    root: str | None,
+    max_seconds: int,
+    cycle_timeout_seconds: int | None,
+) -> dict:
+    """Launch one campaign step as a DETACHED process; return instantly with a
+    job_id pollable via astra_job. Mirrors astra_tool.py's _do_submit_cycle
+    detached-process pattern, but runs under THIS server's own interpreter:
+    campaign_api is 3.12-native here (see _campaign_api above), unlike the
+    other *_submit tools, which cross into the venv-3.9 astra_tool.py dispatch.
+    Writes into the same workspace/jobs/<job_id>/job.json schema astra_tool.py
+    already reads, so astra_job polls it without any change on that side."""
+    import uuid
+
+    job_id = time.strftime("campaign_step_%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:4]
+    jobdir = os.path.join(ASTRA_ROOT, "workspace", "jobs", job_id)
+    os.makedirs(jobdir, exist_ok=True)
+    request = {
+        "campaign_id": campaign_id,
+        "root": root,
+        "cycle_timeout_seconds": cycle_timeout_seconds,
+    }
+    with open(os.path.join(jobdir, "request.json"), "w", encoding="utf-8") as f:
+        json.dump(request, f, ensure_ascii=False, indent=2)
+    meta = {
+        "id": job_id,
+        "kind": "campaign_step",
+        "status": "queued",
+        "campaign_id": campaign_id,
+        "max_seconds": max_seconds,
+        "created_ts": time.time(),
+        "ts": time.time(),
+    }
+    with open(os.path.join(jobdir, "job.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+
+    runner = os.path.join(ASTRA_ROOT, "astra_campaign_step_job_runner.py")
+    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP (+ BREAKAWAY_FROM_JOB first,
+    # falling back without it): same Windows-only convention _do_submit_cycle
+    # already uses; not a new platform gap.
+    flags = 0x00000008 | 0x00000200
+    runner_err = open(os.path.join(jobdir, "runner.err"), "w")
+    kwargs = dict(
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=runner_err,
+        cwd=ASTRA_ROOT,
+        close_fds=True,
+    )
+    try:
+        try:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir],
+                creationflags=flags | 0x01000000,
+                **kwargs,
+            )
+        except OSError:
+            process = subprocess.Popen(
+                [sys.executable, runner, jobdir], creationflags=flags, **kwargs
+            )
+    finally:
+        runner_err.close()
+    return {
+        "job_id": job_id,
+        "kind": "campaign_step",
+        "runner_pid": process.pid,
+        "campaign_id": campaign_id,
+        "max_seconds": max_seconds,
+        "poll_with": "astra_job",
+    }
+
+
+if _campaign_tools_enabled():
+
+    @mcp.tool()
+    async def astra_campaign_start(
+        objective: str,
+        success_definition: str,
+        deliverables: list[str],
+        budget_cycles: int = 6,
+        budget_model_calls: int = 72,
+        budget_wall_seconds: int = 21600,
+        budget_execution_seconds: int = 3600,
+        allowed_evidence_classes: list[str] | None = None,
+        initial_portfolio: dict | None = None,
+    ) -> str:
+        """
+        Start a long-horizon ASTRA 2.0 research campaign (development line).
+
+        A campaign is an append-only ledger of branches, episodes, claims,
+        evidence and deterministic decisions, unlike `astra_cycle`, which runs
+        exactly one bounded cycle. Nothing runs yet: this only creates the
+        campaign and, when an initial portfolio is supplied, selects the first
+        branch. Drive it with `astra_campaign_step`.
+
+        Budgets are hard ceilings, enforced fail-closed and accounted per
+        dimension. `deliverables` are the mandatory outcomes; the campaign
+        cannot be declared complete while any remains unresolved.
+        """
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(
+                api.astra_campaign_start,
+                objective=objective,
+                success_definition=success_definition,
+                deliverables=list(deliverables),
+                allowed_evidence_classes=list(
+                    allowed_evidence_classes
+                    or ["SYMBOLIC", "NUMERICAL", "COUNTEREXAMPLE", "FORMAL"]
+                ),
+                budget={
+                    "cycles": int(budget_cycles),
+                    "model_calls": int(budget_model_calls),
+                    "wall_seconds": int(budget_wall_seconds),
+                    "execution_seconds": int(budget_execution_seconds),
+                    "human_interventions": 1,
+                    "remote_jobs": 0,
+                },
+                initial_portfolio=initial_portfolio,
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    async def astra_campaign_status(campaign_id: str) -> str:
+        """
+        Read-only state of a campaign: recommended next action, active branch,
+        unresolved deliverables, budget spent and remaining, and the last
+        decision. Takes no writer lock, so it is safe while a step is running.
+        """
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(api.astra_campaign_status, campaign_id)
+            return _campaign_result(result)
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    async def astra_campaign_step(campaign_id: str) -> str:
+        """
+        Run ONE campaign step: a full atomic cycle on the active branch, then
+        the deterministic decision that follows from its evidence.
+
+        This spends real model quota, roughly one `astra_cycle`. It records an
+        episode with its five separate status axes, evidence with hashed
+        artifacts, any materially different alternatives the synthesis
+        proposed, and the decision, then checkpoints. Returns what happened
+        and the campaign status afterwards.
+
+        Runs off the server's event loop (a worker thread drives its own
+        asyncio.run), so other MCP calls on this same connection — status
+        checks, probes, other campaigns — stay responsive while this one runs.
+        For a step long enough to risk a client-side wall timeout, prefer
+        `astra_campaign_step_submit` and poll `astra_job`.
+        """
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(
+                asyncio.run, api.astra_campaign_step(campaign_id)
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    async def astra_campaign_step_submit(
+        campaign_id: str,
+        root: str = "",
+        max_seconds: int = 7200,
+        cycle_timeout_seconds: int = 0,
+    ) -> str:
+        """
+        Queue ONE campaign step as a persistent DETACHED background job.
+
+        Prefer this over `astra_campaign_step` for a step long enough to risk a
+        client-side wall timeout (adversarial audits commonly run 15-30 min).
+        Returns instantly with a job_id; survives this session, the MCP server,
+        and even a client restart. Poll it with `astra_job`, same as
+        `astra_cycle_submit` jobs — it writes into the identical job schema.
+
+        Args:
+            campaign_id: the campaign to step.
+            root: campaign-store root; empty uses ASTRA's default campaigns
+                root (the same default `astra_campaign_step` uses today).
+            max_seconds: advisory ceiling recorded on the job (not yet enforced
+                by a watchdog; the step's own cycle_timeout_seconds bounds it).
+            cycle_timeout_seconds: forwarded to the step's atomic cycle; 0 uses
+                ASTRA's configured default.
+        """
+        try:
+            result = await asyncio.to_thread(
+                _submit_campaign_step_job,
+                campaign_id,
+                root or None,
+                int(max_seconds),
+                int(cycle_timeout_seconds) or None,
+            )
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+        return _campaign_result(result)
+
+    @mcp.tool()
+    async def astra_campaign_stop(
+        campaign_id: str, mode: str = "pause", reason: str = ""
+    ) -> str:
+        """
+        Stop a campaign: `pause` keeps it resumable, `cancel` is terminal and
+        cannot be undone. Prefer `pause` unless the objective is abandoned.
+        """
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(
+                api.astra_campaign_stop,
+                campaign_id,
+                mode=mode,
+                reason=reason or None,
+            )
+            return _campaign_result(result)
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    async def astra_campaign_reactivate(campaign_id: str) -> str:
+        """Return a PAUSED campaign to ACTIVE after a human review."""
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(api.astra_campaign_reactivate, campaign_id)
+            return _campaign_result(result)
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
+
+    @mcp.tool()
+    async def astra_campaign_list() -> str:
+        """List every campaign in this checkout with its status and progress."""
+        api = _campaign_api()
+        try:
+            result = await asyncio.to_thread(api.astra_campaign_list)
+            return _campaign_result(result)
+        except Exception as exc:
+            return _campaign_result({"error": f"{type(exc).__name__}: {exc}"})
 
 
 if __name__ == "__main__":
