@@ -9,10 +9,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
+
+from core.git_head import resolve_head_commit
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -264,14 +265,9 @@ def load_external_cases(benchmark: str = "all") -> list[ExternalCase]:
 
 
 def _git_commit(path: Path) -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=path,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    return result.stdout.strip() if result.returncode == 0 else "unknown"
+    # Read the ref files directly instead of shelling out: a git subprocess can
+    # wedge indefinitely. "unknown" keeps the prior commit-mismatch contract.
+    return resolve_head_commit(path) or "unknown"
 
 
 def audit_external_sources() -> dict[str, Any]:

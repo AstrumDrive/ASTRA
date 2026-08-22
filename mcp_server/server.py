@@ -9,6 +9,7 @@ La idea: tu agente favorito se vuelve tu enlace a ASTRA. El agente RAZONA
 (conjetura, navega) y llama a estas tools para VERIFICAR con computo real en
 ASTRUM (tu RTX 3080) o local.
 """
+import asyncio
 import json
 import os
 import signal
@@ -113,7 +114,7 @@ def _call_astra(req: dict, timeout: int = 300) -> dict:
 
 
 @mcp.tool()
-def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
+async def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
     """
     Run a verification script through ASTRA's oracle and return real results.
 
@@ -134,7 +135,8 @@ def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
     Returns a JSON string with: stdout, stderr, exit_code, verdict (PASS/FAIL/NONE),
     oracle_used, engine.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "execute", "code": code, "oracle": oracle, "timeout": timeout},
         timeout=timeout + 60,
     )
@@ -142,7 +144,7 @@ def astra_execute(code: str, oracle: str = "local", timeout: int = 180) -> str:
 
 
 @mcp.tool()
-def astra_client_validate(
+async def astra_client_validate(
     case_id: str = "",
     oracle: str = "auto",
     timeout: int = 300,
@@ -162,7 +164,8 @@ def astra_client_validate(
                 are skipped rather than silently rerouted.
         timeout: per-evidence-bundle execution limit in seconds.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "client_validate",
             "case_id": case_id,
@@ -175,7 +178,7 @@ def astra_client_validate(
 
 
 @mcp.tool()
-def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
+async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
                 exec_timeout: int = 0, objective: str = "") -> str:
     """
     Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
@@ -223,12 +226,12 @@ def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
-    res = _call_astra(req, timeout=timeout)
+    res = await asyncio.to_thread(_call_astra, req, timeout=timeout)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_cycle_submit(
+async def astra_cycle_submit(
     intuition: str,
     oracle: str = "local",
     max_seconds: int = 7200,
@@ -264,12 +267,12 @@ def astra_cycle_submit(
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
-    res = _call_astra(req, timeout=60)
+    res = await asyncio.to_thread(_call_astra, req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> str:
+async def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> str:
     """
     Submit a LONG computation as a DETACHED background job; returns immediately.
 
@@ -287,13 +290,16 @@ def astra_submit(code: str, oracle: str = "local", max_seconds: int = 86400) -> 
 
     Returns JSON: job_id, runner_pid, oracle, max_seconds.
     """
-    res = _call_astra({"action": "submit", "code": code, "oracle": oracle,
-                       "max_seconds": max_seconds}, timeout=60)
+    res = await asyncio.to_thread(
+        _call_astra,
+        {"action": "submit", "code": code, "oracle": oracle, "max_seconds": max_seconds},
+        timeout=60,
+    )
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_job(job_id: str = "") -> str:
+async def astra_job(job_id: str = "") -> str:
     """
     Poll an async job started with astra_submit or astra_cycle_submit.
 
@@ -303,12 +309,12 @@ def astra_job(job_id: str = "") -> str:
     lists the 10 most recent jobs. Poll every 1-5 min on long runs; a running
     job with a fresh heartbeat is healthy even if stdout is quiet.
     """
-    res = _call_astra({"action": "job", "job_id": job_id}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "job", "job_id": job_id}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_capacity() -> str:
+async def astra_capacity() -> str:
     """
     Report local CPU/thread capacity and ASTRA's safe parallelism policy.
 
@@ -317,12 +323,12 @@ def astra_capacity() -> str:
     local validators/benchmarks may use those workers; complete deliberative
     cycles remain serialized because they share model subscriptions.
     """
-    res = _call_astra({"action": "capacity"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "capacity"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
 @mcp.tool()
-def astra_cluster_submit(
+async def astra_cluster_submit(
     code: str,
     project: str = "",
     priority: int = 0,
@@ -349,7 +355,8 @@ def astra_cluster_submit(
         memory_mb: advisory memory reservation; 0 leaves it unspecified.
         max_seconds: execution timeout after the job starts.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "cluster_submit",
             "code": code,
@@ -366,7 +373,7 @@ def astra_cluster_submit(
 
 
 @mcp.tool()
-def astra_cluster_job(
+async def astra_cluster_job(
     job_id: str = "",
     client_filter: str = "",
     limit: int = 20,
@@ -378,7 +385,8 @@ def astra_cluster_job(
     include their result, evidence tails, resource claims, attribution, events,
     and artifact directory.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {
             "action": "cluster_job",
             "job_id": job_id,
@@ -391,9 +399,10 @@ def astra_cluster_job(
 
 
 @mcp.tool()
-def astra_cluster_cancel(job_id: str) -> str:
+async def astra_cluster_cancel(job_id: str) -> str:
     """Cancel a queued/running ASTRUM job and record who requested it."""
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "cluster_cancel", "job_id": job_id},
         timeout=60,
     )
@@ -401,9 +410,9 @@ def astra_cluster_cancel(job_id: str) -> str:
 
 
 @mcp.tool()
-def astra_cluster_capacity() -> str:
+async def astra_cluster_capacity() -> str:
     """Report ASTRUM's shared CPU/GPU slots, usage, queue depth, and reserve."""
-    res = _call_astra({"action": "cluster_capacity"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "cluster_capacity"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
@@ -470,12 +479,13 @@ def astra_probe() -> str:
 
 
 @mcp.tool()
-def astra_status() -> str:
+async def astra_status() -> str:
     """
     Health check for ASTRA: confirms whether ASTRUM (the remote GPU workstation)
     is reachable right now and reports its hostname. Call this before a heavy run.
     """
-    res = _call_astra(
+    res = await asyncio.to_thread(
+        _call_astra,
         {"action": "execute",
          "code": "import platform; print('HOST', platform.node()); print('VERDICT: PASS')",
          "oracle": "astrum", "timeout": 30},
@@ -489,14 +499,14 @@ def astra_status() -> str:
 
 
 @mcp.tool()
-def astra_engines() -> str:
+async def astra_engines() -> str:
     """
     List ASTRUM's authoritative scientific-engine registry.
 
     Use this instead of PATH discovery. It reports the managed oracle, sci,
     SageMath, Cadabra, Maxima, Lean, and company-package (`pkgs`) environments.
     """
-    res = _call_astra({"action": "engines"}, timeout=60)
+    res = await asyncio.to_thread(_call_astra, {"action": "engines"}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
 
