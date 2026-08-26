@@ -44,3 +44,26 @@ scheduler remains the sole authority for ASTRUM CPU, GPU and memory admission.
 The next reversible step, if approved, is an adapter fake for the existing MCP
 contract followed by a four-no-op remote smoke campaign.  It must not replace
 or bypass the shared scheduler.
+
+## Local scheduler adapter
+
+`core/experimental_astrum_campaign_adapter.py` implements that first adapter
+step without performing a deployment.  It speaks the existing scheduler's
+`submit`/`job` RPC schema, binds each campaign/task/attempt tuple to exactly one
+scheduler job ID and request digest, and can reconcile a persisted running
+attempt after the local manager restarts.  Its real `ClusterRpcGateway` is
+opt-in; tests use a fake gateway and never contact ASTRUM.
+
+The terminal mapping is deliberately conservative.  A scheduler result with
+`VERDICT: FAIL` is a scientific failure even if its process exited nonzero, and
+is never retried.  A zero-exit `succeeded` job without an unambiguous `PASS` is
+also a terminal scientific failure.  Only known operational states can reach
+the manifest allowlist.  Cancellation, missing bindings, ambiguous submission,
+protocol errors and local poll exhaustion are hard non-retry classes because a
+blind resubmission could duplicate work.
+
+A transient error while polling an already bound job is not treated as job
+failure: the adapter retains the original scheduler job ID and reconciles that
+same job until a terminal state is observed.  Likewise, a submission whose
+response is lost is terminally ambiguous rather than retryable, because the
+remote scheduler does not yet accept a caller-supplied idempotency key.

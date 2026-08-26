@@ -31,6 +31,13 @@ TERMINAL_TASK_STATES = {
     "blocked",
 }
 FAILURE_KINDS = {"success", "operational_failure", "scientific_failure"}
+NEVER_RETRY_OPERATIONAL_CLASSES = {
+    "scheduler_binding_missing",
+    "scheduler_cancelled",
+    "scheduler_poll_timeout",
+    "scheduler_protocol_error",
+    "scheduler_submission_unknown",
+}
 
 
 class CampaignManifestError(ValueError):
@@ -477,7 +484,10 @@ class ExperimentalCampaignRunner:
             attempt_state = "scientific_failed"
             next_eligible = 0.0
         else:
-            preregistered = failure_class in manifest["operational_retry_allowlist"]
+            preregistered = (
+                failure_class in manifest["operational_retry_allowlist"]
+                and failure_class not in NEVER_RETRY_OPERATIONAL_CLASSES
+            )
             retry_available = int(attempt["attempt_no"]) < int(
                 spec["retry"]["max_attempts"]
             )
