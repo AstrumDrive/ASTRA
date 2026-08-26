@@ -14,6 +14,7 @@ UMask=0077
 Environment=PYTHONUNBUFFERED=1
 Environment=ASTRA_CLUSTER_CPU_RESERVE=4
 Environment=ASTRA_CLUSTER_GPU_SLOTS=1
+Environment=ASTRA_CLUSTER_MEMORY_RESERVE_MB=4096
 
 [Install]
 WantedBy=default.target
