@@ -227,12 +227,27 @@ class ClusterStore:
         )
         detected_gpu = 1 if shutil.which("nvidia-smi") else 0
         gpu_slots = _int(os.environ.get("ASTRA_CLUSTER_GPU_SLOTS"), detected_gpu, 0, 16)
+        detected_memory = _memory_total_mb() or 0
+        memory_total_mb = _int(
+            os.environ.get("ASTRA_CLUSTER_MEMORY_TOTAL_MB"),
+            detected_memory,
+            0,
+        )
+        memory_reserve_mb = _int(
+            os.environ.get("ASTRA_CLUSTER_MEMORY_RESERVE_MB"),
+            min(4096, max(0, memory_total_mb - 1)),
+            0,
+            max(0, memory_total_mb - 1),
+        )
+        memory_slots_mb = max(0, memory_total_mb - memory_reserve_mb)
         return {
             "logical_cpus": logical,
             "cpu_reserve": reserve,
             "cpu_slots": cpu_slots,
             "gpu_slots": gpu_slots,
-            "memory_total_mb": _memory_total_mb(),
+            "memory_total_mb": memory_total_mb,
+            "memory_reserve_mb": memory_reserve_mb,
+            "memory_slots_mb": memory_slots_mb,
         }
 
     def submit(self, payload: dict) -> dict:
@@ -246,7 +261,14 @@ class ClusterStore:
         cpu_slots = _int(payload.get("cpu_slots"), _default_cpu(engine), 1, limits["cpu_slots"])
         default_gpu = 1 if _looks_gpu_bound(code) else 0
         gpu_slots = _int(payload.get("gpu_slots"), default_gpu, 0, limits["gpu_slots"])
-        memory_mb = _int(payload.get("memory_mb"), 0, 0, limits.get("memory_total_mb") or 10**9)
+        memory_mb = _int(payload.get("memory_mb"), 0, 0)
+        if memory_mb > limits["memory_slots_mb"]:
+            return {
+                "error": (
+                    f"memory_mb={memory_mb} exceeds allocatable ASTRUM memory "
+                    f"({limits['memory_slots_mb']} MiB after reserve)"
+                )
+            }
         priority = _int(payload.get("priority"), 0, -10, 10)
         timeout_seconds = _int(payload.get("timeout_seconds"), 3600, 1, 7 * 86400)
         source_ip = str(payload.get("_source_ip") or "").strip()[:64]
@@ -391,7 +413,8 @@ class ClusterStore:
             running = connection.execute(
                 """
                 SELECT COUNT(*) AS jobs, COALESCE(SUM(cpu_slots),0) AS cpu,
-                       COALESCE(SUM(gpu_slots),0) AS gpu
+                       COALESCE(SUM(gpu_slots),0) AS gpu,
+                       COALESCE(SUM(memory_mb),0) AS memory
                 FROM jobs WHERE status IN ('starting','running')
                 """
             ).fetchone()
@@ -403,8 +426,12 @@ class ClusterStore:
                 "running_jobs": int(running["jobs"]),
                 "used_cpu_slots": int(running["cpu"]),
                 "used_gpu_slots": int(running["gpu"]),
+                "used_memory_mb": int(running["memory"]),
                 "available_cpu_slots": max(0, limits["cpu_slots"] - int(running["cpu"])),
                 "available_gpu_slots": max(0, limits["gpu_slots"] - int(running["gpu"])),
+                "available_memory_mb": max(
+                    0, limits["memory_slots_mb"] - int(running["memory"])
+                ),
                 "queued_jobs": int(queued),
                 "root": str(self.root),
             }
@@ -419,12 +446,14 @@ class ClusterStore:
             active = connection.execute(
                 """
                 SELECT COALESCE(SUM(cpu_slots),0) AS cpu,
-                       COALESCE(SUM(gpu_slots),0) AS gpu
+                       COALESCE(SUM(gpu_slots),0) AS gpu,
+                       COALESCE(SUM(memory_mb),0) AS memory
                 FROM jobs WHERE status IN ('starting','running')
                 """
             ).fetchone()
             available_cpu = limits["cpu_slots"] - int(active["cpu"])
             available_gpu = limits["gpu_slots"] - int(active["gpu"])
+            available_memory = limits["memory_slots_mb"] - int(active["memory"])
             queued = connection.execute(
                 "SELECT * FROM jobs WHERE status='queued' ORDER BY priority DESC, created_ts ASC"
             ).fetchall()
@@ -436,7 +465,11 @@ class ClusterStore:
             }
             per_client: dict[str, sqlite3.Row] = {}
             for row in queued:
-                if row["cpu_slots"] > available_cpu or row["gpu_slots"] > available_gpu:
+                if (
+                    row["cpu_slots"] > available_cpu
+                    or row["gpu_slots"] > available_gpu
+                    or row["memory_mb"] > available_memory
+                ):
                     continue
                 per_client.setdefault(row["client_id"], row)
             if not per_client:

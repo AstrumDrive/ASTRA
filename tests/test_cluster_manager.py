@@ -18,6 +18,8 @@ class ClusterManagerTests(unittest.TestCase):
                 "ASTRA_CLUSTER_CPU_SLOTS": "8",
                 "ASTRA_CLUSTER_CPU_RESERVE": "1",
                 "ASTRA_CLUSTER_GPU_SLOTS": "1",
+                "ASTRA_CLUSTER_MEMORY_TOTAL_MB": "32768",
+                "ASTRA_CLUSTER_MEMORY_RESERVE_MB": "4096",
             },
             clear=False,
         )
@@ -103,6 +105,26 @@ class ClusterManagerTests(unittest.TestCase):
         reserved_cpu = self.store.reserve_next()
         self.assertEqual(reserved_cpu["job_id"], cpu_job["job_id"])
         self.assertEqual(reserved_cpu["gpu_slots"], 0)
+
+    def test_memory_reservation_blocks_oversubscription_but_not_smaller_work(self):
+        first_large = self.submit("nelson", memory_mb=24000)
+        second_large = self.submit("gabriel", memory_mb=8000)
+        small = self.submit("gabriel", memory_mb=2048)
+
+        reserved_large = self.store.reserve_next()
+        self.assertEqual(reserved_large["job_id"], first_large["job_id"])
+        reserved_small = self.store.reserve_next()
+        self.assertEqual(reserved_small["job_id"], small["job_id"])
+        self.assertEqual(self.store.status(second_large["job_id"])["status"], "queued")
+
+        capacity = self.store.capacity()
+        self.assertEqual(capacity["memory_slots_mb"], 28672)
+        self.assertEqual(capacity["used_memory_mb"], 26048)
+        self.assertEqual(capacity["available_memory_mb"], 2624)
+
+    def test_submit_rejects_memory_request_above_allocatable_capacity(self):
+        rejected = self.submit("nelson", memory_mb=28673)
+        self.assertIn("exceeds allocatable ASTRUM memory", rejected["error"])
 
     def test_runner_writes_terminal_result_and_verdict(self):
         submitted = self.submit("nelson")

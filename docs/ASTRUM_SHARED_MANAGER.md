@@ -14,7 +14,7 @@ another. The shared manager adds one authoritative SQLite queue on ASTRUM with:
 - the submitting Tailscale/source IP for correlation with SSH key logs;
 - persistent per-job directories, output, results, events, and heartbeats;
 - fair rotation between clients at the same priority;
-- central CPU and GPU slot admission;
+- central CPU, GPU, and declared-memory admission;
 - queued/running cancellation and timeout handling;
 - persistence beyond the submitting SSH/MCP/laptop connection.
 
@@ -41,7 +41,8 @@ key provide the connection-level identity.
 ## MCP operations
 
 - `astra_cluster_submit`: submit code with optional project, priority, CPU/GPU
-  slots, memory advisory, and timeout.
+  slots, memory reservation, and timeout. A zero memory request remains
+  unspecified; heavy jobs must declare their expected peak memory.
 - `astra_cluster_job`: inspect one job or the shared recent queue.
 - `astra_cluster_cancel`: cancel a queued or running job and audit the requester.
 - `astra_cluster_capacity`: inspect total, reserved, used, and available slots.
@@ -74,10 +75,13 @@ journalctl --user -u astra-cluster-manager.service --since today
   ~/astra-worker/astra_cluster_manager.py rpc <<<'{"action":"capacity"}'
 ```
 
-The default service reserves four logical CPUs for interactive/system work and
-admits one GPU job at a time. These values are controlled by
+The default service reserves four logical CPUs and 4096 MiB for
+interactive/system work and admits one GPU job at a time. Declared job memory
+is now a hard admission resource: a queued job starts only when its CPU, GPU,
+and memory requests all fit. These values are controlled by
 `ASTRA_CLUSTER_CPU_RESERVE`, `ASTRA_CLUSTER_CPU_SLOTS`, and
-`ASTRA_CLUSTER_GPU_SLOTS` in the unit.
+`ASTRA_CLUSTER_GPU_SLOTS`, plus `ASTRA_CLUSTER_MEMORY_RESERVE_MB` (and the
+optional `ASTRA_CLUSTER_MEMORY_TOTAL_MB` override) in the unit.
 
 If a pinned Mathlib dependency is present but not compiled, repair it without
 running `lake update` at the Mathlib root:

@@ -385,7 +385,7 @@ async def astra_cluster_submit(
             genuinely interactive or urgent validation.
         cpu_slots: requested logical CPU slots; 0 selects an engine-aware default.
         gpu_slots: requested GPU slots; 0 auto-detects common CUDA/JAX/CuPy use.
-        memory_mb: advisory memory reservation; 0 leaves it unspecified.
+        memory_mb: hard scheduler reservation; 0 leaves it unspecified.
         max_seconds: execution timeout after the job starts.
     """
     res = await asyncio.to_thread(
