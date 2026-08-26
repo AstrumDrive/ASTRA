@@ -75,3 +75,21 @@ rejected.  Callers that omit the key retain the previous submit-always-creates
 behavior.  The adapter derives one stable scheduler key per
 campaign/task/attempt, retries only that exact request, and can recover a job
 accepted before its local binding transaction committed.
+
+## Local CLI and preregistered smoke
+
+`scripts/astrum_campaign.py` exposes four explicit operations:
+
+```powershell
+python scripts\astrum_campaign.py preflight --manifest docs\ASTRUM_CAMPAIGN_REMOTE_SMOKE_V1.json
+python scripts\astrum_campaign.py register --manifest docs\ASTRUM_CAMPAIGN_REMOTE_SMOKE_V1.json --db output\campaign-smoke.sqlite3
+python scripts\astrum_campaign.py status --campaign-id astrum-remote-smoke-v1 --db output\campaign-smoke.sqlite3
+python scripts\astrum_campaign.py resume --campaign-id astrum-remote-smoke-v1 --db output\campaign-smoke.sqlite3 --execute-remote
+```
+
+Only `resume --execute-remote` constructs the SSH gateway.  Preflight validates
+both the immutable campaign graph and every scheduler payload; register is
+idempotent for the exact manifest; status is read-only.  The preregistered
+smoke contains four one-CPU/128-MiB Python no-ops and one `afterany` aggregator,
+with concurrency two and no warp-science payloads.  It is evidence for campaign
+plumbing only and has not been submitted to ASTRUM.
