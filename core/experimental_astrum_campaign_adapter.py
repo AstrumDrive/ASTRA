@@ -84,6 +84,18 @@ def _request_digest(request: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(request).encode("utf-8")).hexdigest()
 
 
+def _scheduler_idempotency_key(
+    campaign_id: str, task: Mapping[str, Any], attempt_no: int
+) -> str:
+    identity = {
+        "campaign_id": campaign_id,
+        "task_id": str(task["task_id"]),
+        "task_idempotency_key": str(task["idempotency_key"]),
+        "attempt_no": int(attempt_no),
+    }
+    return "ecm-v1:" + _request_digest(identity)
+
+
 def validate_scheduler_request(task: Mapping[str, Any]) -> Dict[str, Any]:
     payload = task.get("payload")
     if not isinstance(payload, Mapping):
@@ -174,12 +186,14 @@ class ExperimentalAstrumCampaignAdapter:
         gateway: SchedulerGateway,
         poll_interval_seconds: float = 1.0,
         max_poll_seconds: float = 7 * 86400,
+        submission_attempts: int = 2,
     ) -> None:
         self.store = store
         self.campaign_id = campaign_id
         self.gateway = gateway
         self.poll_interval_seconds = max(0.0, float(poll_interval_seconds))
         self.max_poll_seconds = max(0.0, float(max_poll_seconds))
+        self.submission_attempts = max(1, int(submission_attempts))
         self._init_binding_schema()
 
     def _connect(self) -> sqlite3.Connection:
@@ -232,6 +246,9 @@ class ExperimentalAstrumCampaignAdapter:
         task_id = str(task["task_id"])
         attempt = self._current_attempt(task_id, attempt_no)
         request = validate_scheduler_request(task)
+        request["idempotency_key"] = _scheduler_idempotency_key(
+            self.campaign_id, task, attempt_no
+        )
         digest = _request_digest(request)
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -245,18 +262,28 @@ class ExperimentalAstrumCampaignAdapter:
                 connection.commit()
                 return str(existing["scheduler_job_id"])
 
-            try:
-                submitted = dict(self.gateway.submit(request))
-            except Exception as exc:
-                raise RuntimeError(
-                    "scheduler submission outcome is unknown; refusing duplicate: %s"
-                    % type(exc).__name__
-                ) from exc
-            job_id = str(submitted.get("job_id") or "")
+            submitted: Dict[str, Any] = {}
+            for submission_no in range(1, self.submission_attempts + 1):
+                try:
+                    submitted = dict(self.gateway.submit(request))
+                except Exception as exc:
+                    submitted = {
+                        "error": "scheduler submit RPC raised %s" % type(exc).__name__
+                    }
+                job_id = str(submitted.get("job_id") or "")
+                if job_id:
+                    break
+                if "different request" in str(submitted.get("error") or ""):
+                    raise RuntimeError("scheduler idempotency protocol conflict")
+                if submission_no < self.submission_attempts:
+                    time.sleep(self.poll_interval_seconds)
             if not job_id:
-                # The scheduler may have accepted an RPC whose response was
-                # lost.  Resubmitting would risk duplicate scientific work.
-                raise RuntimeError("scheduler submission outcome is unknown; refusing duplicate")
+                # Native scheduler idempotency makes identical resubmission
+                # safe.  Exhaustion remains fail-closed, but never changes the
+                # key or advances the campaign attempt.
+                raise RuntimeError(
+                    "scheduler submission outcome is unknown after idempotent retries"
+                )
             now = time.time()
             connection.execute(
                 """
@@ -357,16 +384,18 @@ class ExperimentalAstrumCampaignAdapter:
                 "spec": task_specs[attempt["task_id"]],
             }
             if not binding:
-                runner._finish(
-                    self.campaign_id,
-                    runtime_attempt,
-                    TaskOutcome.operational_failure(
-                        "scheduler_binding_missing", {"reconciled": True}
-                    ),
-                )
-                completed.append(attempt["attempt_id"])
-                continue
-            job_id = binding["scheduler_job_id"]
+                # A process can die after the scheduler accepted submit but
+                # before the local binding committed.  Resubmitting the exact
+                # request with the same native key recovers the original job.
+                try:
+                    job_id = self.bind_or_submit(
+                        runtime_attempt["spec"], runtime_attempt["attempt_no"]
+                    )
+                except (RuntimeError, ValueError):
+                    active.append("unresolved:%s" % attempt["attempt_id"])
+                    continue
+            else:
+                job_id = binding["scheduler_job_id"]
             try:
                 status = dict(self.gateway.job(job_id))
             except Exception as exc:

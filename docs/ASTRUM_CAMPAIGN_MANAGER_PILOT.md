@@ -64,6 +64,14 @@ blind resubmission could duplicate work.
 
 A transient error while polling an already bound job is not treated as job
 failure: the adapter retains the original scheduler job ID and reconciles that
-same job until a terminal state is observed.  Likewise, a submission whose
-response is lost is terminally ambiguous rather than retryable, because the
-remote scheduler does not yet accept a caller-supplied idempotency key.
+same job until a terminal state is observed.
+
+The scheduler and adapter now also support an optional caller-supplied native
+idempotency key.  The scheduler stores that key, scoped to the normalized client
+identity, together with a SHA-256 digest of the normalized request.  An exact
+replay returns the original job ID after an RPC response loss or process
+restart; reuse with different code, resources, engine, project or timeout is
+rejected.  Callers that omit the key retain the previous submit-always-creates
+behavior.  The adapter derives one stable scheduler key per
+campaign/task/attempt, retries only that exact request, and can recover a job
+accepted before its local binding transaction committed.

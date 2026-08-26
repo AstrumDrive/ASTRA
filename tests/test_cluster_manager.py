@@ -62,6 +62,42 @@ class ClusterManagerTests(unittest.TestCase):
         self.assertEqual(persisted["job_id"], job["job_id"])
         self.assertEqual(persisted["client_id"], "gabriel-abellan")
 
+    def test_native_idempotency_replays_same_job_after_store_restart(self):
+        first = self.submit(idempotency_key="campaign-a-task-1-attempt-1")
+        restarted = ClusterStore(self.root)
+        replay = rpc(
+            restarted,
+            {
+                "action": "submit",
+                "client_id": "nelson",
+                "project": "shared-test",
+                "code": "print('VERDICT: PASS')",
+                "timeout_seconds": 30,
+                "idempotency_key": "campaign-a-task-1-attempt-1",
+            },
+        )
+        self.assertEqual(replay["job_id"], first["job_id"])
+        self.assertTrue(replay["idempotent_replay"])
+        with restarted.connect() as connection:
+            count = connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        self.assertEqual(count, 1)
+
+    def test_native_idempotency_rejects_changed_request(self):
+        first = self.submit(idempotency_key="immutable-request")
+        conflict = self.submit(
+            code="print('different')", idempotency_key="immutable-request"
+        )
+        self.assertIn("different request", conflict["error"])
+        with self.store.connect() as connection:
+            count = connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        self.assertEqual(count, 1)
+        self.assertEqual(self.store.status(first["job_id"])["status"], "queued")
+
+    def test_callers_without_idempotency_key_remain_non_deduplicated(self):
+        first = self.submit()
+        second = self.submit()
+        self.assertNotEqual(first["job_id"], second["job_id"])
+
     def test_scheduler_rotates_between_clients(self):
         first_nelson = self.submit("nelson")
         self.submit("nelson")

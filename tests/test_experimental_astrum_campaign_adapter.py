@@ -62,11 +62,22 @@ class FakeSchedulerGateway:
         self.submissions = []
         self.statuses = {}
         self.job_counter = 0
+        self.jobs_by_key = {}
 
     def submit(self, request):
+        request = copy.deepcopy(dict(request))
+        key = request.get("idempotency_key")
+        if key in self.jobs_by_key:
+            job_id, original = self.jobs_by_key[key]
+            if request != original:
+                return {"error": "idempotency_key already exists with a different request"}
+            self.submissions.append((job_id, request))
+            return {"job_id": job_id, "status": "queued", "idempotent_replay": True}
         self.job_counter += 1
         job_id = "fake-job-%d" % self.job_counter
-        self.submissions.append((job_id, copy.deepcopy(dict(request))))
+        self.submissions.append((job_id, request))
+        if key:
+            self.jobs_by_key[key] = (job_id, request)
         self.statuses[job_id] = [
             {"job_id": job_id, "status": "succeeded", "exit_code": 0, "verdict": "PASS"}
         ]
@@ -214,7 +225,7 @@ class ExperimentalAstrumCampaignAdapterTests(unittest.TestCase):
         self.assertEqual(len(gateway.submissions), 1)
         self.assertEqual(len(adapter.bindings()), 1)
 
-    def test_unknown_submission_is_terminal_and_never_resubmitted(self):
+    def test_persistently_unknown_submission_stops_after_idempotent_retries(self):
         manifest = copy.deepcopy(MANIFEST)
         manifest["campaign_id"] = "submission-unknown"
         manifest["operational_retry_allowlist"].append("scheduler_submission_unknown")
@@ -233,8 +244,89 @@ class ExperimentalAstrumCampaignAdapterTests(unittest.TestCase):
         ).run()
         self.assertEqual(result["tasks"][0]["status"], "operational_failed")
         self.assertEqual(len(result["attempts"]), 1)
-        self.assertEqual(len(gateway.submissions), 1)
+        self.assertEqual(len(gateway.submissions), 2)
         self.assertEqual(len(result["attempts"]), 1)
+
+    def test_lost_submit_response_recovers_same_native_scheduler_job(self):
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["campaign_id"] = "lost-submit-native-recovery"
+        manifest["tasks"] = [manifest["tasks"][2]]
+        self.store.register(manifest)
+
+        class LostFirstResponseGateway(FakeSchedulerGateway):
+            def __init__(self):
+                super().__init__()
+                self.lost = False
+
+            def submit(self, request):
+                response = super().submit(request)
+                if not self.lost:
+                    self.lost = True
+                    return {"error": "response lost after scheduler acceptance"}
+                return response
+
+        gateway = LostFirstResponseGateway()
+        result = ExperimentalAstrumCampaignAdapter(
+            self.store,
+            manifest["campaign_id"],
+            gateway,
+            poll_interval_seconds=0,
+            submission_attempts=2,
+        ).run()
+        self.assertEqual(result["tasks"][0]["status"], "succeeded")
+        self.assertEqual(len(gateway.submissions), 2)
+        self.assertEqual(gateway.job_counter, 1)
+        self.assertEqual(gateway.submissions[0][0], gateway.submissions[1][0])
+        self.assertEqual(
+            gateway.submissions[0][1]["idempotency_key"],
+            gateway.submissions[1][1]["idempotency_key"],
+        )
+
+    def test_restart_reconciles_acceptance_lost_before_local_binding(self):
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["campaign_id"] = "restart-before-local-binding"
+        manifest["tasks"] = [manifest["tasks"][2]]
+        self.store.register(manifest)
+        runner = ExperimentalCampaignRunner(self.store, lambda *_: None)
+        attempt = runner._start(
+            manifest["campaign_id"], self.store.task_rows(manifest["campaign_id"])[0]
+        )
+
+        class LostFirstResponseGateway(FakeSchedulerGateway):
+            def __init__(self):
+                super().__init__()
+                self.lost = False
+
+            def submit(self, request):
+                response = super().submit(request)
+                if not self.lost:
+                    self.lost = True
+                    return {"error": "response lost after scheduler acceptance"}
+                return response
+
+        gateway = LostFirstResponseGateway()
+        first_process = ExperimentalAstrumCampaignAdapter(
+            self.store,
+            manifest["campaign_id"],
+            gateway,
+            poll_interval_seconds=0,
+            submission_attempts=1,
+        )
+        with self.assertRaisesRegex(RuntimeError, "outcome is unknown"):
+            first_process.bind_or_submit(attempt["spec"], attempt["attempt_no"])
+        self.assertEqual(first_process.bindings(), [])
+
+        restarted = ExperimentalAstrumCampaignAdapter(
+            self.store,
+            manifest["campaign_id"],
+            gateway,
+            poll_interval_seconds=0,
+        )
+        reconciled = restarted.reconcile_once()
+        self.assertEqual(len(reconciled["completed_attempt_ids"]), 1)
+        self.assertEqual(self.store.task_rows(manifest["campaign_id"])[0]["status"], "succeeded")
+        self.assertEqual(gateway.job_counter, 1)
+        self.assertEqual(len(gateway.submissions), 2)
 
     def test_adapter_end_to_end_retries_operational_but_not_scientific_failure(self):
         manifest = copy.deepcopy(MANIFEST)

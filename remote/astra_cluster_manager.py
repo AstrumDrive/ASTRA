@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,14 @@ ENGINE_RE = re.compile(
 
 def _now() -> float:
     return time.time()
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _request_sha256(value: object) -> str:
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def _safe_client(value: object) -> str:
@@ -185,6 +194,8 @@ class ClusterStore:
                     verdict TEXT,
                     error TEXT,
                     source_ip TEXT NOT NULL DEFAULT '',
+                    idempotency_key TEXT NOT NULL DEFAULT '',
+                    request_sha256 TEXT NOT NULL DEFAULT '',
                     artifact_dir TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS jobs_status_created
@@ -209,6 +220,21 @@ class ClusterStore:
                 connection.execute(
                     "ALTER TABLE jobs ADD COLUMN source_ip TEXT NOT NULL DEFAULT ''"
                 )
+            if "idempotency_key" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT ''"
+                )
+            if "request_sha256" not in columns:
+                connection.execute(
+                    "ALTER TABLE jobs ADD COLUMN request_sha256 TEXT NOT NULL DEFAULT ''"
+                )
+            connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS jobs_client_idempotency
+                ON jobs(client_id, idempotency_key)
+                WHERE idempotency_key <> ''
+                """
+            )
 
     def event(self, connection: sqlite3.Connection, job_id: str, event: str, detail: str = "") -> None:
         connection.execute(
@@ -271,51 +297,93 @@ class ClusterStore:
             }
         priority = _int(payload.get("priority"), 0, -10, 10)
         timeout_seconds = _int(payload.get("timeout_seconds"), 3600, 1, 7 * 86400)
+        raw_idempotency_key = payload.get("idempotency_key")
+        if raw_idempotency_key is not None and not isinstance(raw_idempotency_key, str):
+            return {"error": "idempotency_key must be a string"}
+        idempotency_key = str(raw_idempotency_key or "").strip()
+        if len(idempotency_key) > 256:
+            return {"error": "idempotency_key exceeds 256 characters"}
         source_ip = str(payload.get("_source_ip") or "").strip()[:64]
-        stamp = time.strftime("%Y%m%d_%H%M%S")
-        job_id = f"astrum_{stamp}_{client_id}_{uuid.uuid4().hex[:6]}"
-        jobdir = self.jobs_root / job_id
-        jobdir.mkdir(mode=0o700)
-        request = {
-            "job_id": job_id,
+        normalized_request = {
             "client_id": client_id,
             "project": project,
             "engine": engine,
             "code": code,
-            "timeout": timeout_seconds,
-            "workdir": str(jobdir / "workspace"),
+            "priority": priority,
+            "cpu_slots": cpu_slots,
+            "gpu_slots": gpu_slots,
+            "memory_mb": memory_mb,
+            "timeout_seconds": timeout_seconds,
         }
-        (jobdir / "request.json").write_text(
-            json.dumps(request, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        created = _now()
+        request_sha256 = _request_sha256(normalized_request)
+        replay_job_id = ""
         with self.connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO jobs(
-                    job_id, client_id, project, engine, priority, cpu_slots,
-                    gpu_slots, memory_mb, timeout_seconds, status, created_ts,
-                    heartbeat_ts, source_ip, artifact_dir
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)
-                """,
-                (
-                    job_id,
-                    client_id,
-                    project,
-                    engine,
-                    priority,
-                    cpu_slots,
-                    gpu_slots,
-                    memory_mb,
-                    timeout_seconds,
-                    created,
-                    created,
-                    source_ip,
-                    str(jobdir),
-                ),
-            )
-            self.event(connection, job_id, "submitted")
+            if idempotency_key:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT job_id, request_sha256 FROM jobs WHERE client_id=? AND idempotency_key=?",
+                    (client_id, idempotency_key),
+                ).fetchone()
+                if existing:
+                    if existing["request_sha256"] != request_sha256:
+                        return {
+                            "error": "idempotency_key already exists with a different request",
+                            "idempotency_key": idempotency_key,
+                        }
+                    replay_job_id = str(existing["job_id"])
+            if not replay_job_id:
+                stamp = time.strftime("%Y%m%d_%H%M%S")
+                job_id = f"astrum_{stamp}_{client_id}_{uuid.uuid4().hex[:6]}"
+                jobdir = self.jobs_root / job_id
+                jobdir.mkdir(mode=0o700)
+                request = {
+                    "job_id": job_id,
+                    "client_id": client_id,
+                    "project": project,
+                    "engine": engine,
+                    "code": code,
+                    "timeout": timeout_seconds,
+                    "workdir": str(jobdir / "workspace"),
+                    "idempotency_key": idempotency_key,
+                    "request_sha256": request_sha256,
+                }
+                (jobdir / "request.json").write_text(
+                    json.dumps(request, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                created = _now()
+                connection.execute(
+                    """
+                    INSERT INTO jobs(
+                        job_id, client_id, project, engine, priority, cpu_slots,
+                        gpu_slots, memory_mb, timeout_seconds, status, created_ts,
+                        heartbeat_ts, source_ip, artifact_dir, idempotency_key,
+                        request_sha256
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job_id,
+                        client_id,
+                        project,
+                        engine,
+                        priority,
+                        cpu_slots,
+                        gpu_slots,
+                        memory_mb,
+                        timeout_seconds,
+                        created,
+                        created,
+                        source_ip,
+                        str(jobdir),
+                        idempotency_key,
+                        request_sha256,
+                    ),
+                )
+                self.event(connection, job_id, "submitted")
+        if replay_job_id:
+            result = self.status(replay_job_id, include_result=False)
+            result["idempotent_replay"] = True
+            return result
         return self.status(job_id, include_result=False)
 
     def _row(self, connection: sqlite3.Connection, job_id: str) -> sqlite3.Row | None:
