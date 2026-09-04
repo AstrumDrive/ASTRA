@@ -80,12 +80,28 @@ class CycleBudgetTests(unittest.TestCase):
                     }
                 )
             )
+            persistent_result = asyncio.run(
+                _do_cycle(
+                    {
+                        "action": "cycle",
+                        "intuition": "Test the persistent deadline.",
+                        "persistent_cycle": True,
+                        "cycle_timeout_seconds": 80,
+                        "cycle_return_buffer_seconds": 60,
+                    }
+                )
+            )
         self.assertEqual(result["status"], "PARTIAL")
         self.assertEqual(result["phase"], "translator")
         self.assertEqual(result["conjecture"], "A falsifiable conjecture.")
         checkpoint = Path(result["checkpoint"])
         self.assertTrue(checkpoint.exists())
         checkpoint.unlink()
+        self.assertEqual(persistent_result["status"], "PARTIAL")
+        self.assertEqual(persistent_result["phase"], "translator")
+        persistent_checkpoint = Path(persistent_result["checkpoint"])
+        self.assertTrue(persistent_checkpoint.exists())
+        persistent_checkpoint.unlink()
 
 
 class RuntimeResourceTests(unittest.TestCase):
@@ -146,6 +162,11 @@ class RuntimeResourceTests(unittest.TestCase):
         self.assertEqual(request["wait_for_cycle_slot_seconds"], 3600)
         self.assertTrue(request["persistent_cycle"])
         self.assertNotIn("cycle_timeout_seconds", request)
+
+    def test_persistent_runner_has_an_internal_response_buffer(self):
+        source = Path("astra_cycle_job_runner.py").read_text(encoding="utf-8")
+        self.assertIn('request["cycle_timeout_seconds"] = max_seconds', source)
+        self.assertIn('request.setdefault("cycle_return_buffer_seconds", 60)', source)
 
 
 if __name__ == "__main__":

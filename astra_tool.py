@@ -1012,10 +1012,11 @@ async def _do_cycle_impl(req: dict) -> dict:
     # --- Observabilidad: cronometro por fase + hitos al archivo de progreso.
     t_start = time.monotonic()
     timings = {}
-    cycle_wall = (
-        None
-        if req.get("persistent_cycle")
-        else req.get("cycle_timeout_seconds") or 1500
+    # Persistent runners supply their own hard ceiling.  Honour it here so
+    # CycleBudget can return a checkpointed PARTIAL result before the detached
+    # watchdog kills the process and turns useful progress into empty stdout.
+    cycle_wall = req.get("cycle_timeout_seconds") or (
+        None if req.get("persistent_cycle") else 1500
     )
     budget = CycleBudget(
         cycle_wall,

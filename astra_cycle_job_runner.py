@@ -65,9 +65,15 @@ def main(jobdir_text: str) -> int:
     meta = json.loads((jobdir / "job.json").read_text(encoding="utf-8"))
     request = json.loads((jobdir / "request.json").read_text(encoding="utf-8"))
     request["action"] = "cycle"
-    request.pop("cycle_timeout_seconds", None)
 
     max_seconds = int(meta.get("max_seconds") or 7200)
+    # A persistent cycle used to disable its inner budget completely.  The
+    # outer watchdog would then kill astra_tool at exactly max_seconds, often
+    # while a CLI phase was running, leaving no JSON result at all.  Give the
+    # deliberative pipeline the same ceiling and a response buffer, so it can
+    # emit PARTIAL plus its checkpoint before this runner intervenes.
+    request["cycle_timeout_seconds"] = max_seconds
+    request.setdefault("cycle_return_buffer_seconds", 60)
     stdout_path = jobdir / "stdout.log"
     stderr_path = jobdir / "stderr.log"
     started = time.time()
@@ -123,6 +129,7 @@ def main(jobdir_text: str) -> int:
             "status": "TIMEOUT",
             "error": f"Persistent cycle exceeded {max_seconds} seconds",
             "last_result": result,
+            "last_progress": _phase_progress(process.pid),
         }
     (jobdir / "result.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n",
