@@ -4,6 +4,7 @@ import asyncio
 import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,6 +97,13 @@ PROVIDERS = {
         "label": "agy / Antigravity CLI (reemplaza gemini_cli; OAuth Google, sin API)",
         "cli_bin": "agy",
     },
+    "muse_cli": {
+        "env": None,
+        "package": None,
+        "label": "Meta Muse Code (CLI via WSL, experimental)",
+        "cli_bin": "muse",
+        "wsl_bridge": True,
+    },
 }
 
 PHASES = {
@@ -156,17 +164,28 @@ def env_path() -> Path:
 
 def load_project_env() -> None:
     path = env_path()
+    trial_path = project_root() / "config" / "muse_trial.env"
+    trial_enabled = project_root() / "config" / "muse_trial.enabled"
     if load_dotenv is not None:
         load_dotenv(path)
+        if trial_enabled.is_file():
+            load_dotenv(trial_path, override=True)
         return
-    if not path.exists():
+    if path.exists():
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+    if not trial_enabled.is_file() or not trial_path.exists():
         return
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    for line in trial_path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+        os.environ[key.strip()] = value.strip().strip("\"'")
 
 
 def _set_env_key(key: str, value: str) -> None:
@@ -210,7 +229,7 @@ def configured_providers() -> list[str]:
     for provider, meta in PROVIDERS.items():
         if meta.get("cli_bin"):
             # Backend de suscripcion: disponible si el binario del CLI esta en PATH
-            if shutil.which(meta["cli_bin"]):
+            if _cli_available(meta):
                 providers.append(provider)
         elif meta["env"] is None:
             # ADC-based provider (Vertex AI) — available if SDK is installed
@@ -219,6 +238,24 @@ def configured_providers() -> list[str]:
         elif os.environ.get(meta["env"]):
             providers.append(provider)
     return providers
+
+
+def _cli_available(meta: dict) -> bool:
+    """Check native CLIs, plus the explicitly configured Muse WSL bridge."""
+    if not meta.get("wsl_bridge"):
+        return shutil.which(meta["cli_bin"]) is not None
+    distro = (os.environ.get("ASTRA_MUSE_WSL_DISTRO") or "Debian").strip()
+    if not shutil.which("wsl.exe"):
+        return False
+    try:
+        probe = subprocess.run(
+            ["wsl.exe", "-d", distro, "--", "bash", "-lc",
+             'export PATH="$HOME/.local/bin:$PATH"; muse --version'],
+            capture_output=True, text=True, timeout=10,
+        )
+        return probe.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def choose_default_provider() -> str:
@@ -422,9 +459,9 @@ def run_preflight(provider: str | None = None, verify_api: bool = True, phase_pr
             continue
         if meta.get("cli_bin"):
             # Backend de suscripcion: basta con que el binario del CLI exista
-            present = shutil.which(meta["cli_bin"]) is not None
+            present = _cli_available(meta)
             checks.append(Check(f"{meta['label']} CLI", present,
-                                f"{meta['cli_bin']} (headless)" if present else f"{meta['cli_bin']} NO en PATH"))
+                                f"{meta['cli_bin']} (headless)" if present else f"{meta['cli_bin']} unavailable"))
             continue
         if meta["env"] is None:
             # ADC-based provider — no key check, just confirm SDK is present

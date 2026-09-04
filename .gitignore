@@ -6,6 +6,7 @@ env/
 .env
 .env.*
 !.env.example
+config/muse_trial.enabled
 
 # Execution Workspace
 workspace/*.py

@@ -32,10 +32,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import signal
 import shutil
 import subprocess
 import tempfile
+from pathlib import PureWindowsPath
 from dataclasses import dataclass
 
 # Directorio de trabajo para el -C de codex (dir del proyecto/workspace).
@@ -262,8 +264,87 @@ def _agy_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
     return argv
 
 
+def _wsl_path(path: str) -> str:
+    """Map a local Windows path into its standard WSL mount without a shell."""
+    if os.name != "nt":
+        return path
+    parsed = PureWindowsPath(path)
+    drive = parsed.drive.rstrip(":").lower()
+    if not drive:
+        raise ValueError(f"Muse WSL bridge needs an absolute Windows path: {path}")
+    return "/mnt/" + drive + "/" + "/".join(parsed.parts[1:])
+
+
+def _muse_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
+    """Run Meta's Muse Code headlessly, with all ASTRA turns text-only.
+
+    ASTRA runs natively on Windows while Muse is installed in Debian/WSL.  The
+    prompt stays in a temporary file, so neither Windows nor WSL command-line
+    limits can truncate a scientific phase.  Muse receives no write, shell, or
+    web capability; every permitted input is already embedded in the prompt.
+
+    Three further guards, each measured on 2026-09-04 with `--provider echo`:
+
+    * ``--workspace`` is pinned to the per-call prompt directory.  Without it
+      Muse roots its policy-gated *read* tools at the process cwd, which for a
+      cycle is the whole ASTRA checkout (stderr: "workspace root:
+      /mnt/c/Users/Nelson/Dev/ASTRA (cwd default)").  With
+      ``--max-model-steps 1`` a single file read would end the run with an
+      empty reply, and the readable tree includes ``.env``.  The prompt
+      directory holds nothing but the prompt.
+    * ``--no-session-log --no-foreign-personal-context --approval-judge off``:
+      a headless scientific turn has no session to resume, no personal rules
+      to load and no tool call for a judge to review.  Dropping them took the
+      bridge overhead from ~2.2 s to ~1.1 s per call and stops every ASTRA
+      turn from persisting a session tree under ``~/.local/share/muse``.
+    * ``MUSE_NO_AUTO_UPDATE=1``: the launcher otherwise checks for and installs
+      a new CLI build every hour, so a 30-day trial pinned to one model id
+      would still drift across CLI versions.  The launcher honours this
+      variable explicitly.
+    """
+    effort = (os.environ.get("ASTRA_MUSE_REASONING", "high") or "high").strip().lower()
+    if effort not in {"none", "minimal", "low", "medium", "high", "xhigh", "ultra"}:
+        effort = "high"
+    args = ["--reasoning-effort", effort]
+    if model:
+        if not re.fullmatch(r"[A-Za-z0-9_.:/-]+", model):
+            raise ValueError("Muse model id contains unsupported characters")
+        args += ["--model", model]
+    # call_cli always hands over an absolute prompt path (mkdtemp-based), so
+    # the workspace is simply its directory; on Windows _wsl_path rejects a
+    # relative one anyway.
+    workspace = os.path.dirname(promptfile)
+    if os.name != "nt":
+        return [
+            "env", "MUSE_NO_AUTO_UPDATE=1",
+            (os.environ.get("ASTRA_MUSE_BIN") or "muse").strip() or "muse",
+            "exec", "--prompt-file", promptfile, "--workspace", workspace,
+            "--no-session-log", "--no-foreign-personal-context",
+            "--approval-judge", "off",
+            "--disable-write", "--disable-shell", "--disable-web-tools",
+            "--approval-mode", "never", "--max-model-steps", "1", *args,
+        ]
+
+    distro = (os.environ.get("ASTRA_MUSE_WSL_DISTRO") or "Debian").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", distro):
+        raise ValueError("ASTRA_MUSE_WSL_DISTRO contains unsupported characters")
+    # wsl.exe does not reliably preserve positional arguments after `bash -c`
+    # on this Windows build. The generated path/model values are validated or
+    # locally derived, then shell-quoted before becoming part of the script.
+    quoted_args = " ".join(shlex.quote(item) for item in args)
+    script = (
+        'export MUSE_NO_AUTO_UPDATE=1; export PATH="$HOME/.local/bin:$PATH"; '
+        f'exec muse exec --prompt-file {shlex.quote(_wsl_path(promptfile))} '
+        f'--workspace {shlex.quote(_wsl_path(workspace))} '
+        '--no-session-log --no-foreign-personal-context --approval-judge off '
+        '--disable-write --disable-shell --disable-web-tools '
+        f'--approval-mode never --max-model-steps 1 {quoted_args}'
+    )
+    return ["wsl.exe", "-d", distro, "--", "bash", "-lc", script]
+
+
 _BUILDERS = {"claude": _claude_argv, "codex": _codex_builder, "gemini": _ps_gemini,
-             "agy": _agy_argv}
+             "agy": _agy_argv, "muse": _muse_argv}
 
 
 def _parse_claude(stdout: str, _outfile: str) -> tuple[str, float]:
@@ -337,8 +418,15 @@ def _parse_agy(stdout: str, _outfile: str) -> tuple[str, float]:
     return s, 0.0
 
 
+def _parse_muse(stdout: str, _outfile: str) -> tuple[str, float]:
+    s = (stdout or "").strip()
+    if not s:
+        raise RuntimeError("muse devolvio salida vacia (posible login, cuota o facturacion)")
+    return s, 0.0
+
+
 _PARSERS = {"claude": _parse_claude, "codex": _parse_codex, "gemini": _parse_gemini,
-            "agy": _parse_agy}
+            "agy": _parse_agy, "muse": _parse_muse}
 
 
 # --- Escalera de fallback por cuota -------------------------------------------
@@ -355,11 +443,20 @@ _PARSERS = {"claude": _parse_claude, "codex": _parse_codex, "gemini": _parse_gem
 # en "reached your ... limit" ni en "usage limit": la escalera rompia en el
 # primer peldano creyendo que era un error real, sin llegar a probar el
 # siguiente modelo ni emitir el diagnostico de cuota agotada.
+#
+# Meta's Muse Code words an exhausted or unpaid account differently again:
+# "Muse Code requires a payment method" (observed 2026-09-03 during login),
+# and the Model API side reports billing / insufficient credits. None of those
+# matched, so a Muse account running dry would have read as a real bug rather
+# than as quota, and the ensemble would have lost the classification that
+# tells a caller which proposer to top up.
 _QUOTA_PAT = re.compile(
     r"((?:reached|hit) your .{0,40}?limit|limit reached|weekly limit|"
     r"usage limit|plan limit|usage-credits|rate.?limit|quota|"
     r"too many requests|overloaded|credit balance|resource.?exhausted|"
-    r"\b429\b|tope de cuota)",
+    r"\b429\b|tope de cuota|"
+    r"requires? a payment method|payment method (?:is )?required|"
+    r"\bbilling\b|insufficient credits?)",
     re.IGNORECASE)
 
 
@@ -450,6 +547,22 @@ def _dump_failure(kind: str, cmd, model, proc) -> None:
             }, f, ensure_ascii=False, indent=1)
     except Exception:
         pass
+
+
+def _cli_temp_root(workspace: str) -> str:
+    """Return an ASTRA-owned temporary directory for subscription CLI turns.
+
+    Windows service/MCP hosts can inherit a ``TEMP`` or ``TMP`` directory that
+    is readable but not writable by the child identity.  Calling
+    ``tempfile.mkdtemp()`` without ``dir=`` then raises WinError 5 before a
+    deliberative review ever reaches its model.  Keep prompt and output files
+    below the selected ASTRA workspace instead.  This path is also mounted in
+    Debian/WSL, so the Muse bridge can consume the same prompt file.
+    """
+    configured = (os.environ.get("ASTRA_CLI_TEMP_ROOT") or "").strip().strip("'\"")
+    root = configured or os.path.join(workspace, "cli_tmp")
+    os.makedirs(root, exist_ok=True)
+    return root
 
 
 def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
@@ -597,11 +710,21 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
     for k, v in (env_extra or {}).items():
         env[k] = str(v)
 
-    tmpdir = tempfile.mkdtemp(prefix="astra_cli_")
-    promptfile = os.path.join(tmpdir, "prompt.txt")
-    outfile = os.path.join(tmpdir, "codex_out.txt")
-    with open(promptfile, "w", encoding="utf-8") as f:
-        f.write(prompt)
+    try:
+        tmpdir = tempfile.mkdtemp(prefix="astra_cli_", dir=_cli_temp_root(ws))
+        promptfile = os.path.join(tmpdir, "prompt.txt")
+        outfile = os.path.join(tmpdir, "codex_out.txt")
+        with open(promptfile, "w", encoding="utf-8") as f:
+            f.write(prompt)
+    except OSError as exc:
+        return CliResult(
+            False,
+            error=(
+                "No se pudo crear el temporal de la fase CLI en el espacio de "
+                f"trabajo de ASTRA: {type(exc).__name__}: {exc}"
+            ),
+            account_profile=account_profile,
+        )
 
     ladder = _model_ladder(kind, model, models)
     fallidos = []   # [(etiqueta, error), ...] peldanos que no respondieron

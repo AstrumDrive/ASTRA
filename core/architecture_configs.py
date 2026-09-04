@@ -13,6 +13,16 @@ ARCHITECTURE_ROLES: dict[str, dict[str, Any]] = {
         "reviewer": "codex_cli",
         "repairer": "claude_cli",
     },
+    # Time-bounded local trial. Muse is an additional independent proposer and
+    # critic only; the production validator and analysis roles do not change.
+    "muse-trial": {
+        "proposers": ["codex_cli", "agy_cli", "muse_cli"],
+        "synthesizer": "codex_cli",
+        "author": "claude_cli",
+        "reviewer": "codex_cli",
+        "repairer": "claude_cli",
+        "navigator": "agy_cli",
+    },
     "codex-only": {
         "proposers": ["codex_cli", "codex_cli"],
         "synthesizer": "codex_cli",
@@ -108,7 +118,9 @@ def architecture_environment(
             "ASTRA_TRANSLATOR_PROVIDER": roles["author"],
             "ASTRA_REVIEWER_PROVIDER": roles["reviewer"],
             "ASTRA_ANALYST_PROVIDER": roles["reviewer"],
-            "ASTRA_NAVIGATOR_PROVIDER": roles["proposers"][-1],
+            "ASTRA_NAVIGATOR_PROVIDER": roles.get(
+                "navigator", roles["proposers"][-1]
+            ),
             "ASTRA_SYNTH_PROVIDER": roles["synthesizer"],
             "ASTRA_CYCLE_CACHE": "0",
         }

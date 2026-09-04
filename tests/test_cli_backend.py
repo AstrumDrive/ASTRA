@@ -1,15 +1,19 @@
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from core.cli_backend import (
+    CliResult,
     _agy_argv,
     _claude_argv,
     _codex_builder,
     _is_quota_error,
     _kill_tree,
     _model_ladder,
+    _muse_argv,
+    call_cli,
 )
 
 
@@ -28,6 +32,12 @@ class CliBackendTests(unittest.TestCase):
             "5-hour limit reached",
             "rate limit exceeded",
             "429 Too Many Requests",
+            # Meta Muse Code wordings, observed 2026-09-03 during login; the
+            # Model API side reports billing / insufficient credits.
+            "Muse Code requires a payment method",
+            "Payment method required to continue",
+            "Billing error: account has no active plan",
+            "insufficient credits for this request",
         ):
             with self.subTest(message=message):
                 self.assertTrue(_is_quota_error(message))
@@ -37,6 +47,10 @@ class CliBackendTests(unittest.TestCase):
             "exit 1: ModuleNotFoundError: No module named 'sympy'",
             "parseo fallo: JSONDecodeError: Expecting value",
             "perfil de cuenta claude invalido: home inexistente",
+            # The one real Muse bridge failure on record
+            # (workspace/cli_failures/20260903_010424_muse.json): a bug, not
+            # quota, and it must keep reading as one.
+            "exit 1: failed to read --prompt-file : No such file or directory (os error 2)",
         ):
             with self.subTest(message=message):
                 self.assertFalse(_is_quota_error(message))
@@ -124,6 +138,65 @@ class CliBackendTests(unittest.TestCase):
         self.assertNotIn("powershell", command["argv"])
         self.assertIn('model_reasoning_effort="xhigh"', command["argv"])
         self.assertEqual(command["argv"][-1], "-")
+
+    def test_muse_windows_bridge_uses_wsl_prompt_file_and_disables_tools(self):
+        with patch("core.cli_backend.os.name", "nt"), patch.dict(
+            os.environ,
+            {"ASTRA_MUSE_WSL_DISTRO": "Debian", "ASTRA_MUSE_REASONING": "high"},
+            clear=False,
+        ):
+            argv = _muse_argv(
+                "C:\\Users\\Nelson\\Dev\\ASTRA\\workspace\\prompt.txt",
+                "muse-spark-1.3", "", "",
+            )
+        self.assertEqual(argv[:3], ["wsl.exe", "-d", "Debian"])
+        script = argv[6]
+        self.assertIn("/mnt/c/Users/Nelson/Dev/ASTRA/workspace/prompt.txt", script)
+        self.assertIn("--disable-write", script)
+        self.assertIn("--disable-shell", script)
+        self.assertIn("--disable-web-tools", script)
+        self.assertIn("muse-spark-1.3", script)
+        # Read tools stay rooted at the prompt's own directory, never at the
+        # ASTRA checkout that the cycle runs from (which contains .env).
+        self.assertIn("--workspace /mnt/c/Users/Nelson/Dev/ASTRA/workspace ", script)
+        self.assertNotIn("--workspace /mnt/c/Users/Nelson/Dev/ASTRA ", script)
+        for flag in (
+            "--no-session-log",
+            "--no-foreign-personal-context",
+            "--approval-judge off",
+        ):
+            self.assertIn(flag, script)
+        # The launcher's hourly self-update is disabled before it ever runs,
+        # so the CLI build cannot drift under a trial pinned to one model.
+        self.assertTrue(script.startswith("export MUSE_NO_AUTO_UPDATE=1; "))
+
+    def test_muse_posix_bridge_pins_workspace_and_disables_auto_update(self):
+        with patch("core.cli_backend.os.name", "posix"), patch.dict(
+            os.environ, {"ASTRA_MUSE_REASONING": "high", "ASTRA_MUSE_BIN": ""},
+            clear=False,
+        ):
+            argv = _muse_argv("/tmp/astra_cli_abc/prompt.txt", "muse-spark-1.3", "", "")
+        self.assertEqual(argv[:3], ["env", "MUSE_NO_AUTO_UPDATE=1", "muse"])
+        self.assertEqual(argv[argv.index("--workspace") + 1], "/tmp/astra_cli_abc")
+        self.assertEqual(argv[argv.index("--approval-judge") + 1], "off")
+        for flag in ("--no-session-log", "--no-foreign-personal-context",
+                     "--disable-write", "--disable-shell", "--disable-web-tools"):
+            self.assertIn(flag, argv)
+        self.assertEqual(argv[argv.index("--max-model-steps") + 1], "1")
+        self.assertEqual(argv[argv.index("--model") + 1], "muse-spark-1.3")
+
+    def test_cli_turn_uses_workspace_owned_temporaries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = str(Path(temporary) / "work")
+            with patch(
+                "core.cli_backend._invoke_once",
+                return_value=CliResult(True, text="READY"),
+            ) as invoke:
+                result = call_cli("claude", "test prompt", workspace=workspace)
+        self.assertTrue(result.ok)
+        promptfile = Path(invoke.call_args.args[1])
+        self.assertEqual(promptfile.parent.parent, Path(workspace) / "cli_tmp")
+        self.assertEqual(promptfile.name, "prompt.txt")
 
     def test_posix_timeout_kills_the_process_group(self):
         with patch("core.cli_backend.os.name", "posix"), patch(

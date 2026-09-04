@@ -184,7 +184,7 @@ class ASTRAIntelligence:
             except ImportError:
                 logger.error("Gemini SDK not installed. Run: pip install google-genai")
 
-        elif self.provider in ("claude_cli", "codex_cli", "gemini_cli", "agy_cli"):
+        elif self.provider in ("claude_cli", "codex_cli", "gemini_cli", "agy_cli", "muse_cli"):
             # Backend de SUSCRIPCION: usa los CLIs oficiales (Claude Code / Codex /
             # Gemini CLI / agy=Antigravity) en modo headless. NO usa API de pago ->
             # no requiere API key. (gemini_cli/agy = OAuth de suscripcion, cuota de la
@@ -192,7 +192,8 @@ class ASTRAIntelligence:
             # GEMINI_API_KEY. agy SUSTITUYE a gemini_cli, descontinuado para cuentas
             # individuales.)
             self.cli_kind = {"claude_cli": "claude", "codex_cli": "codex",
-                             "gemini_cli": "gemini", "agy_cli": "agy"}[self.provider]
+                             "gemini_cli": "gemini", "agy_cli": "agy",
+                             "muse_cli": "muse"}[self.provider]
             self.api_key = "CLI_SUBSCRIPTION"   # marca "modo real" (evita SIMULATED)
             self.client = "CLI"
 

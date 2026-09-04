@@ -43,6 +43,44 @@ provider without storing credentials in Git. See
 profile change while a deliberative cycle is active and records the profile
 label used by every phase.
 
+### Controlled Muse Code trial
+
+Meta Muse Code is available on this Windows workstation through Debian/WSL as
+the opt-in provider `muse_cli`. The local `muse-trial` profile adds it as a
+third, independent proposer and cross-critic. Codex continues to synthesize,
+review, and analyze; Claude continues to author and repair validators; agy
+continues to navigate. The bridge invokes `muse exec` with workspace writes,
+shell execution, and web tools disabled, with its workspace pinned to the
+per-call prompt directory (so Muse's read tools never see the ASTRA checkout
+or `.env`), with session logging, personal context and the approval judge
+off, and with the launcher's hourly auto-update disabled
+(`MUSE_NO_AUTO_UPDATE=1`) so the CLI build stays fixed for the trial.
+
+The trial is a local overlay, not a committed production default. Enable it:
+
+```powershell
+.\scripts\enable_muse_trial.ps1
+```
+
+Remove it and recover the preceding `.env` configuration exactly:
+
+```powershell
+.\scripts\disable_muse_trial.ps1
+```
+
+The profile uses these non-secret settings:
+
+```text
+ASTRA_MUSE_WSL_DISTRO=Debian
+ASTRA_MUSE_MODELS=muse-spark-1.3
+ASTRA_MUSE_REASONING=high
+```
+
+Muse credentials remain in its WSL provider directory, never in `.env`, the
+trial overlay, or Git. Run `astra_doctor.py` and the architecture audit after
+enabling the profile; the latter recognizes `muse-trial` as an intentional,
+time-bounded topology.
+
 The browser UI, MCP server, and subprocess CLI all dispatch the same canonical
 guarded cycle. Run the non-secret architecture contract whenever providers,
 models, or orchestration are changed:
