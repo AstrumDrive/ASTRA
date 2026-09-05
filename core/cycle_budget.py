@@ -54,8 +54,18 @@ class CycleBudget:
         *,
         default_seconds: int = 240,
         minimum_seconds: int = 1,
+        share: Optional[float] = None,
+        reserve_seconds: float = 0.0,
     ) -> int:
-        """Return a timeout that cannot consume the final response buffer."""
+        """Return a timeout that cannot consume the final response buffer.
+
+        ``reserve_seconds`` holds budget back for the phases that still have to
+        run AFTER this one, so a review/repair round is not started when what
+        remains cannot also fund the tail (execute/analyze/navigate) or a
+        follow-up repair.  ``share`` optionally caps the call at that fraction
+        of the remaining usable budget.  Both default to no-op, so omitting
+        them reproduces the historical clamp exactly.
+        """
         try:
             requested = int(requested_seconds or default_seconds)
         except (TypeError, ValueError):
@@ -64,7 +74,19 @@ class CycleBudget:
         usable = self.usable_seconds
         if usable is None:
             return requested
-        return max(int(minimum_seconds), min(requested, int(math.floor(usable))))
+        try:
+            reserve = max(0.0, float(reserve_seconds or 0.0))
+        except (TypeError, ValueError):
+            reserve = 0.0
+        allowed = max(float(minimum_seconds), float(usable) - reserve)
+        if share is not None:
+            try:
+                fraction = float(share)
+            except (TypeError, ValueError):
+                fraction = 1.0
+            if 0.0 < fraction < 1.0:
+                allowed = min(allowed, usable * fraction)
+        return max(int(minimum_seconds), min(requested, int(math.floor(allowed))))
 
     def can_start(self, minimum_seconds: float = 5.0) -> bool:
         usable = self.usable_seconds

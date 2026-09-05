@@ -101,7 +101,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test quality escalation.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 1500,
                 }
             )
 
@@ -208,7 +208,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test rejected patch regeneration.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 1500,
                 }
             )
 
@@ -440,7 +440,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test author quota failure during regeneration.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 1500,
                 }
             )
 
@@ -557,7 +557,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "action": "cycle",
                     "intuition": "Test author quota failure during bounded patch.",
-                    "cycle_timeout_seconds": 120,
+                    "cycle_timeout_seconds": 1500,
                 }
             )
 

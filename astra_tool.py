@@ -709,6 +709,71 @@ _MERGE_SYSTEM = (
 _ANALYST_RANK = {"REFUTED": 4, "CODE_ERROR": 3, "WEAK_PASS": 2, "VALIDATED": 1}
 
 
+# Budget-aware review/repair loop (ported from ASTRA 2.0, 2026-09-05).
+#
+# The review loop used to run until ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS with
+# no check on the remaining wall.  On a hard case the reviewer correctly
+# rejects a defective validator up to the cap; each rejected round is another
+# review + repair, and with nothing watching the budget the cycle blew past the
+# 1500 s wall and the outer watchdog hard-killed it -> PARTIAL, no
+# certification, wall wasted.  Measured over the recent codex+agy history (all
+# the way back to 30-jul), that overflow is the single most common failure.
+#
+# The fix does NOT relax the reviewer (the rejections are genuine: undefined
+# names, hard-coded PASS, tautological self-comparisons, sampling-as-proof).
+# It makes the loop STOP CLEAN when what remains cannot fund another
+# review + repair + tail, returning a clear "budget exhausted" with the last
+# real source preserved, instead of a wall-busting hard kill.
+#
+# Reserves are measured from ASTRA 1's own cycle_checkpoints, kept low on
+# purpose (over-reserving would clean-fail cycles that would have finished):
+#   tail (execute+analyze+navigate)  p90 ~= 157 s   -> TRANSLATOR_REPAIR = 160
+#   repair (translate_patch)         p50 ~= 212 s   -> REVIEWER = 280 (repair
+#                                                       + tail at the median)
+# Both are env-overridable so they can be tuned from live runs without a code
+# change; they are validated by the next runs, not asserted to be final.
+PHASE_MIN_USEFUL_SECONDS = 45
+
+
+def _reserve_seconds(phase: str, default: int) -> int:
+    raw = (os.environ.get(f"ASTRA_{phase}_DOWNSTREAM_RESERVE") or "").strip().strip("'\"")
+    try:
+        return max(0, int(raw)) if raw else default
+    except ValueError:
+        return default
+
+
+def _phase_downstream_reserve(phase: str) -> int:
+    """Seconds held back for whatever must still run after ``phase``."""
+    return _reserve_seconds(phase, {"REVIEWER": 280, "TRANSLATOR_REPAIR": 160}.get(phase, 0))
+
+
+def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> int:
+    """Seconds to hold back for whatever can still run after THIS review round.
+
+    With revisions remaining, a repair may follow and must be funded, so
+    reserve for repair + tail (REVIEWER).  With the revision budget spent, only
+    the tail can follow, so reserve for that alone (TRANSLATOR_REPAIR).  And if
+    what is usable is already below the repair-follows reserve, a repair could
+    not be afforded even if permitted, so treat the round as terminal rather
+    than refuse a review the cycle can still run -- the repair (if reached)
+    meets its own guard then.
+    """
+    if model_revisions >= max_revisions:
+        return _phase_downstream_reserve("TRANSLATOR_REPAIR")
+    full_reserve = _phase_downstream_reserve("REVIEWER")
+    usable = getattr(budget, "usable_seconds", None)
+    # Downgrade to the tail reserve whenever keeping the full repair+tail
+    # reserve would itself starve the review -- not only when usable is below
+    # the full reserve. Otherwise a cycle with slightly MORE budget (usable in
+    # [full_reserve, full_reserve+min_useful)) would refuse a review that, run
+    # as a terminal round, would have fit and could have APPROVED, while a
+    # cycle with LESS budget runs it. Closes that non-monotonic band.
+    if usable is not None and (usable - full_reserve) < PHASE_MIN_USEFUL_SECONDS:
+        return _phase_downstream_reserve("TRANSLATOR_REPAIR")
+    return full_reserve
+
+
 def _phase_providers(phase_key, default):
     """Proveedores de una fase. ASTRA_<PHASE>_PROVIDER puede ser una LISTA (comas)
     = ensemble; un solo valor = lineal. Vacio -> [default] (phase_provider_map)."""
@@ -1096,15 +1161,36 @@ async def _do_cycle_impl(req: dict) -> dict:
         except ValueError:
             return 240
 
-    def _phase_timeout(phase):
+    def _phase_timeout(phase, reserve=None):
         return budget.phase_timeout(
             _configured_phase_timeout(phase),
             default_seconds=240,
+            reserve_seconds=(
+                _phase_downstream_reserve(phase) if reserve is None else reserve
+            ),
         )
 
-    def _prepare_agent(agent, phase):
-        agent.cli_timeout = _phase_timeout(phase)
+    def _prepare_agent(agent, phase, reserve=None):
+        agent.cli_timeout = _phase_timeout(phase, reserve)
         return agent.cli_timeout
+
+    def _phase_starved(phase, reserve=None):
+        """True when what is left cannot fund a call worth making."""
+        return _phase_timeout(phase, reserve) < PHASE_MIN_USEFUL_SECONDS
+
+    def _starved_error(what, phase, reserve=None):
+        snap = budget.snapshot()
+        # "time budget" is the phrase _fail keys on to classify this as a
+        # deadline-limited PARTIAL (an honest "ran out of wall" outcome with
+        # the last real source preserved), not a TOOL_ERROR (infra fault).
+        return (
+            f"Cycle budget exhausted before {what}: the phase would get "
+            f"{_phase_timeout(phase, reserve)}s of time budget, below the "
+            f"{PHASE_MIN_USEFUL_SECONDS}s a call needs to be worth making "
+            f"({snap.get('remaining_seconds')}s remain of "
+            f"{snap.get('total_seconds')}s, minus what is reserved for the "
+            "phases still ahead)."
+        )
 
     conj = ASTRAIntelligence(provider=pmap["conjecture"],
                              cli_models=_phase_models("CONJECTURE"),
@@ -1315,7 +1401,27 @@ async def _do_cycle_impl(req: dict) -> dict:
         model_revisions = 0
         review_round = 0
         seen_code = set()
+        last_review = {
+            "status": "INCONCLUSIVE",
+            "reasoning": "No review round completed.",
+            "revision_instructions": "",
+            "coverage": [],
+        }
         while True:
+            # Budget guard: what must be held back depends on what can still
+            # follow THIS round (a repair if revisions remain, else only the
+            # tail). If there is not enough usable wall to make the review
+            # worth starting, stop clean with the last real source preserved
+            # instead of running a round that would blow the wall -> PARTIAL.
+            review_reserve = review_round_reserve(
+                model_revisions, max_revisions, budget
+            )
+            if _phase_starved("REVIEWER", review_reserve):
+                return (
+                    current_code,
+                    last_review,
+                    _starved_error("independent review", "REVIEWER", review_reserve),
+                )
             code_sha = hashlib.sha256(current_code.encode("utf-8")).hexdigest()
             _progress(
                 "review",
@@ -1370,7 +1476,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 if preflight.get("status") != "APPROVED":
                     review = preflight_as_review(preflight)
                 else:
-                    _prepare_agent(reviewer, "REVIEWER")
+                    _prepare_agent(reviewer, "REVIEWER", review_reserve)
                     review = await reviewer.review_validation_code(
                         shared_goal=shared_goal,
                         conjecture=conjecture_text,
@@ -1379,7 +1485,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     )
                     review["source"] = "model_reviewer"
             else:
-                _prepare_agent(reviewer, "REVIEWER")
+                _prepare_agent(reviewer, "REVIEWER", review_reserve)
                 review = await reviewer.review_validation_code(
                     shared_goal=shared_goal,
                     conjecture=conjecture_text,
@@ -1387,6 +1493,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 )
                 review["source"] = "model_reviewer"
             _mark("review", t0)
+            last_review = review
             review_history.append(
                 {
                     **dict(review),
@@ -1440,6 +1547,16 @@ async def _do_cycle_impl(req: dict) -> dict:
                     "operation completed",
                 }
             )
+            # Budget guard before the repair: the repair call (patch or full
+            # regeneration) plus the tail must still fit, or stop clean with
+            # the last real source instead of starting a repair that would
+            # blow the wall -> PARTIAL.
+            repair_reserve = _phase_downstream_reserve("TRANSLATOR_REPAIR")
+            if _phase_starved("TRANSLATOR", repair_reserve):
+                review_failure_phase["phase"] = "translator"
+                return current_code, review, _starved_error(
+                    "validator repair", "TRANSLATOR", repair_reserve
+                )
             if validator_repair_vnext1 and not requires_regeneration:
                 current_code, patch_error = await _request_model_patch(
                     current_code,
@@ -1460,6 +1577,18 @@ async def _do_cycle_impl(req: dict) -> dict:
                     # not a terminal tool failure: regenerate once with the
                     # already quality-escalated author, then re-run preflight and
                     # independent review inside the same revision budget.
+                    #
+                    # _request_model_patch is itself an uncapped model call that
+                    # can burn most of what was left before returning
+                    # patch_error, so re-check the budget here: otherwise this
+                    # fallback regeneration is handed the scraps and dies at
+                    # "timeout tras 1s", which reads as a hung model rather than
+                    # an exhausted cycle.
+                    if _phase_starved("TRANSLATOR", repair_reserve):
+                        review_failure_phase["phase"] = "translator"
+                        return current_code, review, _starved_error(
+                            "validator repair regeneration", "TRANSLATOR", repair_reserve
+                        )
                     _progress(
                         "review_regeneration",
                         reason=patch_error[:500],
