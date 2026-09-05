@@ -13,6 +13,7 @@ from core.architecture_configs import architecture_roles
 ARCHITECTURE_ID = "astra-compact-three-agent-v2"
 QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
 MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
+QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
 MUSE_TRIAL_MODEL = "muse-spark-1.3"
 CACHE_SCHEMA_VERSION = "4"
 
@@ -64,6 +65,8 @@ def production_manifest(
         if profile == "quota-optimized"
         else "muse-trial"
         if profile == "muse-trial"
+        else "quota-relief"
+        if profile == "quota-relief"
         else "full"
     )
     full = architecture_roles(role_profile)
@@ -141,6 +144,8 @@ def production_manifest(
             if profile == "quota-optimized"
             else MUSE_TRIAL_ARCHITECTURE_ID
             if profile == "muse-trial"
+            else QUOTA_RELIEF_ARCHITECTURE_ID
+            if profile == "quota-relief"
             else ARCHITECTURE_ID
         ),
         "profile": profile,
@@ -234,12 +239,14 @@ def audit_production_architecture(
     source = os.environ if env is None else env
     manifest = production_manifest(source)
     profile = manifest["profile"]
-    known_profile = profile in {"full", "quota-optimized", "muse-trial"}
+    known_profile = profile in {"full", "quota-optimized", "muse-trial", "quota-relief"}
     expected = architecture_roles(
         "no-ensemble"
         if profile == "quota-optimized"
         else "muse-trial"
         if profile == "muse-trial"
+        else "quota-relief"
+        if profile == "quota-relief"
         else "full"
     )
     expected_roles = {
@@ -275,7 +282,7 @@ def audit_production_architecture(
         "architecture_profile",
         known_profile,
         profile,
-        "full, quota-optimized, or muse-trial",
+        "full, quota-optimized, muse-trial, or quota-relief",
     )
     add(
         "production_role_map",
@@ -302,7 +309,11 @@ def audit_production_architecture(
     expected_effective = {
         "codex_proposer": EXPECTED_PRIMARY_MODELS["codex_cli"],
         "agy_proposer": EXPECTED_PRIMARY_MODELS["agy_cli"],
-        "synthesizer": EXPECTED_PRIMARY_MODELS["codex_cli"],
+        "synthesizer": (
+            EXPECTED_PRIMARY_MODELS["agy_cli"]
+            if profile == "quota-relief"
+            else EXPECTED_PRIMARY_MODELS["codex_cli"]
+        ),
         "author": (
             "sonnet"
             if profile == "quota-optimized"

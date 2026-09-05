@@ -23,6 +23,18 @@ ARCHITECTURE_ROLES: dict[str, dict[str, Any]] = {
         "repairer": "claude_cli",
         "navigator": "agy_cli",
     },
+    # Opt-in codex quota relief. Identical to ``full`` except the SYNTHESIZER
+    # moves off the (weekly-limited) codex account to agy, whose quota is a
+    # separate pool. The anti-cheat REVIEWER gate and the ANALYST verdict stay
+    # on codex, and codex remains a proposer -- so the science-critical roles
+    # are unchanged; only the conjecture-merge step is reassigned.
+    "quota-relief": {
+        "proposers": ["codex_cli", "agy_cli"],
+        "synthesizer": "agy_cli",
+        "author": "claude_cli",
+        "reviewer": "codex_cli",
+        "repairer": "claude_cli",
+    },
     "codex-only": {
         "proposers": ["codex_cli", "codex_cli"],
         "synthesizer": "codex_cli",

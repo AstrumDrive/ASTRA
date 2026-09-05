@@ -162,14 +162,39 @@ def env_path() -> Path:
     return project_root() / ".env"
 
 
+# Opt-in, reversible config overlays. Each is loaded (with override) only while
+# its config/<name>.enabled marker exists, so it can be toggled without editing
+# .env. They are mutually exclusive -- each sets ASTRA_ARCHITECTURE_PROFILE --
+# so enable at most one at a time.
+_ENV_OVERLAYS = ("muse_trial", "quota_relief")
+
+
+def _enabled_overlays():
+    root = project_root() / "config"
+    enabled = [name for name in _ENV_OVERLAYS if (root / f"{name}.enabled").is_file()]
+    # The overlays are mutually exclusive (each sets ASTRA_ARCHITECTURE_PROFILE).
+    # The enable scripts refuse to create a second marker, but if two ever
+    # coexist, load NONE and fall back to the base .env -- a valid audited
+    # config -- rather than merge them in a list-order-dependent way that could
+    # otherwise resolve to a self-consistent-but-wrong profile.
+    if len(enabled) > 1:
+        print(
+            f"[preflight] refusing to load conflicting config overlays "
+            f"{enabled}; using base .env. Disable all but one.",
+            file=sys.stderr,
+        )
+        return []
+    return [root / f"{name}.env" for name in enabled]
+
+
 def load_project_env() -> None:
     path = env_path()
-    trial_path = project_root() / "config" / "muse_trial.env"
-    trial_enabled = project_root() / "config" / "muse_trial.enabled"
+    overlays = _enabled_overlays()
     if load_dotenv is not None:
         load_dotenv(path)
-        if trial_enabled.is_file():
-            load_dotenv(trial_path, override=True)
+        for overlay in overlays:
+            if overlay.is_file():
+                load_dotenv(overlay, override=True)
         return
     if path.exists():
         for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -178,14 +203,15 @@ def load_project_env() -> None:
                 continue
             key, value = line.split("=", 1)
             os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
-    if not trial_enabled.is_file() or not trial_path.exists():
-        return
-    for line in trial_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for overlay in overlays:
+        if not overlay.is_file():
             continue
-        key, value = line.split("=", 1)
-        os.environ[key.strip()] = value.strip().strip("\"'")
+        for line in overlay.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ[key.strip()] = value.strip().strip("\"'")
 
 
 def _set_env_key(key: str, value: str) -> None:

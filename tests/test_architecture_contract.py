@@ -78,6 +78,88 @@ class ArchitectureContractTests(unittest.TestCase):
             ["codex_cli", "agy_cli", "muse_cli"],
         )
 
+    def test_quota_relief_profile_passes_its_explicit_contract(self):
+        # Opt-in codex quota relief: synthesizer moves to agy, everything else
+        # stays. The contract must accept synthesizer=agy_cli (and its agy
+        # effective model) under this profile, and only under it.
+        env = self.canonical_environment()
+        env.update(
+            {
+                "ASTRA_ARCHITECTURE_PROFILE": "quota-relief",
+                "ASTRA_SYNTH_PROVIDER": "agy_cli",
+            }
+        )
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertEqual(audit["status"], "PASS", audit["required_failures"])
+        self.assertEqual(audit["manifest"]["profile"], "quota-relief")
+        self.assertEqual(
+            audit["manifest"]["architecture_id"], "astra-quota-relief-v1"
+        )
+        self.assertEqual(audit["manifest"]["roles"]["synthesizer"], "agy_cli")
+        # the gate and the verdict stay on codex
+        self.assertEqual(audit["manifest"]["roles"]["reviewer"], "codex_cli")
+        self.assertEqual(audit["manifest"]["roles"]["analyst"], "codex_cli")
+        self.assertEqual(audit["required_failures"], [])
+
+    def test_synth_on_agy_fails_under_full_profile(self):
+        # The relief must be gated by the profile: moving the synthesizer to
+        # agy without declaring quota-relief is role drift and fails closed.
+        env = self.canonical_environment()
+        env["ASTRA_SYNTH_PROVIDER"] = "agy_cli"
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertEqual(audit["status"], "FAIL")
+        self.assertIn("production_role_map", audit["required_failures"])
+
+    def test_quota_relief_still_requires_codex_reviewer(self):
+        # Even under quota-relief, moving the anti-cheat reviewer off codex is
+        # role drift and fails closed.
+        env = self.canonical_environment()
+        env.update(
+            {
+                "ASTRA_ARCHITECTURE_PROFILE": "quota-relief",
+                "ASTRA_SYNTH_PROVIDER": "agy_cli",
+                "ASTRA_REVIEWER_PROVIDER": "agy_cli",
+            }
+        )
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertEqual(audit["status"], "FAIL")
+        self.assertIn("production_role_map", audit["required_failures"])
+
+    def test_quota_relief_still_pins_analyst_and_author(self):
+        # Only the synthesizer moves. Drifting the verdict (analyst) or the
+        # validator author under quota-relief still fails closed.
+        for key, value in (
+            ("ASTRA_ANALYST_PROVIDER", "agy_cli"),
+            ("ASTRA_TRANSLATOR_PROVIDER", "codex_cli"),
+        ):
+            with self.subTest(drift=key):
+                env = self.canonical_environment()
+                env.update(
+                    {
+                        "ASTRA_ARCHITECTURE_PROFILE": "quota-relief",
+                        "ASTRA_SYNTH_PROVIDER": "agy_cli",
+                        key: value,
+                    }
+                )
+                audit = audit_production_architecture(env, check_binaries=False)
+                self.assertEqual(audit["status"], "FAIL")
+                self.assertIn("production_role_map", audit["required_failures"])
+
+    def test_quota_relief_synth_cannot_degrade_to_a_weaker_model(self):
+        # The de-risked role still cannot silently synthesize on a fallback:
+        # a weaker synth primary fails the effective-model check.
+        env = self.canonical_environment()
+        env.update(
+            {
+                "ASTRA_ARCHITECTURE_PROFILE": "quota-relief",
+                "ASTRA_SYNTH_PROVIDER": "agy_cli",
+                "ASTRA_SYNTH_MODELS": "gemini-3.5-flash-high",
+            }
+        )
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertEqual(audit["status"], "FAIL")
+        self.assertIn("synthesizer_effective_model", audit["required_failures"])
+
     def test_role_drift_fails_closed(self):
         env = self.canonical_environment()
         env["ASTRA_TRANSLATOR_PROVIDER"] = "codex_cli"
