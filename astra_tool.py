@@ -774,6 +774,95 @@ def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> in
     return full_reserve
 
 
+# MAX mode (2026-09-05): one deliberate cycle that uses each CLI's TOP model at
+# max reasoning, with NO fallback to a cheaper rung, and enough per-call time
+# and wall for those slow models to finish and certify instead of being killed
+# at their ceiling (the heavy-model-timeout blocker: gpt-5.6-sol at 240s,
+# opus at 720s). The default ladder already tries the top model FIRST but
+# degrades to sonnet/gpt-5.5/flash on quota or timeout; MAX refuses to degrade
+# and buys the top model the time to succeed.
+#
+# Triggered per request (req["max_mode"] = True), NEVER persisted: astra_tool
+# runs one action per process, so these os.environ overrides die with the
+# cycle and revert on the next one unless requested again. The top-model ids
+# are constants (update when a provider ships a new top model).
+#
+# MAX deliberately does NOT set the cycle wall: the wall is the caller's
+# deadline (astra_cycle's timeout, astra_cycle_submit's max_seconds). Setting
+# a wall higher than the real kill deadline would desync the budget guard from
+# the watchdog and reintroduce the wall-bust. Because the top models are slow,
+# MAX is meant to be SUBMITTED with a large max_seconds
+# (astra_cycle_submit max_mode=True max_seconds=7200) rather than run
+# synchronously; an interactive MAX cycle still gets top models + no
+# degradation + generous per-call ceilings, but bounded by the client wall.
+_MAX_MODE_ENV = {
+    "ASTRA_CODEX_MODELS": "gpt-5.6-sol",
+    "ASTRA_CLAUDE_MODELS": "claude-opus-4-8",
+    "ASTRA_TRANSLATOR_MODELS": "claude-opus-4-8",
+    "ASTRA_AGY_MODELS": "gemini-3.1-pro-high",
+    "ASTRA_MUSE_MODELS": "muse-spark-1.3",
+    "ASTRA_CODEX_REASONING": "xhigh",
+    "ASTRA_AGY_EFFORT": "high",
+    "ASTRA_MUSE_REASONING": "ultra",
+    # Generous per-call ceilings so the top models are not killed mid-thought.
+    "ASTRA_CLI_TIMEOUT": "900",
+    "ASTRA_CONJECTURE_TIMEOUT": "900",
+    "ASTRA_TRANSLATOR_TIMEOUT": "1800",
+    "ASTRA_REVIEWER_TIMEOUT": "900",
+    "ASTRA_ANALYST_TIMEOUT": "600",
+    "ASTRA_NAVIGATOR_TIMEOUT": "600",
+    # A deliberate MAX request runs fresh, never served from the cycle cache
+    # (and a non-MAX cache can't be served to it anyway: the pinned models and
+    # raised timeouts change the cache key). Disables read and write here.
+    "ASTRA_CYCLE_CACHE": "0",
+}
+
+
+def _max_mode_requested(req) -> bool:
+    v = req.get("max_mode")
+    if isinstance(v, bool):
+        return v
+    return str(v or "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def apply_max_mode(req: dict):
+    """Force TOP model + max reasoning + generous per-call timeouts for ONE
+    cycle, or return None if MAX was not requested.
+
+    Sets in-process env overrides and returns a snapshot {key: prior_value}
+    (prior_value None means the key was unset) so the caller can restore it in
+    a finally. Restoring makes MAX self-cleaning rather than relying on the
+    process dying -- the CLI entrypoints are one-action-per-process, but the
+    campaign path runs cycles in-process, and a snapshot/restore keeps MAX from
+    ever leaking into a later cycle. Does NOT set the cycle wall: the wall stays
+    the caller's deadline (astra_cycle's timeout / astra_cycle_submit's
+    max_seconds), so the budget guard can never desync from the watchdog.
+
+    No-fallback by design: each ladder is pinned to a single top model. If that
+    model is quota-exhausted or times out even at the raised ceiling, the phase
+    has no cheaper rung and the cycle hard-fails with no certification (the
+    error carries the provider cause, e.g. 'CUOTA AGOTADA'). Run MAX when the
+    pinned accounts have headroom.
+    """
+    if not _max_mode_requested(req):
+        return None
+    snapshot = {key: os.environ.get(key) for key in _MAX_MODE_ENV}
+    for key, value in _MAX_MODE_ENV.items():
+        os.environ[key] = value
+    return snapshot
+
+
+def restore_max_mode(snapshot) -> None:
+    """Undo apply_max_mode's env overrides (no-op if snapshot is None)."""
+    if not snapshot:
+        return
+    for key, prior in snapshot.items():
+        if prior is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = prior
+
+
 def _phase_providers(phase_key, default):
     """Proveedores de una fase. ASTRA_<PHASE>_PROVIDER puede ser una LISTA (comas)
     = ensemble; un solo valor = lineal. Vacio -> [default] (phase_provider_map)."""
@@ -1000,6 +1089,10 @@ async def _do_cycle_impl(req: dict) -> dict:
     if mode in ("local", "remote", "auto"):
         os.environ["ASTRA_ORACLE_MODE"] = mode
 
+    # MAX mode env is applied (and restored) by _do_cycle around this call; here
+    # we only read the flag to record it on the checkpoint.
+    max_mode = _max_mode_requested(req)
+
     intuition = req.get("intuition", "")
     if not intuition.strip():
         return {"error": "intuition vacia"}
@@ -1105,6 +1198,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         "shared_goal": shared_goal,
         "intuition": intuition,
         "providers": providers_resolved,
+        "max_mode": max_mode,
         "created_ts": time.time(),
     }
 
@@ -2118,6 +2212,10 @@ async def _do_cycle(req: dict) -> dict:
         )
         await asyncio.sleep(min(5, max(1, wait_seconds)))
 
+    # Apply MAX mode here (once, outside _do_cycle_impl) and restore it in the
+    # finally, so its env overrides are undone even when this cycle runs
+    # in-process (e.g. a campaign step) instead of in a throwaway subprocess.
+    max_snapshot = apply_max_mode(req)
     try:
         result = await _do_cycle_impl(req)
         if isinstance(result, dict):
@@ -2125,6 +2223,7 @@ async def _do_cycle(req: dict) -> dict:
             result.setdefault("parallelism", plan)
         return result
     finally:
+        restore_max_mode(max_snapshot)
         slot.release()
         global _ACTIVE_CYCLE_CHECKPOINT
         _ACTIVE_CYCLE_CHECKPOINT = None

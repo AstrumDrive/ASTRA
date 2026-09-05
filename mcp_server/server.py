@@ -212,7 +212,7 @@ async def astra_client_validate(
 
 @mcp.tool()
 async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
-                exec_timeout: int = 0, objective: str = "") -> str:
+                exec_timeout: int = 0, objective: str = "", max_mode: bool = False) -> str:
     """
     Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
 
@@ -237,6 +237,13 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
         exec_timeout: seconds for the EXECUTION phase only (0 = .env default,
             usually 180). Raise it for legitimately heavy computation (sweeps,
             GPU runs on ASTRUM) and keep timeout > exec_timeout + 400.
+        max_mode: opt-in, one cycle only. Pins every CLI to its TOP model at max
+            reasoning with NO fallback to cheaper rungs, raises per-call
+            timeouts so the slow top models are not killed mid-thought, and
+            runs fresh (no cache). It does NOT extend this synchronous wall, so
+            here it stays bounded by `timeout`; for a full MAX run submit it
+            (astra_cycle_submit max_mode=True with a large max_seconds). Never
+            persists -- reverts on the next cycle unless requested again.
 
     Returns JSON with separate layers: `status`/`atomic_status` for the bounded
     conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
@@ -259,6 +266,8 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
+    if max_mode:
+        req["max_mode"] = True
     res = await asyncio.to_thread(_call_astra, req, timeout=timeout)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
@@ -270,6 +279,7 @@ async def astra_cycle_submit(
     max_seconds: int = 7200,
     exec_timeout: int = 0,
     objective: str = "",
+    max_mode: bool = False,
 ) -> str:
     """
     Queue a FULL ASTRA deliberative cycle as a persistent background job.
@@ -289,6 +299,11 @@ async def astra_cycle_submit(
         oracle: 'local', 'astrum', or 'auto'.
         max_seconds: hard ceiling including queue time; default 7200 (2 hours).
         exec_timeout: execution-phase ceiling; 0 uses ASTRA's configured default.
+        max_mode: opt-in, this job only. Pins every CLI to its TOP model at max
+            reasoning with NO fallback, raises per-call timeouts so the slow
+            top models can finish, and runs fresh (no cache). This is the
+            recommended route for MAX: keep max_seconds large (the models are
+            slow). Never persists beyond this job.
     """
     req = {
         "action": "cycle_submit",
@@ -300,6 +315,8 @@ async def astra_cycle_submit(
         req["objective"] = objective.strip()
     if exec_timeout and exec_timeout > 0:
         req["exec_timeout"] = int(exec_timeout)
+    if max_mode:
+        req["max_mode"] = True
     res = await asyncio.to_thread(_call_astra, req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
