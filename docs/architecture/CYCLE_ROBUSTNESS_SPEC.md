@@ -220,3 +220,18 @@ Primera entrega: C0 + C1.
   entre CODE_ERROR y REFUTED), ejecutor de campanas (COMPLETED / NOT_TESTED /
   FORMALIZATION_FAILURE), metricas de trayectoria, runner persistente,
   docstring de `astra_cycle`.
+- **Preguntar en vez de parar** (`core/input_request.py`, decision de Nelson
+  del 2026-09-09: "no tiene que finalizar el ciclo sin decidir como unica
+  salida"). ASTRA no tiene canal propio con el usuario, asi que un resultado
+  NON_DECIDABLE lleva `input_request` (`action_required: ASK_USER`): la
+  pregunta, las entradas que faltan y tres respuestas con su re-ejecucion
+  exacta: `provide` (el usuario da valores o contenidos congelados en
+  `inputs`), `assume` (`input_policy=assume`: el validador declara cada
+  placeholder en una linea `ASSUMED:` y sigue; el resultado lleva
+  `assumed_inputs`, `conditional_on_assumptions` y sus confirmaciones como
+  diferidos, asi que el estado cientifico queda atomico), `extract` (el agente
+  los lee de un fichero o resultado previo y los pasa como `inputs`). En las
+  tres, `resume_checkpoint` reutiliza la conjetura ya pagada del ciclo que
+  pregunto (solo si el objetivo es el mismo) y arranca en el validador. Los
+  `inputs` llegan como bloque FROZEN INPUTS al motor de conjeturas, al
+  estructurador y al autor del validador; la clave del cache los incluye.

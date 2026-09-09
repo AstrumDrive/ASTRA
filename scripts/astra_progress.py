@@ -35,6 +35,7 @@ CKPT_DIR = os.path.join(ROOT, "workspace", "cycle_checkpoints")
 PHASES = ("structure", "conjecture", "translate", "review", "execute", "analyze", "navigate")
 STAGE_TO_PHASE = {
     "start": "conjecture", "structure": "structure", "conjecture": "conjecture",
+    "conjecture_reused": "translate",     # resume_checkpoint: the conjecture is already paid for
     "translate": "translate", "translate_retry_minimal": "translate",
     "review": "review", "review_revision": "review", "model_patch": "review",
     "review_regeneration": "review", "quality_escalation": "review",

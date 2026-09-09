@@ -51,6 +51,7 @@ from core.architecture_contract import (
     production_manifest,
 )
 from core.request_structurer import structure_requested
+from core.input_request import input_policy
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -971,6 +972,10 @@ def _cycle_cache_payload(req, shared_goal, providers_resolved):
         "exec_timeout": req.get("exec_timeout", 0),
         # C3: a structured run must never be served a cached raw-request verdict.
         "structure_request": structure_requested(req),
+        # Inputs and the input policy change what the validator can decide.
+        "inputs": req.get("inputs", ""),
+        "input_policy": input_policy(req),
+        "resume_checkpoint": req.get("resume_checkpoint", ""),
         "providers": providers_resolved,
         "architecture": production_manifest(),
         "runtime": {
@@ -1120,6 +1125,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         has_bounded_claim,
         parse_structured_request,
     )
+    from core.input_request import (
+        SILENT_ASSUME_DEFERRED,
+        build_input_request,
+        inputs_block,
+        inputs_text,
+        inputs_truncated,
+        parse_assumed_inputs,
+    )
     from core.non_decidable import detect_non_decidable, resolve_non_decidable
     from core.progress_window import open_progress_window
     import hashlib
@@ -1147,6 +1160,51 @@ async def _do_cycle_impl(req: dict) -> dict:
         "structure_request": structure_requested(req),
         "original": intuition,
     }
+    # Ask-instead-of-stop (core/input_request.py): user-supplied inputs and the
+    # input policy reach the conjecture engine, the structurer and the author
+    # as one authoritative block; empty by default so prompts are unchanged.
+    extra_inputs = inputs_block(req)
+    axiomatic_base_text = "\n\n".join(
+        part for part in (extra_inputs, str(req.get("axiomatic_base") or "")) if part
+    )
+    request_record["input_policy"] = input_policy(req)
+    if inputs_text(req):
+        request_record["inputs"] = inputs_text(req)
+    if inputs_truncated(req):
+        request_record["inputs_truncated"] = True
+    # The independent reviewer and the analyst must see the same inputs and
+    # policy as the author, or they reject the placeholders the user approved.
+    # Policy first, values capped: the reviewer reads conjecture[:5000].
+    auditor_block = inputs_block(req, inputs_limit=1500)
+    review_conjecture_prefix = (auditor_block + "\n\n") if auditor_block else ""
+    # resume_checkpoint: reuse the conjecture of the cycle that asked for the
+    # inputs (already paid for) when it was about the same objective.
+    resumed_from = None
+    prior_checkpoint = {}
+    resume_path = str(req.get("resume_checkpoint") or "").strip()
+    if resume_path:
+        try:
+            with open(resume_path, encoding="utf-8") as fh:
+                prior_checkpoint = json.load(fh) or {}
+        except Exception:
+            prior_checkpoint = {}
+        _norm = lambda value: re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+        prior_request = prior_checkpoint.get("request") if isinstance(prior_checkpoint, dict) else None
+        prior_intuition = (
+            (prior_request or {}).get("original") if isinstance(prior_request, dict) else None
+        ) or (prior_checkpoint.get("intuition") if isinstance(prior_checkpoint, dict) else None)
+        if (
+            isinstance(prior_checkpoint, dict)
+            and str(prior_checkpoint.get("conjecture") or "").strip()
+            and _norm(prior_checkpoint.get("shared_goal")) == _norm(shared_goal)
+            and _norm(prior_intuition) == _norm(intuition)
+        ):
+            resumed_from = resume_path
+        else:
+            request_record["resume_warning"] = (
+                "resume_checkpoint ignored: unreadable, without a conjecture, or about "
+                "a different objective or direction; the conjecture phase runs again"
+            )
     validator_repair_vnext = (
         os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
         .strip()
@@ -1239,6 +1297,8 @@ async def _do_cycle_impl(req: dict) -> dict:
         "intuition": intuition,
         "providers": providers_resolved,
         "max_mode": max_mode,
+        "input_policy": request_record["input_policy"],
+        "inputs": request_record.get("inputs", ""),
         "created_ts": time.time(),
         # Stamped ONCE here so _save_cycle_checkpoint's update() propagates it
         # to every save this cycle makes (start, translation_complete, review
@@ -1886,7 +1946,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         structured_raw = await structurer.structure_request(
             intuition,
             objective=str(req.get("objective") or req.get("macro_question") or ""),
-            axiomatic_base=req.get("axiomatic_base", ""),
+            axiomatic_base=axiomatic_base_text,
         )
         _mark("structure", t0)
         structured = _clean_text(structured_raw)
@@ -1929,9 +1989,16 @@ async def _do_cycle_impl(req: dict) -> dict:
         "explicitly what remains deferred or cannot yet be decided."
     )
     deliberation = {}
-    if len(conj_providers) > 1:
+    if resumed_from:
+        conjecture = str(prior_checkpoint["conjecture"])
+        deliberation = {
+            **(prior_checkpoint.get("deliberation") or {}),
+            "resumed_from": resumed_from,
+        }
+        _progress("conjecture_reused", resumed_from=resumed_from, timings=timings)
+    elif len(conj_providers) > 1:
         conjecture, _cu, deliberation = await _ensemble_conjecture(
-            conj_providers, req.get("axiomatic_base", ""), goal_directed_intuition,
+            conj_providers, axiomatic_base_text, goal_directed_intuition,
             _phase_timeout("CONJECTURE"), synth_provider,
             _phase_models("SYNTH"),
             timeout_for_phase=_phase_timeout,
@@ -1940,13 +2007,14 @@ async def _do_cycle_impl(req: dict) -> dict:
     else:
         _prepare_agent(conj, "CONJECTURE")
         conjecture = await conj.generate_conjecture(
-            axiomatic_base=req.get("axiomatic_base", ""), intuition=goal_directed_intuition)
+            axiomatic_base=axiomatic_base_text, intuition=goal_directed_intuition)
         deliberation = {
             "proposals": [{"provider": conj_providers[0], "text": conjecture[:6000]}],
             "critiques": [],
             "synthesis_provider": conj_providers[0],
         }
-    _mark("conjecture", t0)
+    if not resumed_from:
+        _mark("conjecture", t0)
     if isinstance(conjecture, str) and conjecture.startswith("API_ERROR:"):
         return _fail(conjecture, "conjecture")
     _save_cycle_checkpoint(
@@ -1955,9 +2023,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         deliberation=deliberation,
     )
 
+    # Inputs and policy go BEFORE the conjecture: the bounded repairer reads
+    # only the first 5000 characters of this text, and it must not re-declare
+    # MISSING on the very retry the user's answer was for.
     translation_input = (
         "SHARED FINAL OBJECTIVE:\n"
-        f"{shared_goal}\n\nCONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
+        f"{shared_goal}\n\n"
+        + (extra_inputs + "\n\n" if extra_inputs else "")
+        + f"CONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
     )
     _progress("translate", timings=timings)
     t0 = time.monotonic()
@@ -1990,7 +2063,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         code=code,
     )
     code, code_review, review_error = await _review_or_revise(
-        code, conjecture, translation_input
+        code, review_conjecture_prefix + conjecture, translation_input
     )
     if review_error:
         out = _fail(
@@ -2067,7 +2140,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     )
     _progress("analyze", timings=timings)
     t0 = time.monotonic()
-    analysis = await _run_analysis(conjecture, exec_result)
+    analysis = await _run_analysis(review_conjecture_prefix + conjecture, exec_result)
     _mark("analyze", t0)
     analysis = _apply_guard(analysis, exec_result)
     # Non-decidable with these inputs (core/non_decidable.py): the validator's
@@ -2188,7 +2261,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         if isinstance(code, str) and code.startswith("API_ERROR:"):
             return _fail(code, "translator_retry", conjecture_text=conjecture)
         code, code_review, review_error = await _review_or_revise(
-            code, conjecture, translation_input
+            code, review_conjecture_prefix + conjecture, translation_input
         )
         if review_error:
             out = _fail(
@@ -2227,7 +2300,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         exec_result["verdict"] = _verdict(exec_result.get("stdout", ""))
         exec_result["guard"] = assess_verdict(code, exec_result)
         t0 = time.monotonic()
-        analysis = await _run_analysis(conjecture, exec_result)
+        analysis = await _run_analysis(review_conjecture_prefix + conjecture, exec_result)
         _mark("analyze", t0)
         analysis = _apply_guard(analysis, exec_result)
         nd_declaration = detect_non_decidable(exec_result)
@@ -2283,6 +2356,23 @@ async def _do_cycle_impl(req: dict) -> dict:
         )
         _mark("navigate", t0)
 
+    # ASSUMED: lines (input policy 'assume', or a validator declaring its own
+    # placeholders) make the verdict conditional: report them and defer their
+    # confirmation, so coverage stays partial and scientific_status atomic.
+    assumed_inputs = parse_assumed_inputs((exec_result or {}).get("stdout") or "")
+    silent_assume = request_record["input_policy"] == "assume" and not assumed_inputs
+    if assumed_inputs or silent_assume:
+        analysis = dict(analysis)
+        deferred_assumed = _normalize_deferred_items(analysis.get("deferred_items"))
+        for item in assumed_inputs:
+            entry = f"Confirm assumed input: {item}"
+            if entry not in deferred_assumed:
+                deferred_assumed.append(entry)
+        if silent_assume and SILENT_ASSUME_DEFERRED not in deferred_assumed:
+            # The user approved placeholders but the validator declared none:
+            # the values it used are unknown, so the verdict stays conditional.
+            deferred_assumed.append(SILENT_ASSUME_DEFERRED)
+        analysis["deferred_items"] = deferred_assumed
     coverage = _goal_coverage(
         shared_goal,
         intuition,
@@ -2349,9 +2439,28 @@ async def _do_cycle_impl(req: dict) -> dict:
     if analysis.get("non_decidable"):
         out["non_decidable"] = analysis["non_decidable"]
         out["missing_inputs"] = list(analysis.get("missing_inputs") or [])
-    if request_record["structure_request"]:
+    if analysis.get("status") == "NON_DECIDABLE":
+        # Ask instead of stop: the calling agent puts this to the user.
+        out["input_request"] = build_input_request(
+            out.get("missing_inputs") or [], checkpoint_path, req
+        )
+    out["input_policy"] = request_record["input_policy"]
+    if request_record.get("inputs"):
+        out["inputs"] = request_record["inputs"]
+    if assumed_inputs or silent_assume:
+        out["assumed_inputs"] = assumed_inputs
+        out["conditional_on_assumptions"] = True
+    if resumed_from:
+        out["resumed_from"] = resumed_from
+    if request_record["structure_request"] or request_record.get("resume_warning"):
         out["request"] = request_record
     warnings, cli_models, cli_costs, cli_accounts = _cli_meta(agents + ensemble_agents)
+    if request_record.get("resume_warning"):
+        warnings = list(warnings or []) + [request_record["resume_warning"]]
+    if request_record.get("inputs_truncated"):
+        warnings = list(warnings or []) + [
+            "inputs were truncated at 20000 characters; pass a smaller extract"
+        ]
     if warnings:
         out["warnings"] = warnings      # avisos de cuota/fallback de los CLIs
     if cli_models:

@@ -66,5 +66,9 @@ ASTRA REVIEW vNEXT ADDENDUM:
     the conjecture and the prompt AND cannot be replaced by a symbolic
     placeholder with declared properties. Otherwise return REVISE with
     `missing_assumption` and name the placeholder that decides the claim: a
-    lazy non-decidable exit is a defect, not honesty.
+    lazy non-decidable exit is a defect, not honesty. Under `INPUT POLICY:
+    assume` the validator must instead declare every placeholder in an
+    `ASSUMED: <input> = <value>` line with an explicit value; approve only if
+    the assumed values are stated and a wrong assumption could still flip the
+    verdict where it matters.
 """

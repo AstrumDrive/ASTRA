@@ -39,9 +39,11 @@ _MISSING = re.compile(r"^\s*MISSING\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILI
 _VERDICT = re.compile(r"VERDICT\s*:\s*(PASS|FAIL)\b", re.IGNORECASE)
 
 HINT = (
-    "Supply the missing inputs with the request (frozen contents in "
-    "axiomatic_base, or a narrower claim that does not need them); "
-    "structure_request=true lists REQUIRED INPUTS before the cycle runs."
+    "Answer the result's input_request: re-run with `inputs` (values or pasted "
+    "frozen contents), with input_policy='assume' (declared placeholders, verdict "
+    "conditional on them), or with values the agent extracts from a source; "
+    "resume_checkpoint reuses this cycle's conjecture. structure_request=true "
+    "lists REQUIRED INPUTS before a cycle runs."
 )
 
 
@@ -157,7 +159,11 @@ def resolve_non_decidable(analysis: dict, declaration: dict | None, declarations
     analysis.pop("corrected_code", None)
     analysis["goal_coverage"] = "PARTIAL"
     analysis["goal_resolved"] = False
-    deferred = list(analysis.get("deferred_items") or [])
+    raw_deferred = analysis.get("deferred_items")
+    deferred = (
+        [raw_deferred.strip()] if isinstance(raw_deferred, str) and raw_deferred.strip()
+        else [str(x) for x in raw_deferred] if isinstance(raw_deferred, list) else []
+    )
     for item in missing:
         entry = f"Provide the missing input: {item}"
         if entry not in deferred:

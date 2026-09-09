@@ -84,7 +84,11 @@ ASTRA VALIDATOR-REPAIR vNEXT CONTRACT:
    FAIL: print `VERDICT: NON-DECIDABLE`, then one `MISSING: <input>` line per
    absent input naming it precisely, and exit with code 3. The independent
    reviewer and the analyst check that each MISSING item is genuinely absent
-   and not replaceable by a placeholder.
+   and not replaceable by a placeholder. When the prompt carries a FROZEN
+   INPUTS block, those values are authoritative: use them. When it carries
+   `INPUT POLICY: assume`, the user approved placeholder values: declare each
+   one in an `ASSUMED: <input> = <value> -- <reason>` line and proceed to a
+   PASS/FAIL verdict instead of declaring non-decidability.
 """
 
 

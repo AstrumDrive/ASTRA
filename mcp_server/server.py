@@ -213,7 +213,8 @@ async def astra_client_validate(
 @mcp.tool()
 async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
                 exec_timeout: int = 0, objective: str = "", max_mode: bool = False,
-                structure_request: bool = False) -> str:
+                structure_request: bool = False, inputs: str = "",
+                input_policy: str = "strict", resume_checkpoint: str = "") -> str:
     """
     Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
 
@@ -252,6 +253,22 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
             the text does not contain, anti-patterns, deferred items. Use it
             for raw or multi-deliverable requests. The original and the
             structured request come back under `request`.
+        inputs: values or frozen contents the user supplies (free text, one
+            input per line: `U0 = 0.3`, a pasted table, a material class).
+            They reach the conjecture engine and the validator author as an
+            authoritative FROZEN INPUTS block.
+        input_policy: 'strict' (default: a missing decisive input ends the
+            cycle as NON_DECIDABLE with an `input_request` to put to the user)
+            or 'assume' (the user approved placeholder values: the validator
+            declares each one in an ASSUMED line and proceeds; the result
+            carries `assumed_inputs` and the verdict is conditional on them).
+        resume_checkpoint: the checkpoint path of the cycle that asked for the
+            inputs (from its `input_request`); its conjecture is reused and the
+            new run starts at the validator with the inputs in hand.
+
+    When status is NON_DECIDABLE, ASK THE USER the `input_request.question`
+    and re-run with the option's `rerun` fields (provide / assume / extract);
+    ending without a decision is not the only exit.
 
     Returns JSON with separate layers: `status`/`atomic_status` for the bounded
     conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
@@ -282,6 +299,12 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
         req["max_mode"] = True
     if structure_request:
         req["structure_request"] = True
+    if inputs.strip():
+        req["inputs"] = inputs.strip()
+    if input_policy.strip().lower() == "assume":
+        req["input_policy"] = "assume"
+    if resume_checkpoint.strip():
+        req["resume_checkpoint"] = resume_checkpoint.strip()
     res = await asyncio.to_thread(_call_astra, req, timeout=timeout)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
@@ -295,6 +318,9 @@ async def astra_cycle_submit(
     objective: str = "",
     max_mode: bool = False,
     structure_request: bool = False,
+    inputs: str = "",
+    input_policy: str = "strict",
+    resume_checkpoint: str = "",
 ) -> str:
     """
     Queue a FULL ASTRA deliberative cycle as a persistent background job.
@@ -322,6 +348,9 @@ async def astra_cycle_submit(
         structure_request: opt-in (C3). Structure the raw intuition into a
             bounded single-cycle direction before the conjecture phase; the
             original and structured request are kept on the result.
+        inputs / input_policy / resume_checkpoint: as in astra_cycle. A job
+            that ends NON_DECIDABLE carries `input_request`: ask the user and
+            resubmit with the chosen option's `rerun` fields.
     """
     req = {
         "action": "cycle_submit",
@@ -337,6 +366,12 @@ async def astra_cycle_submit(
         req["max_mode"] = True
     if structure_request:
         req["structure_request"] = True
+    if inputs.strip():
+        req["inputs"] = inputs.strip()
+    if input_policy.strip().lower() == "assume":
+        req["input_policy"] = "assume"
+    if resume_checkpoint.strip():
+        req["resume_checkpoint"] = resume_checkpoint.strip()
     res = await asyncio.to_thread(_call_astra, req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 

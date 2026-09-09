@@ -15,7 +15,10 @@ QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
 MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
 QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
 MUSE_TRIAL_MODEL = "muse-spark-1.3"
-CACHE_SCHEMA_VERSION = "6"
+# 7 (2026-09-09): the cycle cache payload gained inputs / input_policy /
+# resume_checkpoint (core/input_request.py); bumped so the invalidation of
+# every earlier entry is documented, not silent (same precedent as 4->5, 5->6).
+CACHE_SCHEMA_VERSION = "7"
 
 EXPECTED_PRIMARY_MODELS = {
     "codex_cli": "gpt-5.6-sol",
