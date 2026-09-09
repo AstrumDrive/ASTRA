@@ -306,6 +306,32 @@ class ASTRAIntelligence:
             return "Simulated Conjecture: The Ricci scalar R vanishes for the proposed metric."
         return response
 
+    async def structure_request(
+        self,
+        intuition: str,
+        objective: str = "",
+        axiomatic_base: str = "",
+    ) -> str:
+        """C3 (cycle-robustness spec): raw request -> structured one-cycle direction."""
+        logger.info(f"[{self.provider.upper()}] Structuring the research request...")
+
+        from agents.structurer import REQUEST_STRUCTURER_PROMPT
+        user_prompt = (
+            "SHARED FINAL OBJECTIVE:\n"
+            f"{(objective or '').strip() or '(same as the raw request)'}\n\n"
+            f"RAW REQUEST:\n{intuition}"
+        )
+        if axiomatic_base:
+            user_prompt += f"\n\nAXIOMATIC BASE / FROZEN CONTEXT:\n{axiomatic_base[:6000]}"
+        response = await self._call_api(REQUEST_STRUCTURER_PROMPT, user_prompt)
+        if response == "SIMULATED_RESPONSE":
+            return (
+                "BOUNDED CLAIM: simulated claim\nHYPOTHESES: none\nDECISIVE: none\n"
+                "AUXILIARY: none\nCERTIFICATION: analytic\nREQUIRED INPUTS: none\n"
+                "ANTI-PATTERNS: none\nDEFERRED: none"
+            )
+        return response
+
     async def translate_to_code(
         self,
         conjecture: str,

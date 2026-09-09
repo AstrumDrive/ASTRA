@@ -50,6 +50,7 @@ from core.architecture_contract import (
     CACHE_SCHEMA_VERSION,
     production_manifest,
 )
+from core.request_structurer import structure_requested
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -965,6 +966,8 @@ def _cycle_cache_payload(req, shared_goal, providers_resolved):
         "thread_summary": req.get("thread_summary", ""),
         "cycles_since_milestone": req.get("cycles_since_milestone", 1),
         "exec_timeout": req.get("exec_timeout", 0),
+        # C3: a structured run must never be served a cached raw-request verdict.
+        "structure_request": structure_requested(req),
         "providers": providers_resolved,
         "architecture": production_manifest(),
         "runtime": {
@@ -1102,6 +1105,18 @@ async def _do_cycle_impl(req: dict) -> dict:
     from core.executor import execute_python_code
     from core.verdict_guard import assess_verdict
     from core.autofix import try_autofix
+    from core.review_defects import (
+        StuckTracker,
+        alternative_strategy,
+        detector_enabled,
+        directed_correction,
+        stuck_message,
+    )
+    from core.request_structurer import (
+        compose_direction,
+        has_bounded_claim,
+        parse_structured_request,
+    )
     import hashlib
 
     oracle = (req.get("oracle") or "").strip().lower()
@@ -1122,6 +1137,11 @@ async def _do_cycle_impl(req: dict) -> dict:
         or req.get("shared_goal")
         or intuition
     ).strip()
+    # C3 provenance: the raw request is kept whether or not structuring runs.
+    request_record = {
+        "structure_request": structure_requested(req),
+        "original": intuition,
+    }
     validator_repair_vnext = (
         os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
         .strip()
@@ -1332,6 +1352,9 @@ async def _do_cycle_impl(req: dict) -> dict:
         ("navigator", navigator),
     ]
     quality_escalations = []
+    # C2: one entry per model-reviewer rejection (classes, repeat, action).
+    # Defined before _fail, which stamps it on every failure result.
+    defect_trace = []
 
     def _escalate_for_quality(stage, status):
         new_rung = _escalate_agent_models(trans)
@@ -1388,6 +1411,10 @@ async def _do_cycle_impl(req: dict) -> dict:
             # SALVAVIDAS: si murio el traductor, devolver la conjetura ya pagada
             # para que el agente llamador la traduzca el mismo y use astra_execute.
             out["conjecture"] = conjecture_text
+        if request_record["structure_request"]:
+            out["request"] = request_record
+        if defect_trace:
+            out["review_defect_trace"] = defect_trace
         if timings:
             timings["total"] = round(time.monotonic() - t_start, 2)
             out["timings"] = timings
@@ -1480,6 +1507,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     async def _review_or_revise(current_code, conjecture_text, translation_input):
         """Codex audits; Claude remains the sole generative code author."""
         review_failure_phase.clear()
+        stuck_tracker = StuckTracker(defect_trace) if detector_enabled() else None
         enabled = (
             os.environ.get("ASTRA_CODE_REVIEW", "1").strip().strip("'\"").lower()
             not in ("0", "off", "false")
@@ -1625,6 +1653,49 @@ async def _do_cycle_impl(req: dict) -> dict:
                 return current_code, review, None
             if status == "API_ERROR":
                 return current_code, review, review.get("reasoning") or "reviewer API error"
+            # C2 (cycle-robustness spec): classify this rejection against the
+            # C0 defect taxonomy and decide what the next revision is: directed
+            # (first sighting of a class), a strategy switch (same class twice)
+            # or a clean stop naming the class (it persisted after the switch).
+            # Only model-reviewer rejections are observed: preflight rejections
+            # are deterministic and so is their repair. Same revision cap as
+            # before (decision 4): a directed round replaces a blind one.
+            decision = None
+            if stuck_tracker is not None and review.get("source") == "model_reviewer":
+                decision = stuck_tracker.observe(
+                    review,
+                    review_round,
+                    model_revisions,
+                    can_revise=model_revisions < max_revisions,
+                )
+                review_history[-1].update(
+                    {
+                        "defect_classes": decision["classes"],
+                        "defect_primary": decision["primary"],
+                        "repeated_classes": decision["repeated"],
+                        "c2_action": decision["action"],
+                    }
+                )
+            if decision is not None and decision["action"] == "stop":
+                diagnosis = stuck_tracker.diagnosis()
+                review["stuck_diagnosis"] = diagnosis
+                return (
+                    current_code,
+                    review,
+                    stuck_message(
+                        decision["repeated"],
+                        [
+                            r["review_round"]
+                            for r in stuck_tracker.own
+                            if set(r["classes"]) & set(decision["repeated"])
+                        ],
+                        model_revisions,
+                        max_revisions,
+                        review.get("reasoning", ""),
+                        actions=diagnosis["actions"],
+                        switched_for=diagnosis["switched_for"],
+                    ),
+                )
             if model_revisions >= max_revisions:
                 return (
                     current_code,
@@ -1646,12 +1717,25 @@ async def _do_cycle_impl(req: dict) -> dict:
                 review_round=review_round,
                 timings=timings,
                 budget=budget.snapshot(),
+                **(
+                    {"defect_classes": decision["classes"], "c2_action": decision["action"]}
+                    if decision
+                    else {}
+                ),
             )
             patch_instructions = (
                 "Independent Codex review returned "
                 f"{status}. Revise the validation script without changing the "
                 f"scientific claim. Instructions:\n{instructions}"
             )[:3500]
+            if decision and decision["action"] == "directed_patch":
+                patch_instructions = (
+                    patch_instructions + "\n\n" + directed_correction(decision["classes"])
+                )[:6000]
+            elif decision and decision["action"] == "strategy_switch":
+                patch_instructions = (
+                    patch_instructions + "\n\n" + alternative_strategy(decision["repeated"])
+                )[:6000]
             _escalate_for_quality("pre_oracle_review", status)
             defect_labels = {
                 str(item).lower()
@@ -1660,6 +1744,9 @@ async def _do_cycle_impl(req: dict) -> dict:
             requires_regeneration = (
                 status == "REJECT"
                 or "syntax_error" in defect_labels
+                # C2 strategy switch: a different route needs a fresh validator,
+                # not a bounded patch of the rejected wiring.
+                or (decision is not None and decision["action"] == "strategy_switch")
                 or current_code.strip().lower()
                 in {
                     "write operation completed",
@@ -1758,6 +1845,59 @@ async def _do_cycle_impl(req: dict) -> dict:
                 current_code = regenerated
             review_round += 1
 
+    # C3 (cycle-robustness spec, opt-in): turn the raw request into a
+    # structured single-cycle direction before the conjecture phase. Original
+    # and structured request are both kept on the checkpoint and the result.
+    # A structurer failure never kills the cycle: the raw request is used and
+    # the error recorded.
+    if request_record["structure_request"]:
+        structurer_provider = (
+            (os.environ.get("ASTRA_STRUCTURER_PROVIDER") or "").strip().strip("'\"")
+            or synth_provider
+        )
+        structurer = ASTRAIntelligence(
+            provider=structurer_provider,
+            cli_models=_phase_models("STRUCTURER"),
+            cli_timeout=_phase_timeout("STRUCTURER"),
+        )
+        agents.append(("structurer", structurer))
+        request_record["provider"] = structurer_provider
+        _progress("structure", timings=timings, budget=budget.snapshot())
+        t0 = time.monotonic()
+        structured_raw = await structurer.structure_request(
+            intuition,
+            objective=str(req.get("objective") or req.get("macro_question") or ""),
+            axiomatic_base=req.get("axiomatic_base", ""),
+        )
+        _mark("structure", t0)
+        structured = _clean_text(structured_raw)
+        parsed = parse_structured_request(structured or "")
+        if not structured:
+            request_record["structurer_error"] = (
+                str(structured_raw)[:500]
+                if isinstance(structured_raw, str) and structured_raw.strip()
+                else "empty response"
+            )
+        elif not has_bounded_claim(parsed):
+            # A refusal, prose, or an unheaded blob must not become the
+            # cycle's direction: keep the raw request, record the reply.
+            request_record["structurer_error"] = (
+                "structurer reply has no BOUNDED CLAIM heading; raw request used"
+            )
+            request_record["structured_reply"] = structured[:1500]
+        else:
+            request_record.update(
+                {
+                    "structured": structured,
+                    "complete": parsed["complete"],
+                    "required_inputs": parsed["required_inputs"],
+                }
+            )
+            intuition = compose_direction(structured, intuition)
+        _save_cycle_checkpoint(
+            "request_structured", request=request_record, intuition=intuition
+        )
+
     _progress("conjecture", timings=timings)
     t0 = time.monotonic()
     goal_directed_intuition = (
@@ -1845,6 +1985,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         out["validator_preflight_history"] = preflight_history
         out["validator_local_repair_history"] = local_repair_history
         out["validator_model_patch_history"] = model_patch_history
+        out["review_defect_trace"] = defect_trace
         out["deliberation"] = deliberation
         _save_cycle_checkpoint(
             out["status"].lower(),
@@ -1854,6 +1995,7 @@ async def _do_cycle_impl(req: dict) -> dict:
             validator_preflight_history=preflight_history,
             validator_local_repair_history=local_repair_history,
             validator_model_patch_history=model_patch_history,
+            review_defect_trace=defect_trace,
         )
         return out
     _save_cycle_checkpoint(
@@ -1864,6 +2006,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         validator_preflight_history=preflight_history,
         validator_local_repair_history=local_repair_history,
         validator_model_patch_history=model_patch_history,
+        review_defect_trace=defect_trace,
     )
     # exec_timeout opcional del request: calculos pesados legitimos (sweeps,
     # GPU en ASTRUM) pueden necesitar mas que el ASTRA_ORACLE_TIMEOUT del .env.
@@ -2021,6 +2164,7 @@ async def _do_cycle_impl(req: dict) -> dict:
             out["validator_preflight_history"] = preflight_history
             out["validator_local_repair_history"] = local_repair_history
             out["validator_model_patch_history"] = model_patch_history
+            out["review_defect_trace"] = defect_trace
             out["deliberation"] = deliberation
             _save_cycle_checkpoint(
                 out["status"].lower(),
@@ -2030,6 +2174,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 validator_preflight_history=preflight_history,
                 validator_local_repair_history=local_repair_history,
                 validator_model_patch_history=model_patch_history,
+                review_defect_trace=defect_trace,
             )
             return out
         t0 = time.monotonic()
@@ -2124,6 +2269,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         "validator_preflight_history": preflight_history,
         "validator_local_repair_history": local_repair_history,
         "validator_model_patch_history": model_patch_history,
+        "review_defect_trace": defect_trace,
         "validator_repair": {
             "enabled": validator_repair_vnext,
             "strategy": (
@@ -2154,6 +2300,8 @@ async def _do_cycle_impl(req: dict) -> dict:
     }
     if est:
         out["est_runtime"] = est
+    if request_record["structure_request"]:
+        out["request"] = request_record
     warnings, cli_models, cli_costs, cli_accounts = _cli_meta(agents + ensemble_agents)
     if warnings:
         out["warnings"] = warnings      # avisos de cuota/fallback de los CLIs

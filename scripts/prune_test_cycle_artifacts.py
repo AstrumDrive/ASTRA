@@ -67,6 +67,8 @@ KNOWN_TEST_INTUITIONS = frozenset({
     "Test the persistent deadline.",
     "Workspace isolation probe.",
     "Test checkpoint provenance under the strict contract.",
+    "Test the review stuck detector.",
+    "Test the request structurer.",
 })
 TEST_WALL_SECONDS = 120.0       # cycle_timeout_seconds the suite used until 2026-09-05
 SUB_SECOND = 1.0
@@ -130,8 +132,9 @@ def _fmt_ts(ts) -> str:
         return "?"
 
 
-def classify_checkpoint(path: str, alive=_pid_alive) -> dict:
+def classify_checkpoint(path: str, alive=None) -> dict:
     """Return {path, kind, cls, reason, ...detail} for one checkpoint file."""
+    alive = alive or _pid_alive          # resolved at call time (tests patch it)
     record = {"path": path, "kind": "checkpoint", "name": os.path.basename(path)}
     if path.endswith(".tmp"):
         return {**record, "cls": KEEP, "reason": "unfinished .tmp checkpoint, never classified"}
@@ -142,7 +145,10 @@ def classify_checkpoint(path: str, alive=_pid_alive) -> dict:
     elapsed = _float(budget.get("elapsed_seconds"))
     wall = _float(budget.get("total_seconds"))
     timings = _timings_total(data.get("timings"))
-    intuition = str(data.get("intuition") or "").strip()
+    # A C3-structured cycle stores the composed direction as `intuition`;
+    # the literal the suite passed is request.original.
+    request = data.get("request") if isinstance(data.get("request"), dict) else {}
+    intuition = str(request.get("original") or data.get("intuition") or "").strip()
     result = data.get("result") if isinstance(data.get("result"), dict) else {}
     record.update({
         "stage": data.get("stage"),
@@ -175,7 +181,8 @@ def classify_checkpoint(path: str, alive=_pid_alive) -> dict:
 
 
 def classify_heartbeat(path: str, checkpoint_dir: str, test_checkpoints: set,
-                       alive=_pid_alive) -> dict:
+                       alive=None) -> dict:
+    alive = alive or _pid_alive
     record = {"path": path, "kind": "heartbeat", "name": os.path.basename(path)}
     data = _load(path)
     if "_unreadable" in data:
@@ -209,7 +216,8 @@ def classify_heartbeat(path: str, checkpoint_dir: str, test_checkpoints: set,
             "reason": "orphan heartbeat with real or unknown duration"}
 
 
-def classify_workspace(workspace: str, alive=_pid_alive) -> list:
+def classify_workspace(workspace: str, alive=None) -> list:
+    alive = alive or _pid_alive
     checkpoint_dir = os.path.join(workspace, "cycle_checkpoints")
     progress_dir = os.path.join(workspace, "progress")
     records = []

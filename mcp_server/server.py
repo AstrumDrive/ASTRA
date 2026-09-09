@@ -212,7 +212,8 @@ async def astra_client_validate(
 
 @mcp.tool()
 async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500,
-                exec_timeout: int = 0, objective: str = "", max_mode: bool = False) -> str:
+                exec_timeout: int = 0, objective: str = "", max_mode: bool = False,
+                structure_request: bool = False) -> str:
     """
     Run ASTRA's FULL deliberative multi-model pipeline and return a verdict.
 
@@ -244,6 +245,13 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
             here it stays bounded by `timeout`; for a full MAX run submit it
             (astra_cycle_submit max_mode=True with a large max_seconds). Never
             persists -- reverts on the next cycle unless requested again.
+        structure_request: opt-in (C3 of the cycle-robustness spec). A light
+            pre-cycle step rewrites the raw intuition into a structured
+            single-cycle direction: bounded claim, explicit hypotheses,
+            decisive vs auxiliary checks, certification route, REQUIRED INPUTS
+            the text does not contain, anti-patterns, deferred items. Use it
+            for raw or multi-deliverable requests. The original and the
+            structured request come back under `request`.
 
     Returns JSON with separate layers: `status`/`atomic_status` for the bounded
     conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
@@ -268,6 +276,8 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
         req["exec_timeout"] = int(exec_timeout)
     if max_mode:
         req["max_mode"] = True
+    if structure_request:
+        req["structure_request"] = True
     res = await asyncio.to_thread(_call_astra, req, timeout=timeout)
     return json.dumps(res, indent=2, ensure_ascii=False)
 
@@ -280,6 +290,7 @@ async def astra_cycle_submit(
     exec_timeout: int = 0,
     objective: str = "",
     max_mode: bool = False,
+    structure_request: bool = False,
 ) -> str:
     """
     Queue a FULL ASTRA deliberative cycle as a persistent background job.
@@ -304,6 +315,9 @@ async def astra_cycle_submit(
             top models can finish, and runs fresh (no cache). This is the
             recommended route for MAX: keep max_seconds large (the models are
             slow). Never persists beyond this job.
+        structure_request: opt-in (C3). Structure the raw intuition into a
+            bounded single-cycle direction before the conjecture phase; the
+            original and structured request are kept on the result.
     """
     req = {
         "action": "cycle_submit",
@@ -317,6 +331,8 @@ async def astra_cycle_submit(
         req["exec_timeout"] = int(exec_timeout)
     if max_mode:
         req["max_mode"] = True
+    if structure_request:
+        req["structure_request"] = True
     res = await asyncio.to_thread(_call_astra, req, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)
 

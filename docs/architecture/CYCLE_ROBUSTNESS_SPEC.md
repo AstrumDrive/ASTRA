@@ -152,3 +152,56 @@ Primera entrega: C0 + C1.
   proceso muerto es una salida limpia (BUSY/cache), no un kill; se prefiere el
   `.tmp` hermano mas nuevo (en Windows un lector puede hacer fallar el
   `os.replace` final de astra_tool).
+
+## Estado de implementacion (2026-09-09)
+
+- **C2 implementado** (`core/review_defects.py`, cableado en
+  `astra_tool.py::_review_or_revise`; on por defecto,
+  `ASTRA_REVIEW_STUCK_DETECTOR=0` devuelve el bucle ciego). Cada rechazo del
+  revisor modelo se clasifica contra la taxonomia de C0 (assumed_bound,
+  undecidable_positivity, link_in_comment, proxy_continuity, missing_domain,
+  sampling_as_proof) mas las etiquetas especificas del revisor; la
+  clasificacion es por PROSA (solo el `reasoning`, nunca las
+  `revision_instructions`, que enumeran las patas a conservar) y cada patron
+  exige su contexto negativo en la misma frase, porque en Abellan v03 el
+  revisor etiqueto `missing_assumption` en todas las rondas mientras su
+  razonamiento nombraba el defecto repetido. Una clase cuenta como repetida
+  solo si aparece en dos rechazos consecutivos Y es la clase principal de al
+  menos uno de ellos. Accion escalonada dentro del MISMO cap de revisiones
+  (decision 4): primera clase -> correccion dirigida anexada a las
+  instrucciones del revisor (sustituye la ronda ciega); misma clase dos veces
+  -> UNA re-traduccion con estrategia alternativa (regeneracion, no parche);
+  persiste tras el cambio -> parada limpia con `stuck_diagnosis` y un error
+  que nombra la clase (`Review stuck on defect class ...`), visible como
+  `stop_cause` en la telemetria. Procedencia: `defect_classes` /
+  `repeated_classes` / `c2_action` en cada entrada de `code_review_history`,
+  `review_defect_trace` en resultado y checkpoint, y
+  `controls.review_stuck_detector` en el manifest (CACHE_SCHEMA_VERSION 5->6).
+  Fixtures: los nueve rechazos verbatim de los ciclos 6bf68f83/42724,
+  80a8306/30268 y 9a7b0bba/42916 (`tests/test_review_defects.py`). En 42724
+  y 30268 la regla detecta la repeticion desde la segunda ronda; en 42916 las
+  clases cambian de ronda en ronda (muestreo -> enlaces en comentarios ->
+  proxy) y la regla NO declara atasco: ese ciclo es el guardian contra falsos
+  positivos, junto con sondas de frases inocuas ("independent of temporal
+  sampling", "Preserve the continuity legs") que no clasifican nada. La
+  auditoria adversarial de la primera version cazo exactamente ese
+  sobre-disparo (palabras sueltas + instrucciones escaneadas).
+- **C3 implementado** como opt-in por peticion (`structure_request=true` en
+  `astra_cycle` / `astra_cycle_submit`; decision 3). `agents/structurer.py`
+  (prompt), `core/request_structurer.py` (parser y composicion),
+  `ASTRAIntelligence.structure_request`. Proveedor `ASTRA_STRUCTURER_PROVIDER`
+  (default: el sintetizador); fase `STRUCTURER` con `_MODELS` / `_TIMEOUT`
+  como las demas. La salida (claim acotado, hipotesis, decisivo vs auxiliar,
+  ruta de certificacion, ENTRADAS REQUERIDAS que el texto no contiene,
+  anti-patrones, diferidos) pasa a ser la `intuition` del ciclo con la
+  peticion cruda anexada solo como contexto; `shared_goal` sigue siendo la
+  peticion cruda. Se guardan ambas (`request.original` / `request.structured`
+  en resultado y checkpoint, mas `required_inputs`); la clave del cache
+  incluye el flag. Un fallo del estructurador no mata el ciclo: sigue con la
+  peticion cruda y registra `request.structurer_error`. El ciclo del
+  2026-09-09 (pid 32808, CODE_ERROR por entradas no predeclaradas: A_mat, U0,
+  ansatz, fronteras) es el caso que este paso pretende atajar antes de gastar
+  media hora.
+- **Pendiente (no en C0-C4):** un estado propio "no decidible con estas
+  entradas" en el analista y el bucle de reintentos post-oraculo, que hoy
+  mapea `exit 3` sin VERDICT a CODE_ERROR y reintenta.

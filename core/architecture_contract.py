@@ -15,7 +15,7 @@ QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
 MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
 QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
 MUSE_TRIAL_MODEL = "muse-spark-1.3"
-CACHE_SCHEMA_VERSION = "5"
+CACHE_SCHEMA_VERSION = "6"
 
 EXPECTED_PRIMARY_MODELS = {
     "codex_cli": "gpt-5.6-sol",
@@ -218,6 +218,14 @@ def production_manifest(
             # so provenance and the cache key would disagree with what the
             # cycle actually ran.
             "translator_strict_contract": _translator_strict_contract(source),
+            # C2 (cycle-robustness spec): the stuck-review detector, on by
+            # default; ASTRA_REVIEW_STUCK_DETECTOR=0 restores the blind loop.
+            # Stamped for provenance and the cycle cache key exactly like the
+            # strict contract; adding it bumped CACHE_SCHEMA_VERSION 5->6.
+            "review_stuck_detector": _enabled(
+                source,
+                "ASTRA_REVIEW_STUCK_DETECTOR",
+            ),
             "required_local_engines": _csv(
                 source,
                 "ASTRA_REQUIRED_LOCAL_ENGINES",
