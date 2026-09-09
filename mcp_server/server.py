@@ -256,7 +256,11 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
     Returns JSON with separate layers: `status`/`atomic_status` for the bounded
     conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
     the shared objective, and `scientific_status` (`VALIDATED` only for complete
-    coverage, otherwise `ATOMIC_VALIDATED`/`ATOMIC_REFUTED`). It also includes
+    coverage, otherwise `ATOMIC_VALIDATED`/`ATOMIC_REFUTED`). `NON_DECIDABLE`
+    means the validator could not be instantiated because decisive inputs are
+    absent from the request: `missing_inputs` lists them and the cycle did not
+    burn retries on a rewrite; supply them (frozen contents in the request or
+    a narrower claim) instead of re-running. It also includes
     shared_goal, deliberation, conjecture, code_review, code, execution,
     analysis, navigation, providers, timings, and 'warnings'/'cli_models' when a
     CLI model hit its usage limit and a fallback served the phase. Internal

@@ -640,14 +640,23 @@ class ASTRAIntelligence:
 
         # Deterministic evidence constrains the LLM verdict, but no longer bypasses the
         # analyst. Codex must read Claude's code even when it prints a clean PASS.
+        from core.non_decidable import detect_non_decidable
+
         _exit = exec_result.get("exit_code", 0)
         _stdout_up = (exec_result.get("stdout") or "").upper()
         _has_stderr = bool((exec_result.get("stderr") or "").strip())
         _explicit_fail = "VERDICT: FAIL" in _stdout_up
         _clean_pass = "VERDICT: PASS" in _stdout_up and _exit == 0 and not _has_stderr
         _crashed = _exit != 0 or _has_stderr
+        # The validator's own declaration (VERDICT: NON-DECIDABLE + MISSING
+        # lines, exit 3 by protocol). Without it the analyst may not return
+        # NON_DECIDABLE: a traceback is a code error, not missing data.
+        _declared = detect_non_decidable(exec_result)
 
         if not self.api_key:
+            if _declared:
+                return {"status": "NON_DECIDABLE", "reasoning": "Validator declared non-decidability.",
+                        "missing_inputs": _declared["missing_inputs"]}
             if _crashed:
                 return {"status": "CODE_ERROR", "reasoning": "Execution failed."}
             if _explicit_fail:
@@ -673,12 +682,31 @@ class ASTRAIntelligence:
 
         parsed = _extract_json_object(_fix_json_backslashes(response))
         status = str((parsed or {}).get("status") or "").upper()
-        if status not in {"CODE_ERROR", "REFUTED", "VALIDATED"}:
+        if status not in {"CODE_ERROR", "REFUTED", "VALIDATED", "NON_DECIDABLE"}:
             parsed = None
+        if parsed is not None:
+            raw_missing = parsed.get("missing_inputs")
+            parsed["missing_inputs"] = [
+                str(item).strip() for item in (raw_missing if isinstance(raw_missing, list) else [])
+                if str(item).strip()
+            ][:20]
+        if parsed is not None and status == "NON_DECIDABLE" and not _declared:
+            # Only the validator can declare non-decidability; the analyst
+            # confirms it. Keep its input list as a hint for the retry.
+            status = "CODE_ERROR"
+            parsed["status"] = status
+            parsed["reasoning"] = (
+                "Analyst proposed NON_DECIDABLE but the validator declared no "
+                "VERDICT: NON-DECIDABLE; treated as CODE_ERROR. "
+                + str(parsed.get("reasoning") or "")
+            ).strip()
 
-        # A crashed run never establishes a theorem.
+        # A crashed run never establishes a theorem -- except that a declared
+        # non-decidable validator exits 3 by protocol: keep the analyst's parsed
+        # status so core/non_decidable.py can apply its rules (a VALIDATED there
+        # is overridden to NON_DECIDABLE, never accepted).
         if _crashed:
-            if parsed and status in {"CODE_ERROR", "REFUTED"}:
+            if parsed and (status in {"CODE_ERROR", "REFUTED", "NON_DECIDABLE"} or _declared):
                 return parsed
             return {
                 "status": "CODE_ERROR",

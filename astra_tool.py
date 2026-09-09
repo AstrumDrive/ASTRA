@@ -727,7 +727,10 @@ _MERGE_SYSTEM = (
     "honesta. Devuelve SOLO la conjetura final, sin preambulo ni meta-comentario.")
 
 # Prioridad del consenso conservador: gana el status de mayor rango.
-_ANALYST_RANK = {"REFUTED": 4, "CODE_ERROR": 3, "WEAK_PASS": 2, "VALIDATED": 1}
+# NON_DECIDABLE sits above CODE_ERROR: when one analyst says "broken script"
+# and another "the inputs are missing" (the validator declared it), stopping
+# with the list of missing inputs beats burning retries on a rewrite.
+_ANALYST_RANK = {"REFUTED": 4, "NON_DECIDABLE": 3.5, "CODE_ERROR": 3, "WEAK_PASS": 2, "VALIDATED": 1}
 
 
 # Budget-aware review/repair loop (ported from ASTRA 2.0, 2026-09-05).
@@ -1117,6 +1120,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         has_bounded_claim,
         parse_structured_request,
     )
+    from core.non_decidable import detect_non_decidable, resolve_non_decidable
     import hashlib
 
     oracle = (req.get("oracle") or "").strip().lower()
@@ -1355,6 +1359,9 @@ async def _do_cycle_impl(req: dict) -> dict:
     # C2: one entry per model-reviewer rejection (classes, repeat, action).
     # Defined before _fail, which stamps it on every failure result.
     defect_trace = []
+    # Bound before _fail too: a declared non-decidable validator whose retry
+    # then dies (starved review, author API error) must keep its record.
+    analysis = {}
 
     def _escalate_for_quality(stage, status):
         new_rung = _escalate_agent_models(trans)
@@ -1415,6 +1422,9 @@ async def _do_cycle_impl(req: dict) -> dict:
             out["request"] = request_record
         if defect_trace:
             out["review_defect_trace"] = defect_trace
+        if isinstance(analysis, dict) and analysis.get("non_decidable"):
+            out["non_decidable"] = analysis["non_decidable"]
+            out["missing_inputs"] = list(analysis.get("missing_inputs") or [])
         if timings:
             timings["total"] = round(time.monotonic() - t_start, 2)
             out["timings"] = timings
@@ -2051,6 +2061,14 @@ async def _do_cycle_impl(req: dict) -> dict:
     analysis = await _run_analysis(conjecture, exec_result)
     _mark("analyze", t0)
     analysis = _apply_guard(analysis, exec_result)
+    # Non-decidable with these inputs (core/non_decidable.py): the validator's
+    # own declaration decides whether the retry loop below is even worth it.
+    nd_declaration = detect_non_decidable(exec_result)
+    nd_declarations = 1 if nd_declaration else 0
+    max_retries = max(0, int(os.environ.get("ASTRA_MAX_RETRIES", "2").strip().strip("'\"")))
+    analysis = resolve_non_decidable(
+        analysis, nd_declaration, nd_declarations, retry_available=max_retries > 0
+    )
     _save_cycle_checkpoint(
         "analysis_complete",
         analysis=analysis,
@@ -2060,7 +2078,6 @@ async def _do_cycle_impl(req: dict) -> dict:
     # traductor corrige (error matematico) o refuerza (WEAK_PASS del auditor).
     retries = 0
     autofixes = 0
-    max_retries = max(0, int(os.environ.get("ASTRA_MAX_RETRIES", "2").strip().strip("'\"")))
     while analysis.get("status") in ("CODE_ERROR", "WEAK_PASS") and retries < max_retries:
         retries += 1
         _progress("retry", n=retries, status=analysis.get("status"), timings=timings)
@@ -2129,6 +2146,18 @@ async def _do_cycle_impl(req: dict) -> dict:
                         err_ctx[:3000],
                         "post_execution_code_error",
                     )
+                    if (
+                        patch_error
+                        and analysis.get("non_decidable")
+                        and not patch_error.startswith("API_ERROR:")
+                    ):
+                        # The author cannot patch in data the request lacks
+                        # (CANNOT_PATCH / not applicable): that confirms the
+                        # declaration. Finalize NON_DECIDABLE, not TOOL_ERROR.
+                        analysis = resolve_non_decidable(
+                            analysis, nd_declaration, nd_declarations, retry_available=False
+                        )
+                        break
                     if patch_error:
                         out = _fail(
                             patch_error,
@@ -2192,6 +2221,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         analysis = await _run_analysis(conjecture, exec_result)
         _mark("analyze", t0)
         analysis = _apply_guard(analysis, exec_result)
+        nd_declaration = detect_non_decidable(exec_result)
+        if nd_declaration:
+            nd_declarations += 1
+        # A second declaration ends the cycle whatever the analyst says: the
+        # regenerated validator cannot supply data the request lacks.
+        analysis = resolve_non_decidable(
+            analysis, nd_declaration, nd_declarations, retry_available=retries < max_retries
+        )
     retried = retries > 0
 
     # Estimacion de duracion emitida por el traductor (# ASTRA_EST_RUNTIME: ...).
@@ -2300,6 +2337,9 @@ async def _do_cycle_impl(req: dict) -> dict:
     }
     if est:
         out["est_runtime"] = est
+    if analysis.get("non_decidable"):
+        out["non_decidable"] = analysis["non_decidable"]
+        out["missing_inputs"] = list(analysis.get("missing_inputs") or [])
     if request_record["structure_request"]:
         out["request"] = request_record
     warnings, cli_models, cli_costs, cli_accounts = _cli_meta(agents + ensemble_agents)

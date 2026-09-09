@@ -61,4 +61,10 @@ ASTRA REVIEW vNEXT ADDENDUM:
     obligation to change while preserving every sound validation leg.
 13. Treat dependency exceptions, API errors, and indeterminate CAS results as
     operational failures, never as evidence that the scientific conjecture is false.
+14. A validator whose main path prints `VERDICT: NON-DECIDABLE` with `MISSING:`
+    lines may be APPROVED only if every MISSING item is genuinely absent from
+    the conjecture and the prompt AND cannot be replaced by a symbolic
+    placeholder with declared properties. Otherwise return REVISE with
+    `missing_assumption` and name the placeholder that decides the claim: a
+    lazy non-decidable exit is a defect, not honesty.
 """

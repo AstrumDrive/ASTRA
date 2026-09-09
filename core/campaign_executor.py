@@ -23,6 +23,11 @@ Epistemic mapping (documented, deterministic):
 - ``VALIDATED``   -> operation COMPLETED, claim SUPPORTED, evidence SUPPORTS.
 - ``WEAK_PASS``   -> operation COMPLETED, claim INCONCLUSIVE, evidence
                      INCONCLUSIVE.
+- ``NON_DECIDABLE`` -> operation COMPLETED, claim NOT_TESTED, evidence
+                     FORMALIZATION_FAILURE: the validator could not be
+                     instantiated because decisive inputs are absent from the
+                     request (``missing_inputs`` names them). Nothing was
+                     refuted; the branch needs data, not a rewrite.
 - anything else (``PARTIAL``, unknown) -> operation FAILED, claim
                      NOT_TESTED, no evidence.
 
@@ -175,6 +180,14 @@ def map_cycle_outcome(result: Mapping[str, Any]) -> OutcomeAxes:
             OperationStatus.COMPLETED,
             ClaimStatus.INCONCLUSIVE,
             EvidenceOutcome.INCONCLUSIVE,
+            EvidenceStrength.PRELIMINARY,
+            goal,
+        )
+    if status == "NON_DECIDABLE":
+        return OutcomeAxes(
+            OperationStatus.COMPLETED,
+            ClaimStatus.NOT_TESTED,
+            EvidenceOutcome.FORMALIZATION_FAILURE,
             EvidenceStrength.PRELIMINARY,
             goal,
         )

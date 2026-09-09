@@ -23,6 +23,7 @@ OPERATIONAL_STATUSES = {
     "CODE_ERROR",
     "ERROR",
     "INCOMPLETE",
+    "NON_DECIDABLE",
     "NO_VERDICT",
     "PARTIAL",
     "STOPPED",
@@ -281,7 +282,7 @@ def compute_trajectory_metrics(record: dict[str, Any]) -> dict[str, Any]:
     recovery_opportunities = 0
     recoveries = 0
     for index, status in enumerate(statuses[:-1]):
-        if status not in {"REFUTED", "CODE_ERROR", "WEAK_PASS", "TOOL_ERROR"}:
+        if status not in {"REFUTED", "CODE_ERROR", "WEAK_PASS", "TOOL_ERROR", "NON_DECIDABLE"}:
             continue
         recovery_opportunities += 1
         next_hypothesis = hypothesis_by_cycle[index + 1]

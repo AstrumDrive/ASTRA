@@ -69,6 +69,7 @@ KNOWN_TEST_INTUITIONS = frozenset({
     "Test checkpoint provenance under the strict contract.",
     "Test the review stuck detector.",
     "Test the request structurer.",
+    "Test the non-decidable outcome.",
 })
 TEST_WALL_SECONDS = 120.0       # cycle_timeout_seconds the suite used until 2026-09-05
 SUB_SECOND = 1.0

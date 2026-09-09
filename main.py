@@ -120,8 +120,15 @@ async def phase_5_result_analysis(
     state.status = "ANALYZING"
     state.current_phase = "6/6 Refutation Analysis"
     state.add_log(f"Phase 5: Analyzing execution results via {analyst_llm.provider}...")
-    return await analyst_llm.analyze_results(
+    analysis = await analyst_llm.analyze_results(
         conjecture, execution_result, shared_goal=shared_goal
+    )
+    # Same NON_DECIDABLE rules as the MCP cycle (core/non_decidable.py); this
+    # driver has no retry loop, so a declared validator is final here.
+    from core.non_decidable import detect_non_decidable, resolve_non_decidable
+
+    return resolve_non_decidable(
+        analysis, detect_non_decidable(execution_result), 1, retry_available=False
     )
 
 

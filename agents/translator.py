@@ -75,6 +75,16 @@ ASTRA VALIDATOR-REPAIR vNEXT CONTRACT:
    check, not independent validation.
 5. On repair, preserve sound code and patch the listed defects locally. Return the
    complete updated script, not a diff and not a wholesale unrelated rewrite.
+6. NON-DECIDABLE INPUTS (last resort): when the conjecture names inputs the
+   prompt does not contain (a numerical fixed point, an ansatz, a material
+   class, boundary data, a data file), FIRST restate the decisive checks on
+   symbolic placeholders with declared properties, or on the derivable part
+   of the claim; most claims are decidable that way. Only when no placeholder
+   can decide the claim, do not fabricate the data and do not print PASS or
+   FAIL: print `VERDICT: NON-DECIDABLE`, then one `MISSING: <input>` line per
+   absent input naming it precisely, and exit with code 3. The independent
+   reviewer and the analyst check that each MISSING item is genuinely absent
+   and not replaceable by a placeholder.
 """
 
 

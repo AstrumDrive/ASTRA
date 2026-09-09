@@ -202,6 +202,21 @@ Primera entrega: C0 + C1.
   2026-09-09 (pid 32808, CODE_ERROR por entradas no predeclaradas: A_mat, U0,
   ansatz, fronteras) es el caso que este paso pretende atajar antes de gastar
   media hora.
-- **Pendiente (no en C0-C4):** un estado propio "no decidible con estas
-  entradas" en el analista y el bucle de reintentos post-oraculo, que hoy
-  mapea `exit 3` sin VERDICT a CODE_ERROR y reintenta.
+- **Estado NON_DECIDABLE implementado** (no estaba en C0-C4;
+  `core/non_decidable.py`). Protocolo del validador (contrato vNEXT del
+  traductor, regla 6): si las entradas decisivas no estan ni se derivan,
+  `VERDICT: NON-DECIDABLE` + una linea `MISSING: <entrada>` por ausente +
+  `exit 3`; se aceptan tambien `RESULT: NON-DECIDABLE` y `missing:` (lo que
+  produjo solo el validador del ciclo 32808). Cuarto estado del analista,
+  aceptado unicamente si el validador lo declaro (sin marcador, se degrada a
+  CODE_ERROR). Reglas deterministas: declarado + analista de acuerdo ->
+  NON_DECIDABLE sin reintento; declarado + analista VALIDATED/REFUTED ->
+  NON_DECIDABLE (no hay veredicto del oraculo que sostenga un estado
+  decisivo); declarado + analista CODE_ERROR -> UN reintento (las entradas
+  podrian derivarse) y una segunda declaracion cierra el ciclo. El resultado
+  lleva `missing_inputs`, `non_decidable` (resolucion + pista) y los ausentes
+  como `deferred_claims`; `scientific_status` = NON_DECIDABLE; no se cachea.
+  Consumidores actualizados: consenso conservador de analistas (rango 3.5,
+  entre CODE_ERROR y REFUTED), ejecutor de campanas (COMPLETED / NOT_TESTED /
+  FORMALIZATION_FAILURE), metricas de trayectoria, runner persistente,
+  docstring de `astra_cycle`.

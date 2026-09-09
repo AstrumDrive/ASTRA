@@ -105,7 +105,7 @@ def main() -> int:
             section in result for section in required_sections
         ),
         "terminal_atomic_status": atomic_status
-        in {"VALIDATED", "REFUTED", "CODE_ERROR", "WEAK_PASS"},
+        in {"VALIDATED", "REFUTED", "CODE_ERROR", "WEAK_PASS", "NON_DECIDABLE"},
     }
     operational_pass = all(operational_checks.values())
 
