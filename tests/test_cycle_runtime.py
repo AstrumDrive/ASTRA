@@ -103,6 +103,90 @@ class CycleBudgetTests(unittest.TestCase):
         self.assertTrue(persistent_checkpoint.exists())
         persistent_checkpoint.unlink()
 
+    def test_checkpoint_stamps_the_strict_contract_flag_on_a_failed_cycle(self):
+        # Regression for the cycle-robustness spec's 'Transversal: procedencia'
+        # guarantee: production_manifest() must reach the on-disk checkpoint
+        # from EVERY save this cycle makes, not only a successful 'done' one.
+        # This drives the REAL astra_tool checkpoint machinery (checkpoint_state
+        # / _save_cycle_checkpoint) end to end -- unlike
+        # tests/test_cycle_telemetry.py, whose fixtures stuff an 'architecture'
+        # block into hand-built dicts and so cannot detect a regression in
+        # astra_tool.py itself (an adversarial audit flagged exactly this gap:
+        # a prior version of the fix stamped only the final result, leaving
+        # every tool_error/failed/partial cycle -- what the strict-translator
+        # overlay exists to reduce -- with no record of which contract ran).
+        class FakeIntelligence:
+            def __init__(self, provider, cli_models=None, cli_timeout=None):
+                self.provider = provider
+                self.cli_models = cli_models
+                self.cli_timeout = cli_timeout
+                self.cli_warnings = []
+                self.cli_last_model = None
+
+            async def generate_conjecture(self, axiomatic_base, intuition):
+                return "A falsifiable conjecture."
+
+            async def translate_to_code(self, conjecture, **_kwargs):
+                return f"API_ERROR: timeout tras {self.cli_timeout}s"
+
+        providers = {
+            "conjecture": "codex_cli",
+            "translator": "claude_cli",
+            "analyst": "codex_cli",
+            "reviewer": "codex_cli",
+            "navigator": "agy_cli",
+        }
+        base_env = {
+            "ASTRA_CYCLE_CACHE": "0",
+            "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+            "ASTRA_ANALYST_PROVIDER": "codex_cli",
+            "ASTRA_CONJECTURE_TIMEOUT": "420",
+            "ASTRA_TRANSLATOR_TIMEOUT": "720",
+        }
+
+        def _run_and_read_checkpoint(strict_value):
+            env = {**base_env, "ASTRA_TRANSLATOR_STRICT_CONTRACT": strict_value}
+            with patch.dict("os.environ", env, clear=False), patch(
+                "core.preflight.phase_provider_map",
+                return_value=providers,
+            ), patch(
+                "core.llm_client.ASTRAIntelligence",
+                FakeIntelligence,
+            ):
+                result = asyncio.run(
+                    _do_cycle(
+                        {
+                            "action": "cycle",
+                            "intuition": "Test checkpoint provenance under the strict contract.",
+                            "cycle_timeout_seconds": 80,
+                            "cycle_return_buffer_seconds": 60,
+                        }
+                    )
+                )
+            self.assertEqual(result["status"], "PARTIAL")
+            checkpoint_path = Path(result["checkpoint"])
+            self.assertTrue(checkpoint_path.exists())
+            try:
+                return json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            finally:
+                checkpoint_path.unlink()
+
+        strict_checkpoint = _run_and_read_checkpoint("1")
+        self.assertIs(
+            strict_checkpoint["architecture"]["controls"]["translator_strict_contract"],
+            True,
+        )
+        # PARTIAL is exactly the killed/failed outcome class the original
+        # defect left unstamped -- confirm the manifest is present here, not
+        # only on a successful 'done' result.
+        self.assertEqual(strict_checkpoint["stage"], "partial")
+
+        base_checkpoint = _run_and_read_checkpoint("0")
+        self.assertIs(
+            base_checkpoint["architecture"]["controls"]["translator_strict_contract"],
+            False,
+        )
+
 
 class RuntimeResourceTests(unittest.TestCase):
     def test_capacity_and_plan_are_positive(self):

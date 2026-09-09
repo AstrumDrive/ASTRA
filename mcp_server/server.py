@@ -498,33 +498,86 @@ def astra_probe() -> str:
     timings), recent (finished/killed cycles with final stage), and a hint.
     """
     import glob
-    now = time.time()
+    if ASTRA_ROOT not in sys.path:
+        sys.path.insert(0, ASTRA_ROOT)
+    # Pure-stdlib helper shared with scripts/astra_progress.py: single source of
+    # truth for terminal classification and checkpoint enrichment.
+    from core import cycle_telemetry as ct
     in_flight, recent = [], []
     for f in sorted(glob.glob(os.path.join(ASTRA_ROOT, "workspace", "progress", "cycle_*.json")),
                     key=os.path.getmtime, reverse=True)[:12]:
-        try:
-            with open(f, encoding="utf-8") as fh:
-                d = json.load(fh)
-        except Exception:
+        d = ct.load_json(f)
+        if not d:
             continue
-        d["age_s"] = round(max(0.0, now - d.get("ts", 0)), 1)
-        d["alive"] = _pid_alive(d.get("pid", -1))
-        if d.get("stage") in ("done", "failed") or not d["alive"]:
-            recent.append(d)
-        else:
-            in_flight.append(d)
+        d = ct.enrich_progress(d, _pid_alive(d.get("pid", -1)))
+        # state: 'running' | 'finished' (clean terminal) | 'killed' (died before
+        # a terminal stage) | 'exited' (clean BUSY/cache-hit return after
+        # 'queued', no verdict). Live review round / budget come from the
+        # heartbeat itself; the finer outcome (e.g. tool_error@reviewer) and
+        # the stop cause come from the linked checkpoint.
+        (in_flight if d["state"] == "running" else recent).append(d)
     if in_flight:
         top = in_flight[0]
         hint = (f"ASTRA esta TRABAJANDO: fase '{top.get('stage')}' (heartbeat hace "
-                f"{top.get('age_s')}s). Traduccion/reparacion puede usar un presupuesto "
-                "mayor que otras fases. Sondea de nuevo en ~60s antes de asumir cuelgue.")
+                f"{top.get('age_s')}s; ronda de revision {top.get('review_rounds', 0)}; "
+                f"presupuesto restante {top.get('budget_remaining_s', '?')}s). "
+                "Traduccion/reparacion puede usar un presupuesto mayor que otras fases. "
+                "Sondea de nuevo en ~60s antes de asumir cuelgue.")
     elif recent:
-        hint = (f"No hay ciclos en vuelo. El ultimo termino en stage '{recent[0].get('stage')}'"
-                + ("" if recent[0].get("stage") in ("done", "failed")
-                   else " (proceso muerto: probable kill por timeout externo)"))
+        last = recent[0]
+        if last["state"] == "finished":
+            hint = (f"No hay ciclos en vuelo. El ultimo TERMINO limpio con outcome "
+                    f"'{last.get('outcome', last.get('stage'))}' "
+                    f"({last.get('review_rounds', 0)} rondas de revision; causa: "
+                    f"{last.get('stop_cause', '-')}).")
+        elif last["state"] == "exited":
+            # Ambiguous from the heartbeat alone: astra_cycle_submit waits for a
+            # slot up to max_seconds and the job runner kills astra_tool at that
+            # same ceiling, so a slot that never frees can ALSO die at 'queued'
+            # -- indistinguishable here from the ordinary clean BUSY/cache-hit
+            # return. Do not assert either as fact; check the submit job's own
+            # result.json (astra_job) for a real TIMEOUT if this looks wrong.
+            hint = (f"No hay ciclos en vuelo. El ultimo salio de 'queued' sin heartbeat "
+                    "terminal: puede ser un retorno limpio (BUSY por slot ocupado, o "
+                    "acierto de cache) o, si vino de astra_cycle_submit, un kill del "
+                    "runner al agotar su propio limite mientras esperaba turno -- "
+                    "ambiguo desde aqui; revisa astra_job si el slot parecia atascado.")
+        else:
+            hint = (f"No hay ciclos en vuelo. El ultimo MURIO en fase '{last.get('stage')}' "
+                    "sin llegar a un estado terminal (probable kill por timeout externo).")
     else:
         hint = "Sin rastros de ciclos (directorio de progreso vacio)."
     return json.dumps({"in_flight": in_flight, "recent": recent[:5], "hint": hint},
+                      indent=2, ensure_ascii=False)
+
+
+@mcp.tool()
+def astra_telemetry(limit: int = 30) -> str:
+    """
+    TELEMETRY — per-cycle timings, per GOAL how many cycles it took to resolve.
+
+    Aggregates the checkpoints every cycle writes (workspace/cycle_checkpoints/):
+    one row per cycle (outcome, review rounds, total and per-phase seconds, stop
+    cause, budget, whether the strict-translator overlay produced it) plus
+    aggregates under `summary` (cycles, finished vs incomplete, decisive cycles,
+    mean/median duration, total review rounds, and `per_goal`: for each distinct
+    objective, cycles consumed, cycles_to_decisive once it first reaches
+    VALIDATED/REFUTED, and whether it has). `limit` caps how many recent cycles
+    are included; `summary.window` reports the total checkpoints on disk versus
+    `limit`, so a `truncated: true` flags that an older goal's earlier attempts
+    may be undercounted -- raise `limit` to see full history. Read-only and
+    instant. Pair with astra_probe for the live view.
+    """
+    if ASTRA_ROOT not in sys.path:
+        sys.path.insert(0, ASTRA_ROOT)
+    from core import cycle_telemetry as ct
+    ckpt_dir = os.path.join(ASTRA_ROOT, "workspace", "cycle_checkpoints")
+    window = max(1, int(limit))
+    rows = ct.list_checkpoints(ckpt_dir, limit=window)
+    summary = ct.summarize(rows)
+    total = ct.count_checkpoint_files(ckpt_dir)
+    summary["window"] = {"limit": window, "total_checkpoints": total, "truncated": total > window}
+    return json.dumps({"cycles": rows, "summary": summary},
                       indent=2, ensure_ascii=False)
 
 

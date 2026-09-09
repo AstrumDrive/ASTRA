@@ -15,7 +15,7 @@ QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
 MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
 QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
 MUSE_TRIAL_MODEL = "muse-spark-1.3"
-CACHE_SCHEMA_VERSION = "4"
+CACHE_SCHEMA_VERSION = "5"
 
 EXPECTED_PRIMARY_MODELS = {
     "codex_cli": "gpt-5.6-sol",
@@ -41,6 +41,15 @@ def _csv(env: Mapping[str, str], key: str, default: str = "") -> list[str]:
 
 def _enabled(env: Mapping[str, str], key: str, default: str = "1") -> bool:
     return _value(env, key, default).lower() not in {"0", "off", "false", "no"}
+
+
+def _translator_strict_contract(env: Mapping[str, str]) -> bool:
+    # Local import: agents.translator has no import of core.architecture_contract
+    # (checked), so this is safe at call time; kept local rather than at module
+    # top to match this file's existing deferred-import style for agent modules.
+    from agents.translator import parse_strict_flag
+
+    return parse_strict_flag(_value(env, "ASTRA_TRANSLATOR_STRICT_CONTRACT", "0"))
 
 
 def _integer(
@@ -191,6 +200,24 @@ def production_manifest(
                 "ASTRA_VALIDATOR_REPAIR_STRATEGY",
                 "local-patch",
             ).lower(),
+            # Opt-in strict certification contract for the translator/repairer
+            # (docs/architecture/CYCLE_ROBUSTNESS_SPEC.md, C0). Stamped here so
+            # (a) the cycle cache key -- which embeds this manifest -- changes
+            # when the overlay flips, so a strict re-run never replays a cached
+            # non-strict verdict, and (b) every result/checkpoint records which
+            # translator contract produced it (spec 'Transversal: procedencia').
+            # Adding this field bumped CACHE_SCHEMA_VERSION 4->5 (same precedent
+            # as the earlier 'profile' addition): every existing workspace/
+            # cycle_cache entry is invalidated intentionally and once, not
+            # silently -- the version bump documents it.
+            #
+            # Parsed with agents.translator.parse_strict_flag, NOT the generic
+            # _enabled() below: _enabled()'s deny-list convention (truthy unless
+            # "off") would stamp translator_strict_contract=true for a stray
+            # value the translator itself reads as false (e.g. "" or a typo),
+            # so provenance and the cache key would disagree with what the
+            # cycle actually ran.
+            "translator_strict_contract": _translator_strict_contract(source),
             "required_local_engines": _csv(
                 source,
                 "ASTRA_REQUIRED_LOCAL_ENGINES",

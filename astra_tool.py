@@ -1200,6 +1200,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         "providers": providers_resolved,
         "max_mode": max_mode,
         "created_ts": time.time(),
+        # Stamped ONCE here so _save_cycle_checkpoint's update() propagates it
+        # to every save this cycle makes (start, translation_complete, review
+        # rejections, tool_error/failed/partial, done). Without this the
+        # manifest reached only the final 'done' result, so every rejected or
+        # killed cycle -- exactly what the strict-translator overlay targets --
+        # had no record of which translator contract produced it (cycle-
+        # robustness spec, 'Transversal: procedencia').
+        "architecture": production_manifest(),
     }
 
     def _save_cycle_checkpoint(stage, **artifacts):
@@ -1522,6 +1530,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 revision=model_revisions,
                 review_round=review_round,
                 timings=timings,
+                budget=budget.snapshot(),
             )
             t0 = time.monotonic()
             if validator_repair_vnext:
@@ -1619,7 +1628,9 @@ async def _do_cycle_impl(req: dict) -> dict:
             _progress(
                 "review_revision",
                 revision=model_revisions,
+                review_round=review_round,
                 timings=timings,
+                budget=budget.snapshot(),
             )
             patch_instructions = (
                 "Independent Codex review returned "
@@ -1687,7 +1698,9 @@ async def _do_cycle_impl(req: dict) -> dict:
                         "review_regeneration",
                         reason=patch_error[:500],
                         revision=model_revisions,
+                        review_round=review_round,
                         timings=timings,
+                        budget=budget.snapshot(),
                     )
                     t0 = time.monotonic()
                     _prepare_agent(trans, "TRANSLATOR")

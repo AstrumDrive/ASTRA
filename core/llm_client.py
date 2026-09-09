@@ -318,7 +318,9 @@ class ASTRAIntelligence:
 
         from agents.translator import (
             FORMAL_TRANSLATOR_PROMPT,
+            FORMAL_TRANSLATOR_STRICT_ADDENDUM,
             FORMAL_TRANSLATOR_VNEXT_ADDENDUM,
+            strict_contract_enabled,
         )
         system_prompt = FORMAL_TRANSLATOR_PROMPT
         vnext = (
@@ -330,6 +332,11 @@ class ASTRAIntelligence:
         )
         if vnext:
             system_prompt += FORMAL_TRANSLATOR_VNEXT_ADDENDUM
+        if strict_contract_enabled():
+            # C0 of the cycle-robustness spec: hard rules against the wiring
+            # defects the independent reviewer rejects (links in comments,
+            # undecidable signs, assumed bounds, proxy continuity, no FAIL).
+            system_prompt += FORMAL_TRANSLATOR_STRICT_ADDENDUM
         user_prompt = f"Conjecture:\n{conjecture}"
         if is_correction:
             if vnext and previous_code:
@@ -374,7 +381,11 @@ class ASTRAIntelligence:
         repair_instructions: str,
     ) -> dict:
         """Ask the code author for a bounded exact-edit patch, then apply it."""
-        from agents.translator import FORMAL_PATCH_REPAIR_PROMPT
+        from agents.translator import (
+            FORMAL_PATCH_REPAIR_PROMPT,
+            FORMAL_TRANSLATOR_STRICT_ADDENDUM,
+            strict_contract_enabled,
+        )
         from core.code_patching import apply_exact_edit_patch
 
         if len(previous_code) > 24000:
@@ -399,7 +410,13 @@ class ASTRAIntelligence:
             "CURRENT VALIDATION SCRIPT:\n"
             f"```text\n{previous_code[:24000]}\n```"
         )
-        response = await self._call_api(FORMAL_PATCH_REPAIR_PROMPT, user_prompt)
+        # The under-wired patches the reviewer rejected came from this repair
+        # path too, so the strict contract (when enabled) binds the repairer as
+        # well as the from-scratch translator.
+        repair_system_prompt = FORMAL_PATCH_REPAIR_PROMPT
+        if strict_contract_enabled():
+            repair_system_prompt += FORMAL_TRANSLATOR_STRICT_ADDENDUM
+        response = await self._call_api(repair_system_prompt, user_prompt)
         if isinstance(response, str) and response.startswith("API_ERROR:"):
             return {
                 "status": "API_ERROR",

@@ -234,6 +234,31 @@ class ArchitectureContractTests(unittest.TestCase):
             ["z3", "sagemath"],
         )
 
+    def test_strict_translator_contract_is_stamped_and_off_by_default(self):
+        # C0 provenance: the manifest records which translator contract ran.
+        env = self.canonical_environment()
+        self.assertIs(
+            production_manifest(env)["controls"]["translator_strict_contract"], False
+        )
+        env["ASTRA_TRANSLATOR_STRICT_CONTRACT"] = "1"
+        self.assertIs(
+            production_manifest(env)["controls"]["translator_strict_contract"], True
+        )
+
+    def test_strict_translator_flag_changes_the_manifest_hence_the_cache_key(self):
+        # The cycle cache key embeds production_manifest(); a strict re-run must
+        # never replay a cached non-strict verdict.
+        env = self.canonical_environment()
+        off = production_manifest(env)
+        env["ASTRA_TRANSLATOR_STRICT_CONTRACT"] = "1"
+        on = production_manifest(env)
+        self.assertNotEqual(off, on)
+        # and the default still passes the production audit (overlay is opt-in)
+        self.assertEqual(
+            audit_production_architecture(self.canonical_environment(), check_binaries=False)["status"],
+            "PASS",
+        )
+
     def test_cycle_cache_is_sensitive_to_reflexive_thread_context(self):
         env = self.canonical_environment()
         providers = {

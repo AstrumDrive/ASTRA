@@ -78,6 +78,63 @@ ASTRA VALIDATOR-REPAIR vNEXT CONTRACT:
 """
 
 
+FORMAL_TRANSLATOR_STRICT_ADDENDUM = """
+
+ASTRA STRICT CERTIFICATION CONTRACT (opt-in overlay; see
+docs/architecture/CYCLE_ROBUSTNESS_SPEC.md, C0). These are the defects an
+independent reviewer rejects every time; do not produce them.
+1. EVERY logical link is an EXECUTED check whose boolean feeds the final verdict.
+   A fact stated only in a comment, docstring, or variable name proves nothing.
+   If a step cannot be checked executably, report it as an unresolved obligation
+   and let the verdict fail; never let PASS rest on a comment.
+2. Declare the RELATIONS between symbols so positivity and domain are decidable
+   by the symbolic engine. Do not declare related quantities as independent
+   symbols (e.g. w_i, w_f) and then test a sign the engine cannot decide. Write
+   the constraint into the symbols (m_f = m_i + d with d>0; L>0;
+   omega* = m_f + s with s>=0) and certify each sign on the SAME expression the
+   integrand uses, never on a detached manifest copy.
+3. For a strict integral sign, prefer an EXHIBITED POINT plus continuity: show
+   the integrand is sign-definite everywhere and strictly so at one explicitly
+   constructed point whose existence you certify for every parameter value
+   (e.g. by an unboundedness / archimedean argument). Do not bound the integral
+   by measure-theoretic estimates you have not proven.
+4. NEVER assume the conclusion. No `assume(X <= Y)`, no `Irest <= 0` taken as
+   given, no self-confirming gate: every bound the verdict depends on must be
+   derived from the actual expressions in code, or the verdict must fail.
+5. The FAIL branch must be reachable and falsifiable: a wrong sign, a nonzero
+   identity residual, a non-empty zero set, or a non-infinite limit must flip
+   the verdict. Numerical samples corroborate; they never discharge a "for all".
+"""
+
+
+def parse_strict_flag(raw: str) -> bool:
+    """The single truthy rule for ASTRA_TRANSLATOR_STRICT_CONTRACT.
+
+    core/architecture_contract.py's production_manifest() stamps this same
+    flag for provenance and calls this exact function, so the value it records
+    can never disagree with whether the translator actually ran strict. Kept
+    strict on purpose (only these four spellings): the generic repo convention
+    (_enabled() in architecture_contract.py, "off" for a small deny-list,
+    truthy otherwise) would make a stray value like an empty string or a typo
+    stamp translator_strict_contract=true -- and split the cycle cache key --
+    for a cycle that in fact ran the base prompt.
+    """
+    return str(raw or "0").strip().strip("'\"").lower() in {"1", "true", "on", "yes"}
+
+
+def strict_contract_enabled() -> bool:
+    """True when the opt-in strict certification contract is active.
+
+    Driven by ASTRA_TRANSLATOR_STRICT_CONTRACT, normally set by the
+    config/strict_translator overlay (toggle with
+    scripts/enable_strict_translator.ps1). Off by default so production is
+    unchanged until the overlay is deliberately enabled and measured.
+    """
+    import os
+
+    return parse_strict_flag(os.environ.get("ASTRA_TRANSLATOR_STRICT_CONTRACT", "0"))
+
+
 FORMAL_PATCH_REPAIR_PROMPT = """You are ASTRA's bounded validation-code repairer.
 You receive a complete current validator and atomic audit instructions. Preserve
 all sound code. Return ONLY one JSON object in this exact schema:

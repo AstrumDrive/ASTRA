@@ -164,27 +164,35 @@ def env_path() -> Path:
 
 # Opt-in, reversible config overlays. Each is loaded (with override) only while
 # its config/<name>.enabled marker exists, so it can be toggled without editing
-# .env. They are mutually exclusive -- each sets ASTRA_ARCHITECTURE_PROFILE --
-# so enable at most one at a time.
-_ENV_OVERLAYS = ("muse_trial", "quota_relief")
+# .env. Two kinds:
+#  - PROFILE overlays each set ASTRA_ARCHITECTURE_PROFILE and are therefore
+#    mutually exclusive: enable at most one at a time.
+#  - COMPOSABLE overlays touch an orthogonal knob (no profile) and may coexist
+#    with one profile overlay and with each other. strict_translator only sets
+#    ASTRA_TRANSLATOR_STRICT_CONTRACT (cycle-robustness spec, C0); treating it
+#    as exclusive would silently disable an active muse_trial when enabled.
+_PROFILE_OVERLAYS = ("muse_trial", "quota_relief")
+_COMPOSABLE_OVERLAYS = ("strict_translator",)
+_ENV_OVERLAYS = _PROFILE_OVERLAYS + _COMPOSABLE_OVERLAYS
 
 
 def _enabled_overlays():
     root = project_root() / "config"
-    enabled = [name for name in _ENV_OVERLAYS if (root / f"{name}.enabled").is_file()]
-    # The overlays are mutually exclusive (each sets ASTRA_ARCHITECTURE_PROFILE).
+    profile = [n for n in _PROFILE_OVERLAYS if (root / f"{n}.enabled").is_file()]
+    composable = [n for n in _COMPOSABLE_OVERLAYS if (root / f"{n}.enabled").is_file()]
+    # Profile overlays are mutually exclusive (each sets ASTRA_ARCHITECTURE_PROFILE).
     # The enable scripts refuse to create a second marker, but if two ever
-    # coexist, load NONE and fall back to the base .env -- a valid audited
-    # config -- rather than merge them in a list-order-dependent way that could
-    # otherwise resolve to a self-consistent-but-wrong profile.
-    if len(enabled) > 1:
+    # coexist, load NO profile overlay and fall back to the base .env profile --
+    # a valid audited config -- rather than merge them in a list-order-dependent
+    # way. Composable overlays are unaffected by that conflict.
+    if len(profile) > 1:
         print(
-            f"[preflight] refusing to load conflicting config overlays "
-            f"{enabled}; using base .env. Disable all but one.",
+            f"[preflight] refusing to load conflicting profile overlays "
+            f"{profile}; using base .env profile. Disable all but one.",
             file=sys.stderr,
         )
-        return []
-    return [root / f"{name}.env" for name in enabled]
+        profile = []
+    return [root / f"{n}.env" for n in profile + composable]
 
 
 def load_project_env() -> None:
