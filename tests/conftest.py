@@ -16,6 +16,7 @@ explicitly.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 
 import pytest
@@ -34,3 +35,30 @@ def isolated_cycle_lock_root():
                 os.environ.pop("ASTRA_LOCK_ROOT", None)
             else:
                 os.environ["ASTRA_LOCK_ROOT"] = previous
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_workspace_root():
+    """Send every cycle's heartbeat, checkpoint, cache and job files to a temp dir.
+
+    astra_tool.py writes them under <checkout>/workspace by default, the pool
+    core/cycle_telemetry.py, astra_probe and astra_telemetry read as production
+    history. The suite's fake cycles (0.02 s, "Test author quota failure ...")
+    were landing there and dragging every mean duration and outcome count.
+    ASTRA_WORKSPACE_ROOT is the writer-side override astra_tool._workspace_root
+    honours; tests/test_workspace_isolation.py proves the redirection and the
+    byte-for-byte default. The directory is removed at session end; on Windows
+    a straggling handle must not turn that into a session error, hence the
+    tolerant rmtree instead of TemporaryDirectory's strict cleanup.
+    """
+    previous = os.environ.get("ASTRA_WORKSPACE_ROOT")
+    tmp = tempfile.mkdtemp(prefix="astra_test_workspace_")
+    os.environ["ASTRA_WORKSPACE_ROOT"] = tmp
+    try:
+        yield tmp
+    finally:
+        if previous is None:
+            os.environ.pop("ASTRA_WORKSPACE_ROOT", None)
+        else:
+            os.environ["ASTRA_WORKSPACE_ROOT"] = previous
+        shutil.rmtree(tmp, ignore_errors=True)

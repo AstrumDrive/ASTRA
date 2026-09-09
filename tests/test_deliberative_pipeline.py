@@ -1,6 +1,5 @@
 import unittest
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 from astra_tool import (
@@ -9,6 +8,7 @@ from astra_tool import (
     _ensemble_conjecture,
     _escalate_agent_models,
 )
+from tests.cycle_artifacts import remove_cycle_artifacts
 from core.llm_client import ASTRAIntelligence
 from agents.conjecture import CONJECTURE_ENGINE_PROMPT
 
@@ -111,9 +111,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
             "claude-opus-4-8",
         )
         self.assertIn("VERDICT: FAIL", result["code"])
-        checkpoint = Path(result["checkpoint"])
-        if checkpoint.exists():
-            checkpoint.unlink()
+        remove_cycle_artifacts(result)
 
     async def test_rejected_bounded_patch_falls_back_to_regeneration(self):
         class FakeIntelligence:
@@ -216,9 +214,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(FakeIntelligence.translations, 2)
         self.assertEqual(FakeIntelligence.reviews, 2)
         self.assertEqual(result["validator_model_patch_history"][0]["status"], "REJECTED")
-        checkpoint = Path(result["checkpoint"])
-        if checkpoint.exists():
-            checkpoint.unlink()
+        remove_cycle_artifacts(result)
 
     async def test_failed_conjecture_ensemble_preserves_provider_errors(self):
         async def fake_generate(_self, axiomatic_base, intuition):
@@ -452,9 +448,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
         # The regression itself: `code` must still hold the last real source.
         self.assertFalse(str(result.get("code", "")).startswith("API_ERROR:"))
         self.assertIn("unterminated", str(result.get("code", "")))
-        checkpoint = Path(result["checkpoint"])
-        if checkpoint.exists():
-            checkpoint.unlink()
+        remove_cycle_artifacts(result)
 
     async def test_author_api_error_during_bounded_patch_aborts_immediately(self):
         """A provider failure in the bounded patch is a tool error, not a verdict.
@@ -572,9 +566,7 @@ class DeliberativePipelineTests(unittest.IsolatedAsyncioTestCase):
         # And the exhausted account is not asked to regenerate on the way out.
         self.assertEqual(FakeIntelligence.patches, 1)
         self.assertEqual(FakeIntelligence.translations, 1)
-        checkpoint = Path(result["checkpoint"])
-        if checkpoint.exists():
-            checkpoint.unlink()
+        remove_cycle_artifacts(result)
 
     def test_conservative_analyst_consensus_uses_most_cautious_verdict(self):
         result = _combine_verdicts(

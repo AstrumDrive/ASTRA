@@ -12,6 +12,7 @@ from core.runtime_resources import (
     recommended_parallelism,
 )
 from astra_tool import _do_cycle, _do_submit_cycle
+from tests.cycle_artifacts import remove_cycle_artifacts
 
 
 class CycleBudgetTests(unittest.TestCase):
@@ -96,12 +97,12 @@ class CycleBudgetTests(unittest.TestCase):
         self.assertEqual(result["conjecture"], "A falsifiable conjecture.")
         checkpoint = Path(result["checkpoint"])
         self.assertTrue(checkpoint.exists())
-        checkpoint.unlink()
+        remove_cycle_artifacts(result)
         self.assertEqual(persistent_result["status"], "PARTIAL")
         self.assertEqual(persistent_result["phase"], "translator")
         persistent_checkpoint = Path(persistent_result["checkpoint"])
         self.assertTrue(persistent_checkpoint.exists())
-        persistent_checkpoint.unlink()
+        remove_cycle_artifacts(persistent_result)
 
     def test_checkpoint_stamps_the_strict_contract_flag_on_a_failed_cycle(self):
         # Regression for the cycle-robustness spec's 'Transversal: procedencia'
@@ -169,7 +170,7 @@ class CycleBudgetTests(unittest.TestCase):
             try:
                 return json.loads(checkpoint_path.read_text(encoding="utf-8"))
             finally:
-                checkpoint_path.unlink()
+                remove_cycle_artifacts(result)
 
         strict_checkpoint = _run_and_read_checkpoint("1")
         self.assertIs(

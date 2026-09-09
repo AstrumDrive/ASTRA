@@ -159,9 +159,29 @@ def _goal_coverage(
     }
 
 
+def _workspace_root() -> str:
+    """Directory that receives everything this module writes at run time:
+    progress heartbeats, cycle checkpoints, the cycle cache and job folders.
+
+    Default: ``<checkout>/workspace``, the historical location, unchanged.
+    ``ASTRA_WORKSPACE_ROOT`` redirects it.  That override exists for the
+    test-suite: its fake cycles used to land in the production pool that
+    core/cycle_telemetry.py, astra_probe and astra_telemetry read as history,
+    and a 0.02 s "Test author quota failure" cycle drags every mean and
+    outcome count.  Readers (mcp_server/server.py, scripts/astra_progress.py)
+    keep the checkout path on purpose: the variable isolates writers, it does
+    not relocate production.  Never export it in the shell that launches the
+    MCP server: the readers would look in the checkout while the writers
+    write elsewhere.
+    """
+    configured = (os.environ.get("ASTRA_WORKSPACE_ROOT") or "").strip().strip("'\"")
+    if configured:
+        return os.path.expanduser(configured)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace")
+
+
 def _progress_path(pid=None):
-    root = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(root, "workspace", "progress", f"cycle_{pid or os.getpid()}.json")
+    return os.path.join(_workspace_root(), "progress", f"cycle_{pid or os.getpid()}.json")
 
 
 def _progress(stage, **extra):
@@ -204,7 +224,7 @@ def _pid_alive_win(pid) -> bool:
 
 
 def _jobs_root() -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace", "jobs")
+    return os.path.join(_workspace_root(), "jobs")
 
 
 def _do_submit(req: dict) -> dict:
@@ -1147,8 +1167,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     # quema el pipeline entero. ASTRA_CYCLE_CACHE=0 lo apaga.
     use_cache = (os.environ.get("ASTRA_CYCLE_CACHE", "1").strip().strip("'\"").lower()
                  not in ("0", "off", "false"))
-    cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "workspace", "cycle_cache")
+    cache_dir = os.path.join(_workspace_root(), "cycle_cache")
     cache_payload = _cycle_cache_payload(
         req,
         shared_goal,
@@ -1180,11 +1199,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         cycle_wall,
         return_buffer_seconds=req.get("cycle_return_buffer_seconds") or 60,
     )
-    checkpoint_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "workspace",
-        "cycle_checkpoints",
-    )
+    checkpoint_dir = os.path.join(_workspace_root(), "cycle_checkpoints")
     checkpoint_path = os.path.join(
         checkpoint_dir,
         f"{ckey}_{os.getpid()}.json",

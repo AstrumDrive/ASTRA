@@ -1,8 +1,8 @@
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from astra_tool import _do_cycle, _extract_deferred_items, _goal_coverage
+from tests.cycle_artifacts import remove_cycle_artifacts
 
 
 class GoalCoverageTests(unittest.TestCase):
@@ -133,9 +133,7 @@ class GoalCoverageCycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["oracle_verdict"], "PASS")
         self.assertEqual(result["goal_coverage"]["status"], "partial")
         self.assertIn("English edits", result["deferred_claims"])
-        checkpoint = Path(result["checkpoint"])
-        if checkpoint.exists():
-            checkpoint.unlink()
+        remove_cycle_artifacts(result)
 
 
 if __name__ == "__main__":
