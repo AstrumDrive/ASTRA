@@ -52,8 +52,12 @@ def isolated_workspace_root():
     tolerant rmtree instead of TemporaryDirectory's strict cleanup.
     """
     previous = os.environ.get("ASTRA_WORKSPACE_ROOT")
+    previous_window = os.environ.get("ASTRA_PROGRESS_WINDOW")
     tmp = tempfile.mkdtemp(prefix="astra_test_workspace_")
     os.environ["ASTRA_WORKSPACE_ROOT"] = tmp
+    # core/progress_window.py opens one console per cycle on Windows; a test
+    # session must never pop windows (belt: it also detects pytest itself).
+    os.environ["ASTRA_PROGRESS_WINDOW"] = "0"
     try:
         yield tmp
     finally:
@@ -61,4 +65,8 @@ def isolated_workspace_root():
             os.environ.pop("ASTRA_WORKSPACE_ROOT", None)
         else:
             os.environ["ASTRA_WORKSPACE_ROOT"] = previous
+        if previous_window is None:
+            os.environ.pop("ASTRA_PROGRESS_WINDOW", None)
+        else:
+            os.environ["ASTRA_PROGRESS_WINDOW"] = previous_window
         shutil.rmtree(tmp, ignore_errors=True)

@@ -1121,6 +1121,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         parse_structured_request,
     )
     from core.non_decidable import detect_non_decidable, resolve_non_decidable
+    from core.progress_window import open_progress_window
     import hashlib
 
     oracle = (req.get("oracle") or "").strip().lower()
@@ -1278,6 +1279,14 @@ async def _do_cycle_impl(req: dict) -> dict:
         oracle=os.environ.get("ASTRA_ORACLE_MODE", "local"),
         budget=budget.snapshot(),
     )
+    # One console per cycle (core/progress_window.py): follows this pid's
+    # heartbeat with the instruction, the phase, a bar and an ETA. Windows
+    # only, ASTRA_PROGRESS_WINDOW=0 disables it, never raises.
+    launcher_pid = open_progress_window(
+        os.getpid(), _workspace_root(), checkpoint=checkpoint_path
+    )
+    if launcher_pid:
+        checkpoint_state["progress_window"] = {"launcher_pid": launcher_pid}
 
     def _phase_models(phase):
         # Escalera de modelos POR FASE (ASTRA_TRANSLATOR_MODELS='sonnet,default');
@@ -2438,6 +2447,11 @@ async def _do_cycle(req: dict) -> dict:
             result.setdefault("capacity", capacity)
             result.setdefault("parallelism", plan)
         return result
+    except Exception as exc:
+        # An escaping exception used to leave the heartbeat at its last
+        # phase forever (a "running" window, a "killed" row in telemetry).
+        _progress("failed", phase="exception", error=f"{type(exc).__name__}: {exc}"[:500])
+        raise
     finally:
         restore_max_mode(max_snapshot)
         slot.release()
