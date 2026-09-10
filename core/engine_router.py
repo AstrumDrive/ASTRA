@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import ntpath
 import os
 import re
@@ -95,6 +96,64 @@ def _native_or_wsl(command: str) -> str | None:
     if _wsl_which(command):
         return " ".join([*_wsl_prefix(), command])
     return None
+
+
+def wsl_probe_state(distro: str | None = None) -> dict:
+    """Tell a RESTRICTED-CONTEXT WSL denial apart from WSL being absent.
+
+    ``available_cas`` routes sage/maxima/cadabra/lean4 through ``wsl -d
+    Debian`` and returns None when the probe fails -- but None conflates two
+    very different things: the engine is genuinely not installed, versus this
+    process cannot reach WSL at all. The Codex sandbox is the second case
+    (``wsl`` returns ``Wsl/Service/E_ACCESSDENIED``): the engines are installed
+    and fine, the restricted token just cannot talk to the VM. Reporting that
+    as a missing engine sends the reader off to reinstall something that works.
+
+    Returns ``{"state": "ok"|"denied"|"absent"|"error", "detail": str}``.
+    """
+    if not _is_windows():
+        return {"state": "ok", "detail": "not Windows; native engines used"}
+    if shutil.which("wsl") is None and shutil.which("wsl.exe") is None:
+        return {"state": "absent", "detail": "wsl.exe not on PATH"}
+    prefix = ["wsl"]
+    d = (distro if distro is not None
+         else os.environ.get("ASTRA_WSL_DISTRO", "")).strip().strip("'\"")
+    if d:
+        prefix.extend(["-d", d])
+    prefix.append("--")
+    try:
+        result = subprocess.run(
+            [*prefix, "true"],
+            capture_output=True, text=True, timeout=15,
+            creationflags=_NT_NO_WINDOW,
+        )
+    except subprocess.TimeoutExpired:
+        # A cold WSL VM boot or a wedged distro is NOT a permission denial;
+        # calling it "denied" would misdiagnose the very thing this probe exists
+        # to separate. It is an unhealthy-but-present state.
+        return {"state": "error", "detail": "wsl did not respond within 15s"}
+    except FileNotFoundError:
+        return {"state": "absent", "detail": "wsl.exe disappeared between checks"}
+    except OSError as exc:
+        access_denied = (
+            getattr(exc, "winerror", None) == 5
+            or getattr(exc, "errno", None) == errno.EACCES
+        )
+        return {
+            "state": "denied" if access_denied else "error",
+            "detail": f"{type(exc).__name__}: {exc}",
+        }
+    if result.returncode == 0:
+        return {"state": "ok", "detail": f"wsl -d {d or '(default)'} reachable"}
+    # wsl.exe can emit UTF-16LE on stderr; with text=True a mismatched codec
+    # leaves interleaved NULs (E\x00_\x00A...). Strip them before matching so a
+    # real denial is not silently downgraded to "error".
+    err = (result.stderr or result.stdout or "").replace("\x00", "").strip()
+    low = err.lower()
+    if ("e_accessdenied" in low or "access is denied" in low
+            or "0x80070005" in low):
+        return {"state": "denied", "detail": err[-200:] or "access denied"}
+    return {"state": "error", "detail": err[-200:] or f"wsl exit {result.returncode}"}
 
 
 def available_cas() -> dict[str, str | None]:

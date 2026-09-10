@@ -41,6 +41,27 @@ Instrucción completa para pegar a otro agente:
 `docs/onboarding/ASTRA_MACOS_INSTALL_EN.md` y el comando del clúster
 `~/astra-worker/astra_engine.sh list`.
 
+## Motores locales para pre-pruebas: sí existen (Debian WSL)
+
+Para corridas cortas locales, ASTRA enruta Sage, Maxima y Cadabra por
+`wsl -d Debian` (ver `core/engine_router.py::available_cas`); Debian WSL ya los
+trae instalados (Maxima 5.44, SageMath 9.2, Cadabra2 2.3.6). `astra_doctor.py`
+los reporta PASS desde una shell normal. Ubuntu WSL NO los tiene: no cambies
+`ASTRA_WSL_DISTRO`.
+
+## Desde una sesión con permisos restringidos (sandbox), usa el MCP, no el CLI
+
+Si operas ASTRA desde un contexto sandboxed (p.ej. la extensión de Codex
+ejecutando comandos bajo su token restringido), **invoca ASTRA por su servidor
+MCP** (`astra_cycle`, `astra_execute`, ...), NO corras `astra_tool.py` como
+comando dentro del sandbox. El token restringido no puede crear temporales en
+`workspace/cli_tmp` ni alcanzar WSL (`Wsl/Service/E_ACCESSDENIED`), aunque el
+ACL y `os.access` digan que sí. El servidor MCP corre fuera del sandbox y no
+tiene esa limitación. Síntoma si lo ignoras: `call_cli` corta con un error
+explícito de permisos (antes: cuelgue de minutos), y el doctor marca
+`wsl_bridge: DENIED in this context`. Escape puntual: `ASTRA_CLI_TEMP_ROOT` a un
+directorio escribible por ese token.
+
 Before changing the remote oracle path, read:
 
 - `remote/README.md`

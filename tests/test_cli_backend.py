@@ -13,6 +13,7 @@ from core.cli_backend import (
     _kill_tree,
     _model_ladder,
     _muse_argv,
+    _writable_probe,
     call_cli,
 )
 
@@ -197,6 +198,128 @@ class CliBackendTests(unittest.TestCase):
         promptfile = Path(invoke.call_args.args[1])
         self.assertEqual(promptfile.parent.parent, Path(workspace) / "cli_tmp")
         self.assertEqual(promptfile.name, "prompt.txt")
+
+    def test_writable_probe_reports_a_denied_temp_root(self):
+        """os.mkdir denied -> explicit, sandbox-aware error (not a hang).
+
+        On Windows os.access(W_OK) reads only the DACL and never the restricted
+        token, so under the Codex sandbox mkdtemp would retry os.TMP_MAX times.
+        The probe does one real mkdir and fails fast instead.
+        """
+        with patch(
+            "core.cli_backend.os.mkdir",
+            side_effect=PermissionError(13, "Access is denied"),
+        ):
+            message = _writable_probe(r"C:\some\cli_tmp")
+        self.assertIsInstance(message, str)
+        self.assertIn("MCP", message)
+        self.assertIn("ASTRA_CLI_TEMP_ROOT", message)
+
+    def test_writable_probe_cleans_up_when_the_root_is_writable(self):
+        created = {}
+        removed = {}
+
+        def fake_mkdir(path, *args, **kwargs):
+            created["path"] = path
+
+        def fake_rmdir(path, *args, **kwargs):
+            removed["path"] = path
+
+        with patch("core.cli_backend.os.mkdir", fake_mkdir), patch(
+            "core.cli_backend.os.rmdir", fake_rmdir
+        ):
+            result = _writable_probe(r"C:\writable\cli_tmp")
+        self.assertIsNone(result)
+        self.assertEqual(removed.get("path"), created.get("path"))
+
+    def test_call_cli_short_circuits_a_denied_probe_before_the_model(self):
+        """A denied temp root must never reach _invoke_once (no quota spent)."""
+        with patch(
+            "core.cli_backend._writable_probe", return_value="DENIED"
+        ), patch(
+            "core.cli_backend._invoke_once",
+            side_effect=AssertionError("the model must not be called"),
+        ):
+            result = call_cli("claude", "prompt")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "DENIED")
+
+    def test_cli_turn_cleans_its_temporary_on_success(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = str(Path(temporary) / "work")
+            seen = {}
+
+            def fake_invoke(kind, promptfile, outfile, mdl, ws, env, timeout):
+                # The prompt file must exist DURING the call (Muse reads it).
+                seen["tmp"] = os.path.dirname(promptfile)
+                seen["existed_during"] = os.path.exists(promptfile)
+                return CliResult(True, text="READY")
+
+            with patch("core.cli_backend._invoke_once", fake_invoke):
+                result = call_cli("claude", "prompt", workspace=workspace)
+            self.assertTrue(result.ok)
+            self.assertTrue(seen["existed_during"])
+            # ... and it is gone afterwards: no astra_cli_* accretion.
+            self.assertFalse(os.path.exists(seen["tmp"]))
+            leftovers = list((Path(workspace) / "cli_tmp").glob("astra_cli_*"))
+            self.assertEqual(leftovers, [])
+
+    def test_cli_keep_temp_flag_preserves_the_temporary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = str(Path(temporary) / "work")
+            with patch.dict(os.environ, {"ASTRA_CLI_KEEP_TEMP": "1"}), patch(
+                "core.cli_backend._invoke_once",
+                return_value=CliResult(True, text="READY"),
+            ):
+                call_cli("claude", "prompt", workspace=workspace)
+            leftovers = list((Path(workspace) / "cli_tmp").glob("astra_cli_*"))
+            self.assertEqual(len(leftovers), 1)
+
+    def test_timeout_branch_preserves_partial_output_and_writes_an_autopsy(self):
+        """A phase that outlives its timeout keeps its partial stdout.
+
+        The old branch discarded the second communicate(), so the reviewer
+        timeout of 2026-09-10 left no trace. Now the partial output rides the
+        error and an autopsy lands in workspace/cli_failures/.
+        """
+        import glob
+        import sys as _sys
+
+        def slow_builder(promptfile, model, outfile, ws):
+            return [
+                _sys.executable,
+                "-c",
+                'import time; print("PARTIAL-OUT", flush=True); time.sleep(30)',
+            ]
+
+        failures_dir = os.path.join(
+            __import__("core.cli_backend", fromlist=["_PROJECT_ROOT"])._PROJECT_ROOT,
+            "workspace",
+            "cli_failures",
+        )
+        before = set(glob.glob(os.path.join(failures_dir, "*_slowtimeout.json")))
+        with patch.dict(
+            "core.cli_backend._BUILDERS", {"slowtimeout": slow_builder}
+        ), patch.dict(
+            "core.cli_backend._PARSERS",
+            {"slowtimeout": lambda out, outfile: (out, 0.0)},
+        ):
+            result = call_cli("slowtimeout", "prompt", timeout=1)
+        self.assertFalse(result.ok)
+        self.assertIn("timeout tras 1s", result.error)
+        self.assertIn("PARTIAL-OUT", result.error)
+        after = set(glob.glob(os.path.join(failures_dir, "*_slowtimeout.json")))
+        new_dumps = sorted(after - before)
+        self.assertEqual(len(new_dumps), 1)
+        try:
+            import json as _json
+
+            dump = _json.load(open(new_dumps[0], encoding="utf-8"))
+            self.assertEqual(dump["reason"], "timeout tras 1s")
+            self.assertIn("PARTIAL-OUT", dump["stdout"])
+        finally:
+            for path in new_dumps:
+                os.remove(path)
 
     def test_posix_timeout_kills_the_process_group(self):
         with patch("core.cli_backend.os.name", "posix"), patch(

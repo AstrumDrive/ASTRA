@@ -37,6 +37,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import uuid
 from pathlib import PureWindowsPath
 from dataclasses import dataclass
 
@@ -526,9 +527,11 @@ def _kill_tree(pid: int) -> None:
         pass
 
 
-def _dump_failure(kind: str, cmd, model, proc) -> None:
+def _dump_failure(kind: str, cmd, model, proc, reason: str = "") -> None:
     """Autopsia de un fallo de CLI: escribe comando + stdout/stderr COMPLETOS
     en workspace/cli_failures/ (el error del CliResult solo lleva 400 chars).
+    ``reason`` distingue el fallo (p.ej. un timeout) del exit!=0 corriente, para
+    que la rama de timeout deje rastro en vez de tirar la salida parcial.
     Nunca puede tumbar la llamada: cualquier problema aqui se ignora."""
     try:
         import json as _json
@@ -540,6 +543,7 @@ def _dump_failure(kind: str, cmd, model, proc) -> None:
             _json.dump({
                 "kind": kind,
                 "model": model,
+                "reason": reason,
                 "returncode": proc.returncode,
                 "cmd": cmd if isinstance(cmd, list) else [cmd],
                 "stdout": (proc.stdout or "")[-20000:],
@@ -547,6 +551,38 @@ def _dump_failure(kind: str, cmd, model, proc) -> None:
             }, f, ensure_ascii=False, indent=1)
     except Exception:
         pass
+
+
+def _writable_probe(root: str) -> str | None:
+    """Confirma que de verdad se puede CREAR un subdirectorio bajo ``root``
+    antes de entregarselo a tempfile.mkdtemp.
+
+    En Windows os.access(W_OK) decide solo con la DACL y NUNCA consulta el token
+    de acceso restringido, asi que bajo el sandbox de Codex (cuyos SID
+    restrictivos no estan en el ACL de cli_tmp) os.mkdir lanza WinError 5
+    mientras os.access sigue diciendo True. tempfile.mkdtemp se fia de os.access
+    y reintenta hasta os.TMP_MAX veces (2**31-1 en CPython 3.12): un cuelgue sin
+    fin, no un error, de modo que el timeout de call_cli -- que solo envuelve
+    communicate() -- jamas se dispara. Un unico mkdir real convierte ese cuelgue
+    en un fallo inmediato y explicito (reproducido 2026-09-10, 3,7 dias para
+    agotar el tope). Devuelve el mensaje de error o None si se puede escribir."""
+    probe = os.path.join(root, f".astra_probe_{uuid.uuid4().hex}")
+    try:
+        os.mkdir(probe)
+    except OSError as exc:
+        return (
+            "No se pudo crear un subdirectorio temporal en "
+            f"{root}: {type(exc).__name__}: {exc}. "
+            "Suele ser un contexto de permisos restringido (p.ej. el sandbox de "
+            "Codex, cuyo token restringido no cubre este arbol): invoca ASTRA "
+            "por su servidor MCP en vez de correr astra_tool.py DENTRO del "
+            "sandbox, o apunta ASTRA_CLI_TEMP_ROOT a un directorio escribible."
+        )
+    try:
+        os.rmdir(probe)
+    except OSError:
+        pass
+    return None
 
 
 def _cli_temp_root(workspace: str) -> str:
@@ -607,11 +643,26 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill_tree(proc.pid)
+        partial_out, partial_err = "", ""
         try:
-            proc.communicate(timeout=15)
+            partial_out, partial_err = proc.communicate(timeout=15)
         except Exception:
             pass
-        return CliResult(False, error=f"timeout tras {timeout}s (arbol de procesos matado)")
+
+        class _PT:                 # adaptador para la autopsia del timeout
+            returncode = proc.returncode if proc.returncode is not None else 124
+            stdout = partial_out or ""
+            stderr = partial_err or ""
+
+        # Antes esta rama tiraba la salida parcial (el fallo del revisor de las
+        # 12:23 del 2026-09-10 no dejo rastro). Ahora la conserva: autopsia
+        # integra a cli_failures/ + una cola en el propio error.
+        _dump_failure(kind, cmd, model, _PT, reason=f"timeout tras {timeout}s")
+        tail = (_PT.stderr or _PT.stdout or "")[-400:]
+        msg = f"timeout tras {timeout}s (arbol de procesos matado)"
+        if tail.strip():
+            msg += f"; salida parcial: {tail.strip()}"
+        return CliResult(False, error=msg)
 
     class _P:                      # adaptador minimo para el resto del flujo
         returncode = proc.returncode
@@ -710,13 +761,38 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
     for k, v in (env_extra or {}).items():
         env[k] = str(v)
 
+    # Un contexto de permisos restringido (sandbox) da os.mkdir denegado pero
+    # os.access(W_OK) True: mkdtemp entra en un bucle de os.TMP_MAX intentos. El
+    # probe lo corta antes de llegar a mkdtemp; ademas garantiza que el mkdtemp
+    # de abajo acierte a la primera. Ver _writable_probe.
     try:
-        tmpdir = tempfile.mkdtemp(prefix="astra_cli_", dir=_cli_temp_root(ws))
+        temp_root = _cli_temp_root(ws)
+    except OSError as exc:
+        return CliResult(
+            False,
+            error=(
+                "No se pudo preparar el directorio temporal de la fase CLI en el "
+                f"espacio de trabajo de ASTRA: {type(exc).__name__}: {exc}"
+            ),
+            account_profile=account_profile,
+        )
+    probe_error = _writable_probe(temp_root)
+    if probe_error:
+        return CliResult(False, error=probe_error, account_profile=account_profile)
+
+    tmpdir = None
+    try:
+        tmpdir = tempfile.mkdtemp(prefix="astra_cli_", dir=temp_root)
         promptfile = os.path.join(tmpdir, "prompt.txt")
         outfile = os.path.join(tmpdir, "codex_out.txt")
         with open(promptfile, "w", encoding="utf-8") as f:
             f.write(prompt)
     except OSError as exc:
+        # mkdtemp may have already created the dir before the write failed
+        # (disco lleno, lock del antivirus): no lo dejes atras -- es justo la
+        # acumulacion que este cambio corrige.
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
         return CliResult(
             False,
             error=(
@@ -726,31 +802,44 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
             account_profile=account_profile,
         )
 
-    ladder = _model_ladder(kind, model, models)
-    fallidos = []   # [(etiqueta, error), ...] peldanos que no respondieron
-    for mdl in ladder:
-        res = _invoke_once(kind, promptfile, outfile, mdl, ws, env, timeout)
-        res.account_profile = account_profile
-        label = mdl or "default"
-        if res.ok:
-            res.model_used = label
-            if fallidos:
-                caidos = "; ".join(f"'{l}' -> {e[:140]}" for l, e in fallidos)
-                res.warning = (f"AVISO CUOTA [{kind}]: {caidos}. "
-                               f"La fase la respondio el fallback '{label}'.")
-            return res
-        fallidos.append((label, res.error))
-        if not _is_quota_error(res.error):
-            break   # error real (no cuota): seguir bajando no ayuda
+    # Higiene: cada turno crea un astra_cli_* y hasta ahora ninguno se borraba
+    # (494 acumulados desde 2026-09-03). Se limpia en TODA salida -- exito o
+    # fallo -- porque el prompt ya esta en memoria y la autopsia de un fallo va
+    # aparte, a workspace/cli_failures/. ASTRA_CLI_KEEP_TEMP=1 lo conserva para
+    # depurar. El borrado ocurre despues de que _invoke_once haya parseado el
+    # outfile y de que Muse haya leido el promptfile durante la llamada.
+    keep_temp = str(os.environ.get("ASTRA_CLI_KEEP_TEMP", "")).strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    try:
+        ladder = _model_ladder(kind, model, models)
+        fallidos = []   # [(etiqueta, error), ...] peldanos que no respondieron
+        for mdl in ladder:
+            res = _invoke_once(kind, promptfile, outfile, mdl, ws, env, timeout)
+            res.account_profile = account_profile
+            label = mdl or "default"
+            if res.ok:
+                res.model_used = label
+                if fallidos:
+                    caidos = "; ".join(f"'{l}' -> {e[:140]}" for l, e in fallidos)
+                    res.warning = (f"AVISO CUOTA [{kind}]: {caidos}. "
+                                   f"La fase la respondio el fallback '{label}'.")
+                return res
+            fallidos.append((label, res.error))
+            if not _is_quota_error(res.error):
+                break   # error real (no cuota): seguir bajando no ayuda
 
-    detalle = "; ".join(f"'{l}': {e[:180]}" for l, e in fallidos)
-    if len(fallidos) > 1 and all(_is_quota_error(e) for _, e in fallidos):
-        return CliResult(False, error=(
-            f"CUOTA AGOTADA en toda la escalera de {kind} "
-            f"({', '.join(l for l, _ in fallidos)}): hay que ESPERAR la ventana "
-            f"de uso o ampliar ASTRA_{kind.upper()}_MODELS / cambiar de cuenta. "
-            f"Detalle: {detalle}"), account_profile=account_profile)
-    return CliResult(False, error=detalle, account_profile=account_profile)
+        detalle = "; ".join(f"'{l}': {e[:180]}" for l, e in fallidos)
+        if len(fallidos) > 1 and all(_is_quota_error(e) for _, e in fallidos):
+            return CliResult(False, error=(
+                f"CUOTA AGOTADA en toda la escalera de {kind} "
+                f"({', '.join(l for l, _ in fallidos)}): hay que ESPERAR la "
+                f"ventana de uso o ampliar ASTRA_{kind.upper()}_MODELS / cambiar "
+                f"de cuenta. Detalle: {detalle}"), account_profile=account_profile)
+        return CliResult(False, error=detalle, account_profile=account_profile)
+    finally:
+        if not keep_temp:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
