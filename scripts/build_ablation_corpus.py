@@ -1728,6 +1728,143 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "nl_residual_and_conditioning",
+        "domain": "numerical_linear_algebra",
+        "objective": (
+            "Show that a small residual certifies nothing and that the condition "
+            "number is exactly how little it certifies."
+        ),
+        "intuition": (
+            "The error is A^-1 times the residual, so the amplification is the "
+            "condition number, the bound is attained, and on the Hilbert matrix "
+            "a residual at the rounding floor sits beside an error eight orders "
+            "larger."
+        ),
+        "defects": [
+            {
+                "suffix": "residual_as_certificate",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the leg that exists to refute the residual as a certificate "
+                    "instead treats it as one, so the error of the Hilbert solve "
+                    "is never compared with anything and the case asserts the "
+                    "opposite of what it set out to show"
+                ),
+                "patches": [
+                    (
+                        'check("falsifier_the_error_is_many_orders_larger_than_the_residual",\n'
+                        '      bool(float_error > 1e6 * float_leftover),\n'
+                        '      f"relative error {float_error:.3e} against residual {float_leftover:.3e}, "\n'
+                        '      f"a factor of {float_error / float_leftover:.3e}; the residual certifies "\n'
+                        '      "nothing on its own")',
+                        '# The residual sits at the rounding floor, so the solve is as accurate as\n'
+                        '# double precision allows and the error needs no separate check.\n'
+                        'check("falsifier_the_error_is_many_orders_larger_than_the_residual", True,\n'
+                        '      f"residual {float_leftover:.3e} at the rounding floor, which is what "\n'
+                        '      "a backward stable elimination guarantees")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "arbitrary_contrast_direction",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "the well-conditioned contrast puts the residual in an "
+                    "arbitrary direction instead of the worst one, so the small "
+                    "error it finds would also appear on an ill-conditioned "
+                    "matrix that the direction happened to miss, and the leg "
+                    "stops being about conditioning at all"
+                ),
+                "patches": [
+                    (
+                        '# The residual goes along the worst direction for THIS matrix. A residual in an\n'
+                        '# arbitrary direction would leave the error small on an ill-conditioned matrix\n'
+                        '# too, purely by missing the bad direction, and the check would then be about\n'
+                        '# the choice of perturbation rather than about the conditioning.\n'
+                        'tame_left, _, _ = np.linalg.svd(tame)\n'
+                        'tame_approximation = tame_truth - np.linalg.solve(tame, 1e-14 * tame_left[:, -1])',
+                        '# Any residual of this size serves for the comparison.\n'
+                        'tame_approximation = tame_truth - np.linalg.solve(tame, 1e-14 * np.array([1.0, 1.0]))',
+                    ),
+                    (
+                        '      bool(tame_error < 5 * tame_leftover),',
+                        '      bool(tame_error < 100 * tame_leftover),',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "dg_gauss_bonnet",
+        "domain": "differential_geometry",
+        "objective": (
+            "Verify Gauss-Bonnet on a sphere, an ellipsoid and a torus, and show "
+            "that the closed-surface form fails on a surface with boundary."
+        ),
+        "intuition": (
+            "Total curvature is 2 pi chi, so it survives deforming a sphere into "
+            "an ellipsoid and vanishes on a torus by cancellation; a cap needs "
+            "the geodesic curvature of its edge before the identity holds."
+        ),
+        "defects": [
+            {
+                "suffix": "branch_taken_on_faith",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the positive branch of the torus area element is asserted "
+                    "with a false justification, a square root of a square being "
+                    "the absolute value rather than the thing itself, and the "
+                    "embedding condition that actually picks the branch is gone"
+                ),
+                "patches": [
+                    (
+                        'check("the_positive_branch_of_the_area_element_is_the_right_one",\n'
+                        '      sp.simplify(torus_area ** 2 - torus_area_raw ** 2) == 0,\n'
+                        '      f"the assumed element {torus_area} squares to the same first fundamental "\n'
+                        '      f"form as {torus_area_raw}, and R > r makes it the positive branch")',
+                        'check("the_positive_branch_of_the_area_element_is_the_right_one", True,\n'
+                        '      "a square root of a square is the thing itself")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "single_grid",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "link_in_comment"],
+                "severity": "major",
+                "note": (
+                    "the ellipsoid integral is evaluated on one grid and the "
+                    "convergence demonstration is replaced by an appeal to "
+                    "spectral accuracy in a comment, so nothing in the case "
+                    "distinguishes a converged answer from a lucky grid"
+                ),
+                "patches": [
+                    (
+                        'coarse, fine = quadrature(40), quadrature(80)',
+                        '# One grid suffices: Gauss-Legendre is spectrally accurate on a smooth\n'
+                        '# integrand, so a second grid would only restate the theory.\n'
+                        'fine = quadrature(40)',
+                    ),
+                    (
+                        'check("and_the_quadrature_is_converged_rather_than_merely_close",\n'
+                        '      bool(abs(fine - 4 * math.pi) < abs(coarse - 4 * math.pi) / 10),\n'
+                        '      f"the error falls from {abs(coarse - 4 * math.pi):.3e} at 40 nodes to "\n'
+                        '      f"{abs(fine - 4 * math.pi):.3e} at 80, so the agreement is the limit and "\n'
+                        '      "not a coincidence of the grid")',
+                        'check("and_the_quadrature_is_converged_rather_than_merely_close", True,\n'
+                        '      "spectral accuracy on a smooth integrand")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
