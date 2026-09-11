@@ -1399,6 +1399,56 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "ep_sir_threshold",
+        "domain": "epidemiology",
+        "objective": (
+            "Establish the SIR epidemic threshold, the location of the peak, "
+            "and the final-size relation."
+        ),
+        "intuition": (
+            "Infections grow only when R0 S(0)/N exceeds one, the peak sits at "
+            "S = gN/b, and the final susceptible fraction solves a "
+            "transcendental equation."
+        ),
+        "defects": [
+            {
+                "suffix": "simulated_threshold",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "sampling_as_proof"],
+                "severity": "critical",
+                "note": (
+                    "the threshold and the peak are read off one simulation "
+                    "instead of being solved, so the conditions are never derived"
+                ),
+                "patches": [
+                    (
+                        'condition = sp.solve(sp.Eq(b * S0 / N - g, 0), S0)\n'
+                        'check("growth_changes_sign_at_S_equals_gN_over_b",\n'
+                        '      len(condition) == 1 and sp.simplify(condition[0] - g * N / b) == 0,\n'
+                        '      f"I\'(0) = 0 at S_0 = {condition[0] if condition else \'none\'}")',
+                        '# The threshold is visible in the simulations below, where one run grows\n'
+                        '# and the other does not, so solving for the crossing adds nothing.\n'
+                        'condition = [g * N / b]\n'
+                        'check("growth_changes_sign_at_S_equals_gN_over_b", True,\n'
+                        '      "confirmed by the two simulations further down")',
+                    ),
+                    (
+                        'peak = sp.solve(sp.Eq(dI, 0), S)\n'
+                        'non_trivial = [value for value in peak if sp.simplify(value) != 0]\n'
+                        'check("peak_condition_solves_to_a_single_susceptible_level",\n'
+                        '      len(non_trivial) == 1,\n'
+                        '      f"I\' = 0 at S = {non_trivial}")',
+                        '# The simulation records where the peak occurred, which is the same\n'
+                        '# information the algebra would produce.\n'
+                        'non_trivial = [g * N / b]\n'
+                        'check("peak_condition_solves_to_a_single_susceptible_level", True,\n'
+                        '      "taken from the recorded peak of the simulation")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
