@@ -1,6 +1,10 @@
 # Review-independence ablation, v1
 
 **Status:** pre-registration. Written 2026-09-11, before any arm has been run.
+**Stage 1 ran the same day.** Results and the one declared pre-data amendment
+are in `REVIEW_INDEPENDENCE_PILOT_20260911.md`. The pilot found the corpus
+underpowered for H1b and H1c and revised the corpus plan of section 3.3
+upward; the hypotheses, metric and analysis below stand as registered.
 **Purpose:** measure the one claim the architecture rests on, so that
 `docs/architecture/ASTRA_current_architecture_EN.tex` can replace an argument
 from construction with an argument from evidence.

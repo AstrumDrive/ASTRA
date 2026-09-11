@@ -54,6 +54,51 @@ CONFIGURATIONS["quota-optimized"] = {
     },
 }
 
+# Arms of the review-independence ablation (REVIEW_INDEPENDENCE_ABLATION.md).
+# One factor varies, the identity of the reviewer. Every ladder is one rung
+# long so a quota fallback cannot silently change the reviewer mid-arm, and the
+# three comparison arms share the identity-neutral prompt so that no arm is
+# told it is a different model than it is. Arm abl-p-shipped repeats the
+# cross-provider arm with the production prompt, which measures what naming the
+# provider in the prompt is worth.
+_ABLATION_BASE = {
+    "ASTRA_CYCLE_CACHE": "0",
+    "ASTRA_REVIEWER_PROMPT": "neutral",
+}
+CONFIGURATIONS["abl-self"] = {
+    "architecture": "full",
+    "environment": {
+        **_ABLATION_BASE,
+        "ASTRA_REVIEWER_PROVIDER": "claude_cli",
+        "ASTRA_CLAUDE_MODELS": "claude-opus-4-8",
+    },
+}
+CONFIGURATIONS["abl-weights"] = {
+    "architecture": "full",
+    "environment": {
+        **_ABLATION_BASE,
+        "ASTRA_REVIEWER_PROVIDER": "claude_cli",
+        "ASTRA_CLAUDE_MODELS": "sonnet",
+    },
+}
+CONFIGURATIONS["abl-cross"] = {
+    "architecture": "full",
+    "environment": {
+        **_ABLATION_BASE,
+        "ASTRA_REVIEWER_PROVIDER": "codex_cli",
+        "ASTRA_CODEX_MODELS": "gpt-5.6-sol",
+    },
+}
+CONFIGURATIONS["abl-p-shipped"] = {
+    "architecture": "full",
+    "environment": {
+        **_ABLATION_BASE,
+        "ASTRA_REVIEWER_PROMPT": "production",
+        "ASTRA_REVIEWER_PROVIDER": "codex_cli",
+        "ASTRA_CODEX_MODELS": "gpt-5.6-sol",
+    },
+}
+
 
 def _parse_set(raw: str) -> set[str]:
     return {part.strip().lower() for part in raw.split(",") if part.strip()}

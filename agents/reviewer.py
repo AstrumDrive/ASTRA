@@ -72,3 +72,55 @@ ASTRA REVIEW vNEXT ADDENDUM:
     the assumed values are stated and a wrong assumption could still flip the
     verdict where it matters.
 """
+
+
+# --------------------------------------------------------------------------
+# Identity-neutral variants, for the review-independence ablation.
+#
+# The shipped prompt names both models: it tells the reviewer "You are Codex"
+# and names Claude as the author. That is correct for production, where those
+# roles are fixed, and it is a confound in an ablation that swaps the reviewer.
+# Running the self-review arm with the shipped prompt would tell Claude it is
+# Codex, so any difference between arms would partly measure that instruction
+# rather than the reviewer's identity. These variants remove the provider names
+# while leaving every audit rule untouched, because the rules encode ASTRA's
+# output contract rather than any one vendor's behaviour.
+#
+# Selected through ASTRA_REVIEWER_PROMPT. Absent or "production" keeps the
+# shipped text, so nothing changes unless an experiment asks for it.
+
+def _neutralize(text: str) -> str:
+    """Strip provider identities from a reviewer prompt."""
+    out = text.replace(
+        "Claude has translated a scientific conjecture into executable verification code.\n"
+        "You are Codex, and your task is to decide whether that code can genuinely test the\n"
+        "shared research objective and the stated conjecture before the oracle runs it.",
+        "The author model has translated a scientific conjecture into executable\n"
+        "verification code. Your task is to decide whether that code can genuinely test\n"
+        "the shared research objective and the stated conjecture before the oracle runs it.",
+    )
+    out = out.replace(
+        '"revision_instructions": "<specific instructions for Claude; empty if approved>"',
+        '"revision_instructions": "<specific instructions for the author; empty if approved>"',
+    )
+    out = out.replace(
+        "rewrite it yourself: Claude remains the code author.",
+        "rewrite it yourself: the author model remains the code author.",
+    )
+    return out
+
+
+CODE_REVIEWER_PROMPT_NEUTRAL = _neutralize(CODE_REVIEWER_PROMPT)
+CODE_REVIEWER_VNEXT_PROMPT_NEUTRAL = _neutralize(CODE_REVIEWER_VNEXT_PROMPT)
+
+
+def reviewer_prompt(vnext: bool, variant: str = "") -> str:
+    """Reviewer system prompt for a given variant.
+
+    ``variant`` comes from ASTRA_REVIEWER_PROMPT. Anything other than
+    "neutral" returns the shipped production text unchanged.
+    """
+    name = (variant or "").strip().strip("'\"").lower()
+    if name == "neutral":
+        return CODE_REVIEWER_VNEXT_PROMPT_NEUTRAL if vnext else CODE_REVIEWER_PROMPT_NEUTRAL
+    return CODE_REVIEWER_VNEXT_PROMPT if vnext else CODE_REVIEWER_PROMPT

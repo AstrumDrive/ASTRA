@@ -467,16 +467,18 @@ class ASTRAIntelligence:
         """Independent pre-oracle audit of the translator's validation code."""
         logger.info(f"[{self.provider.upper()}] Reviewing validation-code coverage...")
 
-        from agents.reviewer import (
-            CODE_REVIEWER_PROMPT,
-            CODE_REVIEWER_VNEXT_PROMPT,
-        )
+        from agents.reviewer import reviewer_prompt
         vnext = (
             os.environ.get("ASTRA_VALIDATOR_REPAIR_VNEXT", "0")
             .strip()
             .strip("'\"")
             .lower()
             in {"1", "true", "on", "yes"}
+        )
+        # ASTRA_REVIEWER_PROMPT selects an identity-neutral variant for the
+        # review-independence ablation. Absent, this is the shipped prompt.
+        system_prompt = reviewer_prompt(
+            vnext, os.environ.get("ASTRA_REVIEWER_PROMPT", "")
         )
 
         user_prompt = (
@@ -490,10 +492,7 @@ class ASTRAIntelligence:
                 "speculation):\n"
                 f"{json.dumps(static_context, ensure_ascii=False)[:3000]}"
             )
-        response = await self._call_api(
-            CODE_REVIEWER_VNEXT_PROMPT if vnext else CODE_REVIEWER_PROMPT,
-            user_prompt,
-        )
+        response = await self._call_api(system_prompt, user_prompt)
         if response == "SIMULATED_RESPONSE":
             return {
                 "status": "APPROVED",
