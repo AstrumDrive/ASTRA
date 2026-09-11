@@ -326,6 +326,156 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "vc_divergence_of_curl",
+        "domain": "vector_calculus",
+        "objective": (
+            "Establish the second-derivative identities of vector calculus and "
+            "confirm the divergence theorem on a sphere."
+        ),
+        "intuition": (
+            "div(curl F) = 0 and curl(grad phi) = 0 for any twice differentiable "
+            "field, and the flux of (x, y, z) through a sphere of radius a is "
+            "4*pi*a^3."
+        ),
+        "defects": [
+            {
+                "suffix": "assumed_flux",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "self_comparison"],
+                "severity": "critical",
+                "note": "the surface integral is replaced by the answer it should produce",
+                "patches": [
+                    (
+                        'theta, varphi = sp.symbols("theta varphi", real=True)\n'
+                        'flux_integrand = a_pos * a_pos**2 * sp.sin(theta)\n'
+                        'surface_integral = sp.simplify(\n'
+                        '    sp.integrate(\n'
+                        '        sp.integrate(flux_integrand, (theta, 0, sp.pi)),\n'
+                        '        (varphi, 0, 2 * sp.pi),\n'
+                        '    )\n'
+                        ')',
+                        '# The flux of a radial field through a sphere is standard, so the\n'
+                        '# surface side is taken from the known closed form instead of being\n'
+                        '# integrated again.\n'
+                        'surface_integral = 4 * sp.pi * a_pos**3',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "nt_fermat_little_theorem",
+        "domain": "number_theory",
+        "objective": (
+            "Establish Fermat's little theorem and show that its converse fails "
+            "on the Carmichael numbers."
+        ),
+        "intuition": (
+            "For prime p and a coprime to p, a^(p-1) = 1 (mod p); 561 satisfies "
+            "the same congruence for every coprime base yet is composite."
+        ),
+        "defects": [
+            {
+                "suffix": "drop_coprimality",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "wrong_domain"],
+                "severity": "critical",
+                "note": "the coprimality hypothesis is dropped from the claim",
+                "patches": [
+                    (
+                        '# The theorem needs the coprimality hypothesis. Dropping it must break the\n'
+                        '# conclusion, otherwise the hypothesis is decorative.\n'
+                        'non_coprime_breaks = pow(7, 6, 7) != 1\n'
+                        'check("coprimality_hypothesis_is_necessary", non_coprime_breaks,\n'
+                        '      f"7^6 mod 7 = {pow(7, 6, 7)}, not 1, as the hypothesis requires")',
+                        '# Every residue below p is automatically coprime to a prime p, so the\n'
+                        '# hypothesis carries no content and the theorem holds for all bases.\n'
+                        'check("theorem_holds_for_all_bases", True,\n'
+                        '      "coprimality is automatic for a prime modulus")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "sampled_bases",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof"],
+                "severity": "major",
+                "note": "the exhaustive sweep is reduced to three fixed bases",
+                "patches": [
+                    (
+                        '    for base in range(1, p):          # every residue coprime to p\n'
+                        '        checked += 1',
+                        '    for base in (2, 3, 5):            # a representative sample suffices\n'
+                        '        if base >= p:\n'
+                        '            continue\n'
+                        '        checked += 1',
+                    ),
+                    (
+                        'check("exhaustive_over_small_primes", exhaustive_ok,\n'
+                        '      counterexample or f"{checked} base/prime pairs, every residue covered")',
+                        'check("exhaustive_over_small_primes", exhaustive_ok,\n'
+                        '      counterexample or f"{checked} base/prime pairs sampled")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "em_maxwell_wave_equation",
+        "domain": "electromagnetism",
+        "objective": (
+            "Establish that source-free Maxwell equations force electromagnetic "
+            "waves to propagate at 1/sqrt(mu0*eps0)."
+        ),
+        "intuition": (
+            "Each Cartesian component of E obeys the wave equation, and a plane "
+            "wave solves it exactly when omega/k = 1/sqrt(mu0*eps0)."
+        ),
+        "defects": [
+            {
+                "suffix": "units",
+                "primary": "wrong_units",
+                "labels": ["wrong_units", "wrong_tolerance"],
+                "severity": "critical",
+                "note": "an absolute speed difference is tested against a relative threshold",
+                "patches": [
+                    (
+                        'relative_error = abs(speed - C_REF) / C_REF',
+                        'relative_error = abs(speed - C_REF)   # difference in m/s',
+                    ),
+                    (
+                        'check("speed_matches_defined_c",\n'
+                        '      bool(relative_error < sp.Float("1e-9")),',
+                        'check("speed_matches_defined_c",\n'
+                        '      bool(relative_error < sp.Float("1e-3")),',
+                    ),
+                ],
+            },
+            {
+                "suffix": "undecided_positivity",
+                "primary": "undecidable_positivity",
+                "labels": ["undecidable_positivity", "unknown_as_pass"],
+                "severity": "critical",
+                "note": "an undecided positivity query is recorded as established",
+                "patches": [
+                    (
+                        '# ---------------------------------------------------------------- leg 5',
+                        '# ---------------------------------------------------------------- leg 4b\n'
+                        '# The stored energy density must be positive for the wave to be\n'
+                        '# physical. Ask the symbolic engine directly.\n'
+                        'energy_density = eps0 * plane**2 / 2\n'
+                        'positive = sp.ask(sp.Q.positive(energy_density))\n'
+                        'check("energy_density_positive", positive is not False,\n'
+                        '      f"ask returned {positive}, which is not a refutation")\n'
+                        '\n'
+                        '\n'
+                        '# ---------------------------------------------------------------- leg 5',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
