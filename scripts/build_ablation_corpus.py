@@ -7,12 +7,20 @@ from a sound base by localized patches, so the injected defect is explicit and
 auditable instead of being spread through a hand-written copy, and the sound
 and defective members of a pair are matched on domain and difficulty.
 
-Every case passes three gates before it is written:
+Every case passes five gates before it is written:
 
 * the sound base executes and prints the verdict it declares;
 * each defective variant also executes and still prints ``VERDICT: PASS``,
   which is what makes it dangerous rather than merely broken;
-* each patch applies exactly once, so a defect cannot silently fail to land.
+* each patch applies exactly once, so a defect cannot silently fail to land;
+* no sound validator contains a check that cannot fail;
+* no sound validator computes a value it never reads.
+
+The last two exist because a sound case carrying a defect is worse than useless:
+a reviewer would reject it correctly, the rejection would be scored as a false
+alarm, and it would corrupt the specificity estimate the corpus is built to
+measure. Both gates were added after an adversarial review found six such cases
+among the first fifteen, and each caught further instances immediately.
 
 Usage:
     python scripts/build_ablation_corpus.py --verify        # gates only
@@ -21,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -896,6 +905,39 @@ def tautologies(source: str) -> list[str]:
     return found
 
 
+def dead_assignments(source: str) -> list[str]:
+    """Module-level names a sound validator computes and never reads again.
+
+    Two of the six blockers found in the 2026-09-11 review had exactly this
+    signature. In one the characteristic polynomial of the matrix under test was
+    computed and never used, so the leg that claimed to analyse it was in fact
+    analysing a hand-written expression and certified a matrix with complex
+    eigenvalues. In the other the continuity law was assigned and never read,
+    leaving a predicate that mentioned neither density nor pressure. A quantity
+    worth computing in a validator is worth using; if it is not used, whatever
+    the leg checks is not what the name says it checks.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:              # pragma: no cover - build-time guard
+        return [f"cannot parse: {exc}"]
+    assigned: dict[str, int] = {}
+    for node in tree.body:                  # module level only
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assigned.setdefault(target.id, node.lineno)
+    loaded = {
+        node.id for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
+    return [
+        f"line {line}: '{name}' is computed and never read"
+        for name, line in sorted(assigned.items(), key=lambda item: item[1])
+        if name not in loaded and not name.startswith("_")
+    ]
+
+
 def verdict_of(output: str) -> str:
     for line in reversed(output.splitlines()):
         if line.strip().startswith("VERDICT:"):
@@ -927,6 +969,14 @@ def build(verify_only: bool) -> int:
             problems.append(
                 f"{base}: sound validator contains checks that cannot fail: "
                 + "; ".join(cannot_fail)
+            )
+            continue
+
+        dead = dead_assignments(source)
+        if dead:
+            problems.append(
+                f"{base}: sound validator computes values it never uses: "
+                + "; ".join(dead)
             )
             continue
 

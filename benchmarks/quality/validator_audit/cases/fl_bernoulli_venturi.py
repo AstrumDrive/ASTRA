@@ -67,7 +67,6 @@ check("continuity_solved_exactly",
 # ---------------------------------------------------------------- leg 3
 # Horizontal contraction, so the height term drops out on both sides.
 bernoulli_pair = sp.Eq(p1 + rho * v1**2 / 2, p2 + rho * v2**2 / 2)
-drop = sp.solve(bernoulli_pair.subs(v2, v2_solved), p1 - p2)
 delta_p = sp.simplify(sp.solve(
     sp.Eq(p1 - p2, sp.Symbol("dp")),
     sp.Symbol("dp"))[0].subs(

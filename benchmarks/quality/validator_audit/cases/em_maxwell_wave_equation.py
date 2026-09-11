@@ -106,7 +106,6 @@ ampere_residual = tuple(
     sp.simplify(b_component - mu0 * eps0 * sp.diff(e_component, t))
     for b_component, e_component in zip(curl(B_vector), E_vector)
 )
-ampere_condition = sp.simplify(sp.factor(ampere_residual[0]))
 dispersion_roots = sp.solve(sp.Eq(mu0 * eps0 * w**2 - k**2, 0), w)
 positive_dispersion = [root for root in dispersion_roots if bool(root.is_positive)]
 check("ampere_law_forces_the_dispersion_relation",
