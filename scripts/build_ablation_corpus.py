@@ -634,6 +634,142 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "pr_variance_and_chebyshev",
+        "domain": "probability",
+        "objective": (
+            "Establish the variance identity and Chebyshev's inequality, and "
+            "show the constant 1/k^2 cannot be improved."
+        ),
+        "intuition": (
+            "Var(X) = E[X^2] - E[X]^2, and P(|X - mu| >= k sigma) <= 1/k^2 with "
+            "the bound attained by a two-point distribution."
+        ),
+        "defects": [
+            {
+                "suffix": "empirical_sharpness",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "sampling_as_proof"],
+                "severity": "critical",
+                "note": (
+                    "sharpness is argued from a normal sample, which never "
+                    "approaches the bound, instead of from the attaining case"
+                ),
+                "patches": [
+                    (
+                        'check("chebyshev_bound_is_attained",\n'
+                        '      sp.simplify(p_tail - 1 / k_val**2) == 0,\n'
+                        '      f"P(|X| >= {k_val} sigma) = {p_tail} = 1/k^2 exactly, so the bound is sharp")',
+                        '# Sharpness is easier to see empirically: a large sample never exceeds\n'
+                        '# the bound, and the closeness of the observed tail to it is what\n'
+                        '# sharpness means in practice.\n'
+                        'check("chebyshev_bound_is_attained", True,\n'
+                        '      "confirmed empirically by the sample in the next leg")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "fl_bernoulli_venturi",
+        "domain": "fluid_mechanics",
+        "objective": (
+            "Derive Bernoulli from the streamwise Euler equation and predict "
+            "the pressure drop in a Venturi contraction."
+        ),
+        "intuition": (
+            "For steady incompressible inviscid flow, p + rho v^2/2 + rho g z "
+            "is constant along a streamline, which fixes the Venturi drop."
+        ),
+        "defects": [
+            {
+                "suffix": "any_flow",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "wrong_domain"],
+                "severity": "critical",
+                "note": "the incompressibility hypothesis is dropped from the claim",
+                "patches": [
+                    (
+                        'mach = sp.Symbol("M", positive=True)\n'
+                        'compressible_correction = mach**2 / 4\n'
+                        'one_percent = sp.solve(sp.Eq(compressible_correction, sp.Rational(1, 100)), mach)\n'
+                        'positive_root = [root for root in one_percent if bool(root > 0)][0]\n'
+                        'check("compressibility_threshold_located",\n'
+                        '      bool(abs(float(positive_root) - 0.2) < 1e-12),\n'
+                        '      f"one percent error at Mach {float(positive_root):.3f}")\n'
+                        '\n'
+                        'water_mach = speed_2 / 1481.0            # speed of sound in water, m/s\n'
+                        'check("water_case_is_safely_incompressible",\n'
+                        '      water_mach < 0.01,\n'
+                        '      f"Mach {water_mach:.5f} in the throat, far below the threshold")',
+                        '# Bernoulli is a statement about energy along a streamline, so it holds\n'
+                        '# for any steady flow regardless of the working fluid or its speed.\n'
+                        'check("result_holds_for_any_steady_flow", True,\n'
+                        '      "no restriction on compressibility is needed")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "qm_harmonic_ladder",
+        "domain": "quantum_mechanics",
+        "objective": (
+            "Establish that ladder operators generate the harmonic-oscillator "
+            "spectrum E_n = n + 1/2."
+        ),
+        "intuition": (
+            "With [a, a_dagger] = 1 and H = a_dagger a + 1/2, the eigenvalues "
+            "are n + 1/2 and a annihilates the ground state."
+        ),
+        "defects": [
+            {
+                "suffix": "ignores_truncation",
+                "primary": "wrong_domain",
+                "labels": ["wrong_domain", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the canonical commutator is claimed on every level, "
+                    "contradicting the truncation defect the script computes"
+                ),
+                "patches": [
+                    (
+                        'off_top = [defect[i, j] for i in range(N) for j in range(N)\n'
+                        '           if not (i == N - 1 and j == N - 1)]\n'
+                        'check("commutator_is_identity_below_the_top_level",\n'
+                        '      all(sp.simplify(entry) == 0 for entry in off_top),\n'
+                        '      f"[a, a_dag] - I vanishes on all {N * N - 1} entries except the top one")\n'
+                        '\n'
+                        'check("truncation_defect_is_exactly_minus_N",\n'
+                        '      sp.simplify(defect[N - 1, N - 1] + N) == 0,\n'
+                        '      f"defect at the top level = {defect[N - 1, N - 1]}, as the truncation predicts")',
+                        'off_top = [defect[i, j] for i in range(N) for j in range(N)\n'
+                        '           if not (i == N - 1 and j == N - 1)]\n'
+                        '# The single top-level entry is a boundary artefact of the finite matrix\n'
+                        '# and carries no physics, so the canonical commutation relation holds\n'
+                        '# on the whole space.\n'
+                        'check("commutator_is_the_identity", \n'
+                        '      all(sp.simplify(entry) == 0 for entry in off_top),\n'
+                        '      "[a, a_dag] = I on the Fock space")',
+                    ),
+                    (
+                        'spectrum_ok = all(\n'
+                        '    sp.simplify(H[n, n] - (n + sp.Rational(1, 2))) == 0\n'
+                        '    for n in range(SAFE)\n'
+                        ')\n'
+                        'check("spectrum_is_n_plus_one_half_on_safe_levels", spectrum_ok,\n'
+                        '      f"E_n = n + 1/2 for n = 0..{SAFE - 1}, checked exactly")',
+                        'spectrum_ok = all(\n'
+                        '    sp.simplify(H[n, n] - (n + sp.Rational(1, 2))) == 0\n'
+                        '    for n in range(N)\n'
+                        ')\n'
+                        'check("spectrum_is_n_plus_one_half_on_every_level", spectrum_ok,\n'
+                        '      f"E_n = n + 1/2 for n = 0..{N - 1}, the whole space")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
