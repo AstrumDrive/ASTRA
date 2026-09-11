@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -770,6 +771,85 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "gr_flrw_friedmann",
+        "domain": "general_relativity",
+        "objective": (
+            "Derive the Friedmann equations from the flat FLRW metric and "
+            "confirm the dust and radiation power laws."
+        ),
+        "intuition": (
+            "For ds^2 = -dt^2 + a(t)^2 dx^2, G_tt = 3 (a'/a)^2 and the field "
+            "equations give the Friedmann pair, solved by t^(2/3) and t^(1/2)."
+        ),
+        "defects": [
+            {
+                "suffix": "asserted_acceleration",
+                "primary": "link_in_comment",
+                "labels": ["link_in_comment", "assumed_bound"],
+                "severity": "critical",
+                "note": "the acceleration equation is asserted in prose, never solved for",
+                "patches": [
+                    (
+                        'solved = sp.solve(\n'
+                        '    [sp.Eq(-(2 * accel + hubble_sq), 8 * sp.pi * G_newton * p_pres),\n'
+                        '     sp.Eq(3 * hubble_sq, 8 * sp.pi * G_newton * rho)],\n'
+                        '    [accel, hubble_sq],\n'
+                        '    dict=True,\n'
+                        ')\n'
+                        'check("acceleration_equation_is_forced_and_unique",\n'
+                        '      len(solved) == 1\n'
+                        '      and sp.simplify(solved[0][accel]\n'
+                        '                      + sp.Rational(4, 3) * sp.pi * G_newton * (rho + 3 * p_pres)) == 0,\n'
+                        '      f"a\'\'/a = {sp.simplify(solved[0][accel]) if solved else \'no solution\'}")',
+                        '# Eliminating (a\'/a)^2 between the spatial component and the first\n'
+                        '# Friedmann equation gives a\'\'/a = -(4 pi G / 3)(rho + 3 p), which is\n'
+                        '# the standard acceleration equation, so no separate solve is needed.\n'
+                        'check("acceleration_equation_is_forced_and_unique",\n'
+                        '      sp.simplify(spatial - spatial) == 0,\n'
+                        '      "a\'\'/a = -(4 pi G/3)(rho + 3p) as derived in the comment above")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "an_fourier_parseval",
+        "domain": "analysis",
+        "objective": (
+            "Establish the Fourier coefficients of the square wave, Parseval's "
+            "identity, and the persistence of the Gibbs overshoot."
+        ),
+        "intuition": (
+            "b_n = 4/(n pi) for odd n, Parseval then gives sum 1/(2m-1)^2 = "
+            "pi^2/8, and the partial sums overshoot the jump by a fixed amount."
+        ),
+        "defects": [
+            {
+                "suffix": "numeric_parseval",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "wrong_tolerance"],
+                "severity": "critical",
+                "note": "the exact series identity is replaced by a truncated numeric sum",
+                "patches": [
+                    (
+                        'm = sp.Symbol("m", positive=True, integer=True)\n'
+                        'right = sp.simplify(sp.summation((4 / (sp.pi * (2 * m - 1))) ** 2, (m, 1, sp.oo)))\n'
+                        'check("parseval_two_sides_agree", sp.simplify(left - right) == 0,\n'
+                        '      f"left = {left}, right = {right}")',
+                        'm = sp.Symbol("m", positive=True, integer=True)\n'
+                        '# Summing the first few hundred terms numerically is enough to see the\n'
+                        '# identity hold; the closed form adds nothing the numbers do not show.\n'
+                        'right = sum(4.0 / (math.pi * (2 * j - 1)) ** 2 * math.pi**0\n'
+                        '            for j in range(1, 400))\n'
+                        'right = sum((4.0 / (math.pi * (2 * j - 1))) ** 2 for j in range(1, 400))\n'
+                        'check("parseval_two_sides_agree", abs(float(left) - right) < 1e-2,\n'
+                        '      f"left = {float(left)}, right = {right:.6f}")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
@@ -793,6 +873,29 @@ def apply_patches(source: str, patches: list[tuple[str, str]], where: str) -> st
             )
         out = out.replace(old, new)
     return out
+
+
+# A sound case must not itself contain the defects the experiment hunts for. A
+# tautological check would be correctly rejected by a reviewer, which would then
+# be scored as a false alarm and would corrupt exactly the specificity estimate
+# the whole corpus exists to measure. Caught once in gr_flrw_friedmann, where a
+# leg read `is not None` and could never fail.
+TAUTOLOGY_PATTERNS = (
+    (re.compile(r"check\(\s*\"[^\"]*\"\s*,\s*True\s*,"), "check(..., True, ...)"),
+    (re.compile(r"check\([^)]*is not None"), "check(... is not None ...)"),
+    (re.compile(r"check\([^)]*is not False"), "check(... is not False ...)"),
+    (re.compile(r"check\([^)]*\bor True\b"), "check(... or True ...)"),
+)
+
+
+def tautologies(source: str) -> list[str]:
+    """Checks in a sound validator that cannot fail."""
+    found = []
+    for pattern, label in TAUTOLOGY_PATTERNS:
+        for match in pattern.finditer(source):
+            line = source[: match.start()].count("\n") + 1
+            found.append(f"line {line}: {label}")
+    return found
 
 
 def verdict_of(output: str) -> str:
@@ -820,6 +923,14 @@ def build(verify_only: bool) -> int:
         lines = source.count("\n") + 1
         if not LONG_MIN <= lines <= LONG_MAX:
             problems.append(f"{base}: {lines} lines, outside [{LONG_MIN},{LONG_MAX}]")
+
+        cannot_fail = tautologies(source)
+        if cannot_fail:
+            problems.append(
+                f"{base}: sound validator contains checks that cannot fail: "
+                + "; ".join(cannot_fail)
+            )
+            continue
 
         code, output = run(path)
         got = verdict_of(output)
