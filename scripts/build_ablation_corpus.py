@@ -1004,6 +1004,56 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "gr_light_deflection",
+        "domain": "general_relativity",
+        "objective": (
+            "Establish that general relativity deflects starlight by twice the "
+            "Newtonian amount, and evaluate it for the Sun."
+        ),
+        "intuition": (
+            "The Schwarzschild null geodesic gives 4 G M / (c^2 b) to first "
+            "order, exactly double the Newtonian value, 1.75 arcsec at the Sun."
+        ),
+        "defects": [
+            {
+                "suffix": "quoted_solution",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the perturbative solution is declared correct in a comment "
+                    "instead of being substituted back into its equation"
+                ),
+                "patches": [
+                    (
+                        'first_order_lhs = sp.simplify(sp.diff(u1, phi, 2) + u1)\n'
+                        'first_order_rhs = sp.simplify(3 * u0**2)\n'
+                        'check("first_order_particular_solution_is_correct",\n'
+                        '      sp.simplify(sp.expand_trig(first_order_lhs - first_order_rhs)) == 0,\n'
+                        '      f"u1\'\' + u1 = {sp.simplify(first_order_lhs)} = 3 u0^2")',
+                        '# u1 = (1 + cos^2 phi)/b^2 is the standard particular solution of\n'
+                        '# u1\'\' + u1 = 3 u0^2, given in every textbook treatment of light\n'
+                        '# bending, so substituting it back would only restate the reference.\n'
+                        'check("first_order_particular_solution_is_correct", True,\n'
+                        '      "standard textbook particular solution")',
+                    ),
+                    (
+                        'u_full = u0 + eps * u1\n'
+                        'residual = sp.expand(\n'
+                        '    sp.diff(u_full, phi, 2) + u_full - 3 * eps * u_full**2\n'
+                        ')\n'
+                        'first_order_residual = sp.simplify(sp.expand_trig(residual.coeff(eps, 1)))\n'
+                        'check("residual_vanishes_at_first_order", first_order_residual == 0,\n'
+                        '      f"coefficient of the order parameter = {first_order_residual}")',
+                        '# The combination therefore solves the full equation to first order.\n'
+                        'check("residual_vanishes_at_first_order", True,\n'
+                        '      "follows from the two orders above")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
