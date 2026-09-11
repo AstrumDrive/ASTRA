@@ -1263,6 +1263,93 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "ch_arrhenius_linearisation",
+        "domain": "chemical_kinetics",
+        "objective": (
+            "Establish that Arrhenius rates are exactly linear in 1/T and that "
+            "the ten-degree doubling rule holds only at one activation energy."
+        ),
+        "intuition": (
+            "ln k against 1/T has slope -Ea/R exactly, and k(T+10)/k(T) = 2 "
+            "fixes Ea rather than holding generally."
+        ),
+        "defects": [
+            {
+                "suffix": "rule_of_thumb",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "the doubling rule is taken as general instead of being "
+                    "solved, and the case where it fails is deleted"
+                ),
+                "patches": [
+                    (
+                        'required = sp.solve(sp.Eq(ratio, 2), Ea)\n'
+                        'check("doubling_requires_one_specific_activation_energy",\n'
+                        '      len(required) == 1,\n'
+                        '      f"k(T+10)/k(T) = 2 forces Ea = {sp.simplify(required[0])}")',
+                        '# A ten-degree rise roughly doubles reaction rates, which is standard\n'
+                        '# laboratory practice, so there is nothing to solve for here.\n'
+                        'required = [sp.Rational(52900)]\n'
+                        'check("doubling_requires_one_specific_activation_energy", True,\n'
+                        '      "the ten-degree rule is general laboratory experience")',
+                    ),
+                    (
+                        'actual_ratio = math.exp(-EA_TRUE / (R_SI * 308)) / math.exp(-EA_TRUE / (R_SI * 298))\n'
+                        'check("rule_of_thumb_fails_away_from_that_value",\n'
+                        '      abs(actual_ratio - 2) > 0.5,\n'
+                        '      f"at Ea = {EA_TRUE:.0f} J/mol a ten-degree rise multiplies the rate by "\n'
+                        '      f"{actual_ratio:.3f}, not 2")',
+                        '# The rule applies across the usual range of activation energies.\n'
+                        'check("rule_of_thumb_fails_away_from_that_value", True,\n'
+                        '      "the rule is taken to hold generally")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "sig_nyquist_aliasing",
+        "domain": "signal_processing",
+        "objective": (
+            "Establish the aliasing identities for a sampled cosine and the "
+            "recovery of a band-limited tone by sinc interpolation."
+        ),
+        "intuition": (
+            "Frequencies separated by the sampling rate, and reflections about "
+            "it, give identical samples; below Nyquist distinct tones separate."
+        ),
+        "defects": [
+            {
+                "suffix": "fixed_tolerance",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance", "proxy_continuity"],
+                "severity": "critical",
+                "note": (
+                    "the convergence demonstration is replaced by a single "
+                    "tolerance loose enough to hide a failure of reconstruction"
+                ),
+                "patches": [
+                    (
+                        'small = centre_error(1024)\n'
+                        'large = max(errors)\n'
+                        'check("sinc_interpolation_reproduces_a_band_limited_tone",\n'
+                        '      large < small and large < 1e-5,\n'
+                        '      f"error falls from {small:.3e} at 1024 samples to {large:.3e} at {COUNT}, "\n'
+                        '      "so the residual is window truncation and not a failure of the theorem")',
+                        '# One window is enough; interpolation error is small and comparing two\n'
+                        '# window sizes only costs time.\n'
+                        'large = max(errors)\n'
+                        'check("sinc_interpolation_reproduces_a_band_limited_tone",\n'
+                        '      large < 1e-1,\n'
+                        '      f"reconstruction error {large:.3e}, within tolerance")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
