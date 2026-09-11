@@ -2019,6 +2019,193 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "al_lagrange_converse",
+        "domain": "group_theory",
+        "objective": (
+            "Verify Lagrange's theorem by the coset partition and exhibit the "
+            "failure of its converse in the alternating group on four letters."
+        ),
+        "intuition": (
+            "Cosets partition a group into blocks of equal size, so a subgroup "
+            "order divides; the converse fails at order six, because a subgroup "
+            "of index two would have to be normal and none of that order is."
+        ),
+        "defects": [
+            {
+                "suffix": "strided_search",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the claim is that no subgroup of order six EXISTS, and the "
+                    "search is cut to every seventh subset while the comment "
+                    "above it still calls it exhaustive; a partial search can "
+                    "only fail to find something"
+                ),
+                "patches": [
+                    (
+                        '    subset for subset in itertools.combinations(ALTERNATING, 6)\n',
+                        '    subset for subset in list(itertools.combinations(ALTERNATING, 6))[::7]\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "index_unverified",
+                "primary": "unreachable_failure",
+                "labels": ["unreachable_failure", "missing_assumption"],
+                "severity": "major",
+                "note": (
+                    "the rule under test is that a subgroup of INDEX TWO is "
+                    "normal, and the clause requiring the index to be two is "
+                    "dropped, so it passes on subgroups of any index and the "
+                    "rule the whole explanation rests on is never exercised"
+                ),
+                "patches": [
+                    (
+                        '      and all(len(elements) == 2 * len(group)\n'
+                        '              for group, elements, _, _ in index_two_cases)\n',
+                        "",
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "ml_interpolation_and_holdout",
+        "domain": "machine_learning",
+        "objective": (
+            "Show that a training error of zero is forced by the parameter count "
+            "and that selecting on a held-out set makes its error optimistic."
+        ),
+        "intuition": (
+            "A polynomial with as many coefficients as points interpolates them "
+            "whatever they are; the test error has an interior minimum; and the "
+            "winner's curse scales with how noisily the choice is made."
+        ),
+        "defects": [
+            {
+                "suffix": "single_split",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the optimism of selecting on a held-out set is asserted from "
+                    "ONE split, which reports a convincing five per cent; "
+                    "repeated over independent splits at that size the effect is "
+                    "half a standard error from zero, so the number is noise"
+                ),
+                "patches": [
+                    (
+                        "# Selecting on a held-out set and then quoting that set's error is optimistic,\n"
+                        '# but one split cannot establish it and the size of the set decides how much it\n'
+                        '# matters. The whole select-and-report procedure is therefore repeated over\n'
+                        '# independent splits, at two selection sizes, and the average gap carries the\n'
+                        '# claim. A single split here was briefly reported as five per cent optimistic;\n'
+                        '# repeated three hundred times at the same size the effect is half a standard\n'
+                        '# error from zero, so that five per cent was noise.\n'
+                        'REPEATS = 300\n'
+                        'SMALL, LARGE = 8, 100\n'
+                        '\n'
+                        '\n'
+                        'def selection_optimism(selection_size):\n'
+                        '    """Choose the degree on a sample of this size, then score on an untouched one."""\n'
+                        '    gaps, chosen, landed = [], [], []\n'
+                        '    for _ in range(REPEATS):\n'
+                        '        probe_x, probe_y = sample(selection_size)\n'
+                        '        other_x, other_y = sample(400)\n'
+                        '        scores = [rmse(model, probe_x, probe_y) for model in models]\n'
+                        '        picked = int(np.argmin(scores))\n'
+                        '        chosen.append(picked)\n'
+                        '        outside = rmse(models[picked], other_x, other_y)\n'
+                        '        landed.append(outside)\n'
+                        '        gaps.append(outside - scores[picked])\n'
+                        '    spread = float(np.std(gaps, ddof=1) / math.sqrt(REPEATS))\n'
+                        '    return (float(np.mean(gaps)), spread, sorted(set(chosen)),\n'
+                        '            float(np.mean(landed)))\n'
+                        '\n'
+                        '\n'
+                        'small_gap, small_error, small_degrees, _small_landed = selection_optimism(SMALL)\n'
+                        'large_gap, large_error, large_degrees, large_landed = selection_optimism(LARGE)\n'
+                        '\n'
+                        'check("falsifier_choosing_on_a_small_held_out_set_makes_its_error_optimistic",\n'
+                        '      bool(small_gap > 3 * small_error),\n'
+                        '      f"selecting on {SMALL} points, the untouched sample scores {small_gap:.5f} "\n'
+                        '      f"worse on average than the selecting sample, {small_gap / small_error:.1f} "\n'
+                        '      f"standard errors above zero over {REPEATS} splits")\n'
+                        '\n'
+                        'check("because_the_choice_itself_is_unstable_at_that_size",\n'
+                        '      len(small_degrees) > len(large_degrees),\n'
+                        '      f"the chosen degree wanders over {small_degrees} at {SMALL} points and "\n'
+                        '      f"settles to {large_degrees} at {LARGE}, and it is the wandering that the "\n'
+                        '      "winner\'s curse feeds on")\n'
+                        '\n'
+                        '# The bias above sits on top of a procedure that works: the degree chosen on a\n'
+                        '# large set really is a good one. Without this the leg would pass just as well\n'
+                        '# if the selection picked the WORST degree every time, which is a different\n'
+                        '# phenomenon wearing the same numbers.\n'
+                        'check("and_the_selection_does_pick_a_good_model_when_the_set_is_large",\n'
+                        '      bool(large_landed < 1.5 * oracle),\n'
+                        '      f"the degree chosen on {LARGE} points scores {large_landed:.4f} on untouched "\n'
+                        '      f"data against an oracle of {oracle:.4f}")\n'
+                        '\n'
+                        'check("and_the_optimism_shrinks_with_the_selection_set_rather_than_being_fixed",\n'
+                        '      bool(small_gap > 10 * abs(large_gap)),\n'
+                        '      f"the gap falls from {small_gap:.5f} at {SMALL} points to {large_gap:.5f} "\n'
+                        '      f"at {LARGE}, a factor of {small_gap / abs(large_gap):.0f}, so the failure "\n'
+                        '      "is in how noisily the choice is made and not in holding out as such")\n'
+                        '\n'
+                        '\n',
+                        "# Selecting on a held-out set and then quoting that set's error is optimistic,\n"
+                        '# which one split is enough to show.\n'
+                        'selected_error = test_errors[best]\n'
+                        'fresh_error = rmse(models[best], fresh_x, fresh_y)\n'
+                        'check("falsifier_choosing_on_a_small_held_out_set_makes_its_error_optimistic",\n'
+                        '      bool(fresh_error > selected_error),\n'
+                        '      f"the chosen degree scores {selected_error:.4f} on the set it was chosen "\n'
+                        '      f"on and {fresh_error:.4f} on an untouched one, so the first number is "\n'
+                        '      f"low by {100 * (fresh_error - selected_error) / selected_error:.1f} per cent")\n'
+                        '\n'
+                        'minimum_of_fresh = min(rmse(model, fresh_x, fresh_y) for model in models)\n'
+                        'check("because_the_choice_itself_is_unstable_at_that_size",\n'
+                        '      bool(selected_error <= minimum_of_fresh),\n'
+                        '      f"the minimum taken on the test set is {selected_error:.4f} while the "\n'
+                        '      f"smallest error any model reaches on the untouched sample is "\n'
+                        '      f"{minimum_of_fresh:.4f}")\n'
+                        '\n'
+                        'check("and_the_selection_does_pick_a_good_model_when_the_set_is_large",\n'
+                        '      bool(fresh_error < 1.5 * oracle),\n'
+                        '      f"the chosen degree scores {fresh_error:.4f} on untouched data against an "\n'
+                        '      f"oracle of {oracle:.4f}")\n'
+                        '\n'
+                        'check("and_the_optimism_shrinks_with_the_selection_set_rather_than_being_fixed", True,\n'
+                        '      "a larger selection set would show less of it")\n'
+                        '\n'
+                        '\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "oracle_from_the_fits",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "proxy_continuity"],
+                "severity": "critical",
+                "note": (
+                    "the noise floor is taken as the best score any fitted model "
+                    "reached instead of being computed from the true function, so "
+                    "the leg comparing the chosen degree against the floor "
+                    "compares the fits with themselves"
+                ),
+                "patches": [
+                    (
+                        'oracle = float(np.sqrt(np.mean((truth(test_x) - test_y) ** 2)))',
+                        '# The best score reached by any of the fits is the practical floor.\n'
+                        'oracle = min(test_errors)',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
