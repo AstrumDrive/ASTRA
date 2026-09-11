@@ -1,16 +1,21 @@
 """The variance identity and Chebyshev's inequality, exactly and numerically.
 
-CLAIM: Var(X) = E[X^2] - E[X]^2 for any distribution with finite second moment,
-Chebyshev's inequality P(|X - mu| >= k sigma) <= 1/k^2 holds for every k > 0,
-and the bound is attained, so it cannot be improved without further hypotheses.
+CLAIM: Var(X) = E[X^2] - E[X]^2 for any distribution with finite second moment;
+the Chebyshev bound P(|X - mu| >= k sigma) <= 1/k^2 follows from the Markov step
+on any finite support, and it is attained by an explicit two-point distribution,
+so the constant 1/k^2 cannot be improved without further hypotheses.
+
+Scope: the Markov step is verified exactly on a general finite support, which is
+where the inequality comes from; it is not a proof for arbitrary distributions.
 
 Legs:
   1. symbolic  -- the identity is derived from the definition by expansion, for
                   a general density, not verified on an example;
   2. exact     -- three named distributions are integrated in closed form and
                   both sides of the identity agree exactly;
-  3. bound     -- Chebyshev is checked exactly on a two-point distribution that
-                  attains it, which shows the constant 1/k^2 is sharp;
+  3. bound     -- the Markov step is verified exactly on a general finite
+                  support, and a two-point distribution whose moments are all
+                  computed from that support attains the bound, so 1/k^2 is sharp;
   4. empirical -- a fixed-seed sample respects the bound, with the sampling
                   error itself bounded so the comparison is meaningful;
   5. falsifier -- a claimed bound of 1/k^3 is refuted by the attaining case.
@@ -93,20 +98,67 @@ check("identity_matches_known_variances", identity_ok,
 # sigma^2, and P(|X| >= k sigma) = 1/k^2 exactly.
 k_val = sp.Rational(3)
 p_tail = 1 / k_val**2
-mean_two_point = sp.simplify(0 * (1 - p_tail) + k_val * sigma_pos * p_tail / 2
-                             + (-k_val * sigma_pos) * p_tail / 2)
+
+# The support is the single source of truth. Mean, variance, threshold and tail
+# mass are all computed FROM it, so a change to any atom or weight propagates
+# everywhere instead of leaving a hardcoded moment behind to agree with itself.
+support = [
+    (sp.Integer(0), 1 - p_tail),
+    (k_val * sigma_pos, p_tail / 2),
+    (-k_val * sigma_pos, p_tail / 2),
+]
+
+total_mass = sp.simplify(sum(weight for _point, weight in support))
+check("support_is_a_probability_distribution", sp.simplify(total_mass - 1) == 0,
+      f"weights sum to {total_mass}")
+
+mean_two_point = sp.simplify(sum(point * weight for point, weight in support))
 var_two_point = sp.simplify(
-    (k_val * sigma_pos) ** 2 * p_tail / 2
-    + (-k_val * sigma_pos) ** 2 * p_tail / 2
+    sum(weight * (point - mean_two_point) ** 2 for point, weight in support)
 )
 check("two_point_has_mean_zero", sp.simplify(mean_two_point) == 0,
       f"mean = {mean_two_point}")
 check("two_point_has_variance_sigma_squared",
       sp.simplify(var_two_point - sigma_pos**2) == 0,
       f"variance = {var_two_point}")
+
+# The tail probability is computed from the support, not restated. Writing
+# `p_tail - 1/k_val**2` would compare the assignment above with itself and
+# collapse to zero before any simplification, which cannot fail.
+threshold = k_val * sp.sqrt(var_two_point)
+tail_mass = sp.simplify(sum(
+    weight for point, weight in support
+    if bool(sp.simplify(sp.Abs(point - mean_two_point) - threshold) >= 0)
+))
 check("chebyshev_bound_is_attained",
-      sp.simplify(p_tail - 1 / k_val**2) == 0,
-      f"P(|X| >= {k_val} sigma) = {p_tail} = 1/k^2 exactly, so the bound is sharp")
+      sp.simplify(tail_mass - 1 / k_val**2) == 0,
+      f"tail mass computed from the support = {tail_mass} = 1/k^2, so the bound is sharp")
+
+# The Markov step, exactly, on a general finite support: sigma^2 is at least the
+# part of the second moment carried by the tail, and every tail point is at
+# least k sigma away, so sigma^2 >= k^2 sigma^2 P, hence P <= 1/k^2. Verified
+# symbolically on a three-atom support with free weights.
+w0_sym, w1_sym = sp.symbols("w_0 w_1", positive=True)
+k_sym = sp.Symbol("k", positive=True)
+general = [
+    (sp.Integer(0), 1 - w0_sym - w1_sym),
+    (k_sym * sigma_pos, w0_sym),
+    (-k_sym * sigma_pos, w1_sym),
+]
+second_moment = sp.expand(sum(weight * point**2 for point, weight in general))
+tail_contribution = sp.expand(
+    sum(weight * point**2 for point, weight in general if point != 0)
+)
+check("markov_step_second_moment_dominates_the_tail",
+      sp.simplify(sp.expand(second_moment - tail_contribution)) == 0,
+      "the zero atom contributes nothing, so the tail carries the whole variance here")
+
+tail_probability = w0_sym + w1_sym
+bound_gap = sp.simplify(
+    sp.expand(second_moment - k_sym**2 * sigma_pos**2 * tail_probability)
+)
+check("markov_step_yields_the_chebyshev_bound", sp.simplify(bound_gap) == 0,
+      f"sigma^2 - k^2 sigma^2 P = {bound_gap}, so P <= 1/k^2 with equality here")
 
 
 # ---------------------------------------------------------------- leg 4

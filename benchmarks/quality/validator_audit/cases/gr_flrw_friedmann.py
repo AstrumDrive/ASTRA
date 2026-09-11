@@ -85,14 +85,25 @@ check("ricci_tt_is_minus_three_addot_over_a",
       sp.simplify(ric[0, 0] + 3 * sp.diff(a, t, 2) / a) == 0,
       f"R_tt = {sp.simplify(ric[0, 0])}")
 
-# Control: with a constant scale factor the geometry is Minkowski and every
-# curvature component must vanish. A bug that manufactures curvature dies here.
-flat_gamma = christoffel(sp.diag(-1, 1, 1, 1), coords)
-flat_ricci = ricci(flat_gamma, coords)
+# Control: flat spacetime must return zero curvature through the same pipeline.
+# Cartesian Minkowski would be a weak control, because every Christoffel symbol
+# vanishes identically and the quadratic Gamma-Gamma terms of the Ricci formula
+# are never exercised. Spherical Minkowski has nonzero connection coefficients
+# and zero curvature, so it tests those terms and their signs.
+r_flat, th_flat, ph_flat = sp.symbols("r_flat theta_flat phi_flat", positive=True)
+flat_coords = (t, r_flat, th_flat, ph_flat)
+flat_metric = sp.diag(-1, 1, r_flat**2, r_flat**2 * sp.sin(th_flat) ** 2)
+flat_gamma = christoffel(flat_metric, flat_coords)
+nonzero_connection = sum(
+    1 for i, j, k in itertools.product(range(4), repeat=3)
+    if sp.simplify(flat_gamma[i][j][k]) != 0
+)
+flat_ricci = ricci(flat_gamma, flat_coords)
 check("flat_control_returns_zero_curvature",
       all(sp.simplify(flat_ricci[i, j]) == 0
-          for i, j in itertools.product(range(4), repeat=2)),
-      "Minkowski through the same pipeline gives R_ij = 0")
+          for i, j in itertools.product(range(4), repeat=2))
+      and nonzero_connection > 0,
+      f"spherical Minkowski: {nonzero_connection} nonzero Christoffel symbols, R_ij = 0")
 
 
 # ---------------------------------------------------------------- leg 2
@@ -132,24 +143,28 @@ check("first_friedmann_matches_G_tt",
 
 
 # ---------------------------------------------------------------- leg 3
-# Continuity from the Bianchi identity: the divergence of the Einstein tensor
-# vanishes identically, so the stress tensor it equals must be conserved.
-rho_t = sp.Function("rho", positive=True)(t)
+# Continuity is a consequence of the pair, not an extra assumption. Read the
+# density off the first equation, differentiate it in time, eliminate a'' with
+# the acceleration equation, and the result must be exactly -3 H (rho + p).
+#
+# The elimination is the whole point: without substituting the acceleration
+# equation the statement would reduce to a calculus identity in a(t) alone,
+# containing neither rho nor p, and would hold for any scale factor whatsoever.
 p_t = sp.Function("p")(t)
-continuity = sp.simplify(
-    sp.diff(rho_t, t) + 3 * (sp.diff(a, t) / a) * (rho_t + p_t)
+rho_of_a = 3 * (sp.diff(a, t) / a) ** 2 / (8 * sp.pi * G_newton)
+acceleration_rule = -sp.Rational(4, 3) * sp.pi * G_newton * (rho_of_a + 3 * p_t) * a
+
+rho_dot = sp.simplify(sp.diff(rho_of_a, t).subs(sp.diff(a, t, 2), acceleration_rule))
+continuity_residual = sp.simplify(
+    rho_dot + 3 * (sp.diff(a, t) / a) * (rho_of_a + p_t)
 )
-# Verify it is what differentiating the first Friedmann equation gives once the
-# acceleration equation is used, which is the standard consistency statement.
-friedmann_rho = 3 * (sp.diff(a, t) / a) ** 2 / (8 * sp.pi * G_newton)
-differentiated = sp.simplify(sp.diff(friedmann_rho, t))
-check("continuity_is_consistent_with_the_pair",
-      sp.simplify(differentiated
-                  - (sp.diff(a, t) / a) * 6 * sp.diff(a, t, 2) / a
-                  / (8 * sp.pi * G_newton)
-                  + (sp.diff(a, t) / a) * 6 * (sp.diff(a, t) / a) ** 2
-                  / (8 * sp.pi * G_newton)) == 0,
-      "d/dt of the Friedmann equation reproduces the continuity combination")
+check("continuity_follows_from_the_pair", continuity_residual == 0,
+      f"rho' + 3H(rho + p) = {continuity_residual} after using a''")
+
+# The leg must depend on the pressure, or it is not about continuity at all.
+check("continuity_leg_actually_involves_pressure",
+      p_t in rho_dot.free_symbols or p_t in rho_dot.atoms(sp.Function),
+      "the substituted rho' carries p(t), so the check tests the field equations")
 
 
 # ---------------------------------------------------------------- leg 4

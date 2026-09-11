@@ -90,8 +90,18 @@ gamma = christoffel(schwarzschild, coords)
 ricci = ricci_tensor(gamma, coords)
 vacuum = all(sp.simplify(ricci[i, j]) == 0
              for i, j in itertools.product(range(4), repeat=2))
+# The detail string must not itself raise when the leg fails: max() over
+# symbolic components asks for an ordering sympy cannot decide, which would kill
+# the process before any VERDICT line is printed and leave a harness with
+# nothing to parse.
+nonzero_components = [
+    f"R_{i}{j}={sp.simplify(ricci[i, j])}"
+    for i, j in itertools.product(range(4), repeat=2)
+    if sp.simplify(ricci[i, j]) != 0
+]
 check("schwarzschild_is_ricci_flat", vacuum,
-      f"max |R_ij| = {max(sp.simplify(ricci[i, j]) for i, j in itertools.product(range(4), repeat=2))}")
+      "every component vanishes" if vacuum
+      else f"nonzero: {'; '.join(nonzero_components[:3])}")
 
 
 # ---------------------------------------------------------------- leg 2
@@ -106,13 +116,14 @@ for a, b, c, d in itertools.product(range(4), repeat=4):
     )
 
 # Both metrics here are diagonal, so g^{ae} is nonzero only for a == e and the
-# index raising collapses to a factor per slot with no sum. Verified rather than
-# assumed, because the shortcut is what makes this tractable.
-off_diagonal = [schwarzschild[i, j] for i, j in itertools.product(range(4), repeat=2)
-                if i != j]
-check("metric_is_diagonal_so_raising_factorizes",
-      all(sp.simplify(entry) == 0 for entry in off_diagonal),
-      "every off-diagonal metric component vanishes")
+# index raising collapses to one factor per slot with no sum. That is what makes
+# the contraction tractable: the full four-index raise inside a four-index loop
+# would be 65536 symbolic operations.
+#
+# It is justified by construction, not by a check. The metric is built with
+# sp.diag, whose off-diagonal entries are literal zeros, so a check asking
+# whether they vanish could never fail and would be decoration. The 2-sphere
+# control below runs the full double sum and would expose a contraction bug.
 
 kretschmann = sp.S.Zero
 for a, b, c, d in itertools.product(range(4), repeat=4):

@@ -1,8 +1,12 @@
 """Reversible adiabats obey P V^gamma = const, and Carnot bounds any engine.
 
 CLAIM: for an ideal gas undergoing a reversible adiabatic change, P V^gamma is
-constant with gamma = Cp/Cv, the entropy change is exactly zero, and the Carnot
-efficiency 1 - Tc/Th is an upper bound that no reversible cycle exceeds.
+constant with gamma = Cp/Cv, the entropy change is exactly zero, and the ideal
+gas Carnot cycle has efficiency exactly 1 - Tc/Th, which is strictly below one.
+
+Scope: this establishes the efficiency OF THE IDEAL-GAS CARNOT CYCLE. That no
+other reversible cycle exceeds it is a theorem about all cycles and is not
+tested here; the file verifies the value and its strictness, not universality.
 
 Legs:
   1. derivation -- the adiabat is obtained from the first law plus the ideal gas
@@ -11,8 +15,9 @@ Legs:
                    curve, which is the thermodynamic meaning of the result;
   3. carnot     -- the efficiency is computed from the four legs of the cycle
                    rather than quoted, and equals 1 - Tc/Th;
-  4. bound      -- the second law inequality is checked on the stated domain;
-  5. falsifier  -- an engine claiming to beat Carnot is rejected.
+  4. bound      -- the efficiency is shown to lie strictly in (0, 1) and to
+                   increase with the hot reservoir, both decided symbolically;
+  5. falsifier  -- an engine claiming to beat this cycle is rejected.
 """
 import sympy as sp
 
@@ -42,8 +47,13 @@ adiabatic_ode = sp.Eq(
 )
 solution = sp.dsolve(adiabatic_ode, T_of_V)
 general = sp.simplify(solution.rhs)
-check("adiabatic_ode_solved", solution.lhs == T_of_V,
-      f"T(V) = {general}")
+# `solution.lhs == T_of_V` would be true for every ODE dsolve can solve and is
+# therefore not a check. Substitute the answer back into the equation instead.
+ode_residual = sp.simplify(
+    n * Cv * sp.diff(general, V) + n * R * general / V
+)
+check("adiabatic_solution_satisfies_the_ode", ode_residual == 0,
+      f"residual = {ode_residual}, with T(V) = {general}")
 
 # The solution must have the form C * V^(-R/Cv). Verify the exponent exactly.
 C1 = sp.Symbol("C1")
@@ -77,10 +87,25 @@ check("entropy_change_vanishes_along_adiabat",
 # Carnot cycle: two isotherms at Th and Tc joined by two adiabats. The heat
 # exchanged on each isotherm is n R T ln(V_ratio), and the adiabats force the
 # same ratio on both, so the logs cancel.
-V1, V2 = sp.symbols("V_1 V_2", positive=True)
-ratio = V2 / V1
-q_hot = n * R * Th * sp.log(ratio)
-q_cold = n * R * Tc * sp.log(ratio)
+V1, V2, V3, V4 = sp.symbols("V_1 V_2 V_3 V_4", positive=True)
+
+# The physical content of the Carnot derivation is that the two adiabats force
+# V3/V4 = V2/V1. Writing the same ratio into both isotherms would assume it.
+# Derive it: along an adiabat T V^(R/Cv) is constant, so Th V2^(R/Cv) =
+# Tc V3^(R/Cv) and Th V1^(R/Cv) = Tc V4^(R/Cv). Dividing eliminates Th and Tc.
+adiabat_2_3 = sp.Eq(Th * V2 ** (R / Cv), Tc * V3 ** (R / Cv))
+adiabat_1_4 = sp.Eq(Th * V1 ** (R / Cv), Tc * V4 ** (R / Cv))
+v3_solved = sp.solve(adiabat_2_3, V3)[0]
+v4_solved = sp.solve(adiabat_1_4, V4)[0]
+ratio_gap = sp.simplify(sp.powsimp(v3_solved / v4_solved - V2 / V1, force=True))
+check("adiabats_force_equal_volume_ratios", ratio_gap == 0,
+      f"V3/V4 - V2/V1 = {ratio_gap}, so the ratios coincide as the cycle requires")
+
+# Now the efficiency, with the cold-isotherm ratio taken from the adiabats
+# rather than written in by hand.
+cold_ratio = sp.simplify(sp.powsimp(v3_solved / v4_solved, force=True))
+q_hot = n * R * Th * sp.log(V2 / V1)
+q_cold = n * R * Tc * sp.log(cold_ratio)
 work = sp.simplify(q_hot - q_cold)
 efficiency = sp.simplify(work / q_hot)
 check("carnot_efficiency_derived_not_quoted",
@@ -93,6 +118,14 @@ check("efficiency_independent_of_volume_ratio",
       sp.simplify(sp.diff(efficiency, V2)) == 0,
       "eta does not depend on the compression ratio")
 
+# If the ratios had NOT been forced equal the efficiency would still carry the
+# volumes, so this is the seam where the adiabat argument does its work.
+independent_cold = n * R * Tc * sp.log(V3 / V4)
+loose_efficiency = sp.simplify((q_hot - independent_cold) / q_hot)
+check("without_the_adiabat_link_the_volumes_survive",
+      sp.simplify(sp.diff(loose_efficiency, V3)) != 0,
+      "with independent ratios eta depends on V3, so the link is load bearing")
+
 
 # ---------------------------------------------------------------- leg 4
 # On the stated domain 0 < Tc < Th the efficiency lies strictly in (0, 1).
@@ -101,10 +134,15 @@ check("efficiency_strictly_below_one",
       sp.ask(sp.Q.positive(below_one), sp.Q.positive(Tc) & sp.Q.positive(Th)) is True,
       "1 - eta = Tc/Th > 0, so eta < 1 for any finite hot reservoir")
 
+# Comparing the gap with its own definition rearranged would be gap == gap and
+# would pass for any efficiency law at all, including a false one. The content
+# is that the gap is POSITIVE, which has to be decided.
 gap = sp.simplify((1 - Tc / Th) - (1 - Tc / (Th / 2)))
-check("hotter_reservoir_helps",
-      sp.simplify(gap - (Tc / (Th / 2) - Tc / Th)) == 0,
-      "halving Th lowers the bound, with the difference computed exactly")
+gap_positive = sp.ask(
+    sp.Q.positive(gap), sp.Q.positive(Tc) & sp.Q.positive(Th)
+)
+check("hotter_reservoir_helps", bool(gap_positive) is True,
+      f"eta(Th) - eta(Th/2) = {gap} > 0 ({gap_positive}), so a hotter source helps")
 
 
 # ---------------------------------------------------------------- leg 5

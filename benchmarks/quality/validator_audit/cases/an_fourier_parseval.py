@@ -82,11 +82,23 @@ def partial(value, terms):
                for j in range(1, terms + 1))
 
 
-# At the jump the series converges to the midpoint, which is zero here.
-at_jump = [abs(partial(0.0, terms)) for terms in (10, 100, 1000)]
-check("series_converges_to_midpoint_at_the_jump",
-      all(value < 1e-12 for value in at_jump),
-      f"partial sums at x=0 are {['%.1e' % v for v in at_jump]}")
+# NOT checked here: that S_N(0) = 0. Every term is sin((2j-1)*0), so the
+# partial sum vanishes identically for any coefficients whatsoever, including a
+# series that converges to nothing like the square wave. That identity carries
+# no information and would be a check incapable of failing.
+#
+# The midpoint statement has content only as the average of the one-sided
+# limits. Approach the jump from both sides and require the partial sums to
+# tend to +1 and -1, so that their mean is the value the series takes at 0.
+right_side = partial(0.02, 4000)
+left_side = partial(-0.02, 4000)
+midpoint = (right_side + left_side) / 2
+check("one_sided_limits_straddle_the_jump",
+      right_side > 0.9 and left_side < -0.9,
+      f"S(0.02+) = {right_side:.6f}, S(0.02-) = {left_side:.6f}")
+check("series_value_at_the_jump_is_their_midpoint",
+      abs(midpoint - partial(0.0, 4000)) < 1e-12,
+      f"mean of the one-sided values = {midpoint:.2e}, S(0) = {partial(0.0, 4000):.2e}")
 
 # Away from the jump it converges to the function value.
 interior = partial(1.0, 4000)

@@ -12,7 +12,9 @@ Legs:
                    which is the regime boundary where a wrong branch shows up;
   4. numerical  -- an independent RK4 integration agrees with the closed form
                    to a tolerance justified by the integrator's own order;
-  5. falsifier  -- a deliberately wrong damping coefficient is rejected.
+  5. energy     -- in the undamped limit the mechanical energy of the closed
+                   form is constant, which is the physical content of g = 0;
+  6. falsifier  -- a deliberately wrong damping coefficient is rejected.
 """
 import math
 
@@ -119,6 +121,33 @@ check("rk4_matches_closed_form", gap < tolerance,
 
 
 # ---------------------------------------------------------------- leg 5
+# Undamped limit. The symbol g is declared positive, so g = 0 is outside its
+# domain and the undamped solution is built with its own symbols rather than by
+# substituting into the damped one.
+w_und = sp.Symbol("omega_und", positive=True)
+x0_und, v0_und = sp.symbols("x0_und v0_und", real=True)
+undamped = x0_und * sp.cos(w_und * t) + (v0_und / w_und) * sp.sin(w_und * t)
+
+undamped_residual = sp.simplify(sp.diff(undamped, t, 2) + w_und**2 * undamped)
+check("undamped_solution_satisfies_its_equation", undamped_residual == 0,
+      f"residual = {undamped_residual}")
+
+energy = sp.simplify(
+    sp.diff(undamped, t) ** 2 / 2 + w_und**2 * undamped**2 / 2
+)
+energy_rate = sp.simplify(sp.diff(energy, t))
+check("undamped_energy_is_conserved", energy_rate == 0,
+      f"dE/dt = {energy_rate}, with E = {sp.simplify(energy)}")
+
+# The same computation on a damped solution must NOT give zero, otherwise the
+# leg above would pass for any motion at all.
+damped_energy = sp.diff(underdamped, t) ** 2 / 2 + w0**2 * underdamped**2 / 2
+damped_rate = sp.simplify(sp.diff(damped_energy, t))
+check("damped_energy_is_not_conserved", sp.simplify(damped_rate) != 0,
+      "dE/dt is nonzero once damping is present, as it must be")
+
+
+# ---------------------------------------------------------------- leg 6
 # A wrong damping coefficient must break the residual, or the test is vacuous.
 wrong = sp.exp(-2 * g * t) * (x0 * sp.cos(wd * t) + (v0 + g * x0) / wd * sp.sin(wd * t))
 wrong_res = residual_of(wrong, g, w0)

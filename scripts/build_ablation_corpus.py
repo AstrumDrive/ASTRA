@@ -348,7 +348,6 @@ REGISTRY: list[dict] = [
                 "note": "the surface integral is replaced by the answer it should produce",
                 "patches": [
                     (
-                        'theta, varphi = sp.symbols("theta varphi", real=True)\n'
                         'flux_integrand = a_pos * a_pos**2 * sp.sin(theta)\n'
                         'surface_integral = sp.simplify(\n'
                         '    sp.integrate(\n'
@@ -543,10 +542,9 @@ REGISTRY: list[dict] = [
                 "note": "the efficiency is quoted and then compared against itself",
                 "patches": [
                     (
-                        'q_hot = n * R * Th * sp.log(ratio)\n'
-                        'q_cold = n * R * Tc * sp.log(ratio)\n'
                         'work = sp.simplify(q_hot - q_cold)\n'
                         'efficiency = sp.simplify(work / q_hot)',
+                        'work = sp.simplify(q_hot - q_cold)\n'
                         '# The Carnot result is standard, so the efficiency is taken directly\n'
                         '# rather than reconstructed from the heats on each isotherm.\n'
                         'efficiency = 1 - Tc / Th',
@@ -659,8 +657,8 @@ REGISTRY: list[dict] = [
                 "patches": [
                     (
                         'check("chebyshev_bound_is_attained",\n'
-                        '      sp.simplify(p_tail - 1 / k_val**2) == 0,\n'
-                        '      f"P(|X| >= {k_val} sigma) = {p_tail} = 1/k^2 exactly, so the bound is sharp")',
+                        '      sp.simplify(tail_mass - 1 / k_val**2) == 0,\n'
+                        '      f"tail mass computed from the support = {tail_mass} = 1/k^2, so the bound is sharp")',
                         '# Sharpness is easier to see empirically: a large sample never exceeds\n'
                         '# the bound, and the closeness of the observed tail to it is what\n'
                         '# sharpness means in practice.\n'

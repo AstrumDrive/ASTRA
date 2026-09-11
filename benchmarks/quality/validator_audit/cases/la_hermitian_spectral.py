@@ -46,42 +46,45 @@ check("symbolic_matrix_is_hermitian", is_hermitian(symbolic),
 
 lam = sp.Symbol("lambda")
 characteristic = sp.simplify(sp.expand((symbolic - lam * sp.eye(2)).det()))
-# For a 2x2 the roots are real exactly when the discriminant is nonnegative.
-# Here it equals (a - d)^2 + 4|b|^2, a sum of squares, so reality is structural.
-discriminant = sp.simplify(sp.expand((a + d) ** 2 - 4 * (a * d - (b_re**2 + b_im**2))))
-expected = sp.expand((a - d) ** 2 + 4 * (b_re**2 + b_im**2))
-check("discriminant_is_a_sum_of_squares",
-      sp.simplify(discriminant - expected) == 0,
-      f"discriminant = {sp.factor(expected)}")
 
-# Nonnegativity is established by an explicit sum-of-squares certificate rather
-# than by asking the assumptions engine, which returns None here. Each summand
-# is the square of a real expression, so the total cannot be negative for any
-# real entries, and the roots of a real quadratic with nonnegative discriminant
-# are real.
+# The discriminant is EXTRACTED from the characteristic polynomial of the matrix
+# under test, not written out by hand. Writing it independently would leave leg 1
+# disconnected from `symbolic`: it would then certify "a sum of squares" even for
+# a matrix whose eigenvalues are complex, since nothing would tie the algebra to
+# the object.
+quad_a, quad_b, quad_c = sp.Poly(characteristic, lam).all_coeffs()
+discriminant = sp.simplify(sp.expand(quad_b**2 - 4 * quad_a * quad_c))
+
+# For a Hermitian 2x2 that discriminant equals (a - d)^2 + 4|b|^2, a sum of
+# three real squares, so it cannot be negative and both roots are real.
 certificate = (a - d) ** 2 + (2 * b_re) ** 2 + (2 * b_im) ** 2
-check("discriminant_is_a_sum_of_three_real_squares",
-      sp.simplify(sp.expand(expected - certificate)) == 0,
-      f"discriminant = (a-d)^2 + (2 b_re)^2 + (2 b_im)^2")
+check("discriminant_of_the_matrix_is_a_sum_of_squares",
+      sp.simplify(sp.expand(discriminant - certificate)) == 0,
+      f"discriminant = {sp.factor(sp.expand(discriminant))}")
 
-squares_are_real = all(
-    bool(sp.simplify(sp.im(term)) == 0)
-    for term in ((a - d), 2 * b_re, 2 * b_im)
-)
-check("certificate_terms_are_real_hence_squares_nonnegative", squares_are_real,
-      "each squared expression is real, so no term can be negative")
-
-# Independent numeric confirmation over the declared domain, which would expose
-# a certificate that is algebraically right but irrelevant.
+# Independent numeric confirmation, evaluated on the DISCRIMINANT taken from the
+# matrix, so a certificate that is algebraically tidy but attached to the wrong
+# object would show up here as a negative value.
 import random as _random
 _random.seed(20260911)
 worst = None
 for _ in range(3000):
     subs = {sym: _random.uniform(-50, 50) for sym in (a, d, b_re, b_im)}
-    value = float(expected.subs(subs))
+    value = float(discriminant.subs(subs))
     worst = value if worst is None else min(worst, value)
 check("discriminant_nonnegative_on_random_reals", worst >= 0,
       f"minimum over 3000 random real assignments = {worst:.6f}")
+
+# And the roots really are real for those same assignments.
+roots_real = True
+for _ in range(200):
+    subs = {sym: _random.uniform(-50, 50) for sym in (a, d, b_re, b_im)}
+    for root in sp.Poly(characteristic.subs(subs), lam).all_roots():
+        if abs(complex(sp.N(root)).imag) > 1e-9:
+            roots_real = False
+            break
+check("roots_of_the_characteristic_polynomial_are_real", roots_real,
+      "200 random Hermitian instances, every root real to 1e-9")
 
 
 # ---------------------------------------------------------------- leg 2

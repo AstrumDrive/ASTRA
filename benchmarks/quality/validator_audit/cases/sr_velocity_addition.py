@@ -19,7 +19,10 @@ import random
 import mpmath as mp
 import sympy as sp
 
-u, v, c = sp.symbols("u v c", real=True, positive=False)
+# positive=False would ASSERT non-positivity, not leave the question open,
+# and would make sqrt(c**2) simplify to -c. The speed of light is positive.
+u, v = sp.symbols("u v", real=True)
+c = sp.Symbol("c", positive=True)
 alpha, beta = sp.symbols("alpha beta", real=True)
 
 W = (u + v) / (1 + u * v / c**2)
@@ -128,9 +131,16 @@ check("first_correction_sign", sp.simplify(leading + u * v * (u + v)) == 0,
 
 
 # ---------------------------------------------------------------- leg 4
-# The bound check must be capable of rejecting a wrong composition law.
-# Galilean addition violates it immediately, so the test has teeth.
-galilean_worst = max(abs(0.9 + 0.9), abs(0.99 + 0.99))
+# The bound check must be capable of rejecting a wrong composition law. The
+# Galilean rule is evaluated through a helper with the same signature as
+# compose, so the falsifier exercises the comparison rather than arithmetic
+# written out by hand.
+def compose_galilean(a, b, speed=1.0):
+    return a + b
+
+
+galilean_worst = max(abs(compose_galilean(0.9, 0.9)),
+                     abs(compose_galilean(0.99, 0.99)))
 check("falsifier_rejects_galilean", galilean_worst > 1.0,
       f"Galilean composition reaches {galilean_worst:.2f}c and is rejected")
 

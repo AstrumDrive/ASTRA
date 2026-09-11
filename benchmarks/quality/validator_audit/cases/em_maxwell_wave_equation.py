@@ -9,8 +9,9 @@ Legs:
                    generic field before it is used, not quoted;
   2. derivation -- combining Faraday and Ampere with div E = 0 yields the wave
                    equation, and the residual is required to vanish exactly;
-  3. dispersion -- the plane wave satisfies it iff w^2 = k^2/(mu0 eps0), and the
-                   solve step returns exactly that relation, not a superset;
+  3. dispersion -- the plane wave satisfies it iff w^2 = k^2/(mu0 eps0); the
+                   algebraic factor is solved on its own so no spurious roots of
+                   the cosine are mistaken for physical solutions;
   4. numeric    -- the speed evaluates to the codata value of c within the
                    precision of the constants used;
   5. falsifier  -- a wave with the wrong speed leaves a nonzero residual.
@@ -78,32 +79,49 @@ check("double_curl_identity_verified",
 
 
 # ---------------------------------------------------------------- leg 2
-# Faraday: curl E = -dB/dt.  Ampere in vacuum: curl B = mu0 eps0 dE/dt.
-# Taking curl of Faraday and substituting Ampere gives, with div E = 0,
-# laplacian(E) = mu0 eps0 d2E/dt2.
-speed_squared = 1 / (mu0 * eps0)
-wave_operator_residual = []
-for component in E_generic:
-    # With div E = 0 the identity of leg 1 reduces curl curl to -laplacian.
-    wave_operator_residual.append(
-        sp.simplify(
-            sum(sp.diff(component, coord, 2) for coord in COORDS)
-            - sp.diff(component, t, 2) / speed_squared
-        )
-    )
-# The residual is not zero for an arbitrary field; it is the equation itself.
-# What must hold is that it is exactly the wave operator, with no extra term.
-expected_operator = [
-    sp.simplify(
-        sum(sp.diff(component, coord, 2) for coord in COORDS)
-        - mu0 * eps0 * sp.diff(component, t, 2)
-    )
-    for component in E_generic
-]
-check("wave_operator_has_no_extra_terms",
-      all(sp.simplify(found - expected) == 0
-          for found, expected in zip(wave_operator_residual, expected_operator)),
-      "laplacian(E) - mu0 eps0 d2E/dt2, with no residue")
+# The derivation, carried out rather than described. A magnetic field is
+# introduced, Faraday fixes it from E, Ampere is then imposed, and the wave
+# equation must come out of that pair. Comparing d2E/dt2 / speed^2 against
+# mu0 eps0 d2E/dt2 would be no derivation at all: those coefficients are equal
+# by the definition of speed, so such a check passes for any field whatsoever.
+E_wave = E0 * sp.cos(k * z - w * t)
+E_vector = (E_wave, 0, 0)
+
+# Faraday, curl E = -dB/dt, integrated in time to give B for this E.
+faraday_curl = curl(E_vector)
+B_vector = tuple(
+    sp.simplify(-sp.integrate(component, t)) for component in faraday_curl
+)
+faraday_residual = tuple(
+    sp.simplify(a_component + sp.diff(b_component, t))
+    for a_component, b_component in zip(faraday_curl, B_vector)
+)
+check("faraday_law_is_satisfied_by_construction",
+      all(component == 0 for component in faraday_residual),
+      f"B = {B_vector[1]}")
+
+# Ampere in vacuum, curl B = mu0 eps0 dE/dt, is an extra condition. It holds
+# only for particular omega, and solving it is what produces the wave speed.
+ampere_residual = tuple(
+    sp.simplify(b_component - mu0 * eps0 * sp.diff(e_component, t))
+    for b_component, e_component in zip(curl(B_vector), E_vector)
+)
+ampere_condition = sp.simplify(sp.factor(ampere_residual[0]))
+dispersion_roots = sp.solve(sp.Eq(mu0 * eps0 * w**2 - k**2, 0), w)
+positive_dispersion = [root for root in dispersion_roots if bool(root.is_positive)]
+check("ampere_law_forces_the_dispersion_relation",
+      len(positive_dispersion) == 1
+      and sp.simplify(sp.expand(
+          ampere_residual[0].subs(w, positive_dispersion[0]))) == 0,
+      f"omega = {positive_dispersion[0] if positive_dispersion else 'none'}")
+
+# With both laws imposed, each component of E satisfies the wave equation.
+wave_residual = sp.simplify(
+    (sum(sp.diff(E_wave, coord, 2) for coord in COORDS)
+     - mu0 * eps0 * sp.diff(E_wave, t, 2)).subs(w, positive_dispersion[0])
+)
+check("wave_equation_follows_from_the_pair", wave_residual == 0,
+      f"laplacian(E) - mu0 eps0 d2E/dt2 = {wave_residual} once omega is fixed")
 
 
 # ---------------------------------------------------------------- leg 3
@@ -118,14 +136,17 @@ plane_residual = sp.simplify(
     sum(sp.diff(plane, coord, 2) for coord in COORDS)
     - mu0 * eps0 * sp.diff(plane, t, 2)
 )
-solutions = sp.solve(sp.Eq(plane_residual, 0), w, dict=True)
-positive_roots = [
-    sol[w] for sol in solutions
-    if sp.simplify(sol[w] - k / sp.sqrt(mu0 * eps0)) == 0
-]
+# Solving the residual directly also returns roots of the cosine factor, which
+# are artefacts of the particular point rather than physical dispersion. Factor
+# the residual and solve only the algebraic part.
+algebraic_factor = sp.simplify(sp.cancel(plane_residual / plane))
+solutions = sp.solve(sp.Eq(algebraic_factor, 0), w)
+positive_roots = [root for root in solutions if bool(root.is_positive)]
 check("dispersion_relation_is_exactly_omega_over_k",
-      len(positive_roots) == 1,
-      f"solve gave {[sp.simplify(s[w]) for s in solutions]}")
+      len(positive_roots) == 1
+      and sp.simplify(positive_roots[0] - k / sp.sqrt(mu0 * eps0)) == 0,
+      f"algebraic factor {algebraic_factor} has the single positive root "
+      f"{positive_roots[0] if positive_roots else 'none'}")
 
 
 # ---------------------------------------------------------------- leg 4

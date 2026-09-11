@@ -112,6 +112,15 @@ check("threshold_is_exactly_p_equals_one",
       at_one is False and above is True,
       f"p=1 is_convergent={at_one} while p=3/2 is_convergent={above}")
 
+# Three sample exponents do not establish a statement about all p. Sympy can
+# resolve the sum as a function of p, and the condition attached to the
+# convergent branch must be exactly p > 1, which is the claim.
+general_sum = sp.summation(1 / k**p, (k, 1, sp.oo))
+branches = [cond for _expr, cond in general_sum.args] if general_sum.is_Piecewise else []
+check("p_series_threshold_is_symbolic_not_sampled",
+      any(cond == (p > 1) for cond in branches),
+      f"summation over all p gives branches {branches}")
+
 
 # ---------------------------------------------------------------- leg 5
 # A wrong closed form must be rejected, or leg 1 proves nothing.

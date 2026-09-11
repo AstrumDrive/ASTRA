@@ -10,7 +10,7 @@ Legs:
   2. structure -- hermiticity, tracelessness, unit determinant magnitude and
                   involutivity, which are what force the algebra;
   3. invariant -- the Casimir sum s_x^2 + s_y^2 + s_z^2 = 3I is basis independent
-                  and is rechecked after a random unitary change of basis;
+                  and is rechecked after a fixed nontrivial unitary change of basis;
   4. falsifier -- the same test applied to a deliberately wrong s_y rejects it.
 """
 import itertools
