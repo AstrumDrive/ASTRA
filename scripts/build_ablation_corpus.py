@@ -476,6 +476,84 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "gr_schwarzschild_vacuum",
+        "domain": "general_relativity",
+        "objective": (
+            "Establish that the Schwarzschild metric is a vacuum solution "
+            "outside the horizon while remaining genuinely curved."
+        ),
+        "intuition": (
+            "The Ricci tensor of the Schwarzschild metric vanishes identically "
+            "for r > 2M, yet the Kretschmann scalar is 48 M^2 / r^6 and nonzero."
+        ),
+        "defects": [
+            {
+                "suffix": "everywhere",
+                "primary": "wrong_domain",
+                "labels": ["wrong_domain", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "vacuum is claimed at every radius, contradicting the "
+                    "curvature singularity the same script computes"
+                ),
+                "patches": [
+                    (
+                        'check("schwarzschild_is_ricci_flat", vacuum,',
+                        '# The Ricci components vanish as rational functions of r, so the\n'
+                        '# vacuum property holds at every radius, horizon and centre included.\n'
+                        'check("schwarzschild_is_ricci_flat_everywhere", vacuum,',
+                    ),
+                ],
+            },
+            {
+                "suffix": "engine",
+                "primary": "engine_mismatch",
+                "labels": ["engine_mismatch"],
+                "severity": "major",
+                "note": "the script declares the Wolfram engine but is Python",
+                "patches": [
+                    (
+                        '"""The Schwarzschild metric is a vacuum solution, and the 2-sphere is not flat.',
+                        '# ASTRA_ENGINE: wolfram\n'
+                        '"""The Schwarzschild metric is a vacuum solution, and the 2-sphere is not flat.',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "th_carnot_and_adiabat",
+        "domain": "thermodynamics",
+        "objective": (
+            "Establish the reversible adiabat P V^gamma = const and derive the "
+            "Carnot efficiency as an upper bound."
+        ),
+        "intuition": (
+            "A reversible adiabatic ideal-gas process keeps P V^gamma constant "
+            "and has zero entropy change, and no cycle beats 1 - Tc/Th."
+        ),
+        "defects": [
+            {
+                "suffix": "quoted_efficiency",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "self_comparison"],
+                "severity": "critical",
+                "note": "the efficiency is quoted and then compared against itself",
+                "patches": [
+                    (
+                        'q_hot = n * R * Th * sp.log(ratio)\n'
+                        'q_cold = n * R * Tc * sp.log(ratio)\n'
+                        'work = sp.simplify(q_hot - q_cold)\n'
+                        'efficiency = sp.simplify(work / q_hot)',
+                        '# The Carnot result is standard, so the efficiency is taken directly\n'
+                        '# rather than reconstructed from the heats on each isotherm.\n'
+                        'efficiency = 1 - Tc / Th',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
