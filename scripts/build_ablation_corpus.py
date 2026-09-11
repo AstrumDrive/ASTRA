@@ -1054,6 +1054,91 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "co_binomial_identities",
+        "domain": "combinatorics",
+        "objective": (
+            "Establish Pascal's rule, the row sums, Vandermonde's convolution "
+            "and the hockey stick identity for binomial coefficients."
+        ),
+        "intuition": (
+            "All four identities hold, and each is checked against a Pascal "
+            "triangle built by addition alone rather than by factorials."
+        ),
+        "defects": [
+            {
+                "suffix": "same_source",
+                "primary": "self_comparison",
+                "labels": ["self_comparison"],
+                "severity": "critical",
+                "note": (
+                    "the triangle is filled from the library it is supposed to "
+                    "corroborate, so the agreement leg compares it with itself"
+                ),
+                "patches": [
+                    (
+                        'def build_triangle(rows):\n'
+                        '    """Pascal\'s triangle by addition only. No factorials, no library calls."""\n'
+                        '    triangle = [[1]]\n'
+                        '    for row_index in range(1, rows):\n'
+                        '        previous = triangle[-1]\n'
+                        '        row = [1]\n'
+                        '        for position in range(1, row_index):\n'
+                        '            row.append(previous[position - 1] + previous[position])\n'
+                        '        row.append(1)\n'
+                        '        triangle.append(row)\n'
+                        '    return triangle',
+                        'def build_triangle(rows):\n'
+                        '    """Pascal\'s triangle, filled from the library for speed and clarity."""\n'
+                        '    return [\n'
+                        '        [int(sp.binomial(row_index, position))\n'
+                        '         for position in range(row_index + 1)]\n'
+                        '        for row_index in range(rows)\n'
+                        '    ]',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "dy_logistic_period_doubling",
+        "domain": "dynamical_systems",
+        "objective": (
+            "Establish the fixed points of the logistic map, their stability "
+            "window, and the period doubling at r = 3."
+        ),
+        "intuition": (
+            "The nonzero fixed point 1 - 1/r is stable exactly for 1 < r < 3, "
+            "and a two-cycle is born as the multiplier passes through -1."
+        ),
+        "defects": [
+            {
+                "suffix": "cycle_everywhere",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the two-cycle is claimed for every r, dropping the "
+                    "discriminant condition that makes its roots real"
+                ),
+                "patches": [
+                    (
+                        'discriminant = sp.simplify(sp.discriminant(\n'
+                        '    sp.Poly(x**2 - (1 + 1 / r) * x + (1 + 1 / r) / r, x)\n'
+                        '))\n'
+                        'birth = sp.solve(sp.Eq(discriminant, 0), r)\n'
+                        'check("two_cycle_is_born_exactly_at_r_three",\n'
+                        '      3 in [sp.simplify(value) for value in birth],\n'
+                        '      f"discriminant {sp.factor(discriminant)} vanishes at r = {birth}")',
+                        '# The quadratic always has two roots, so the two-cycle exists for every\n'
+                        '# value of r and there is no threshold to locate.\n'
+                        'check("two_cycle_is_born_exactly_at_r_three", True,\n'
+                        '      "the quadratic always factors, so the orbit is always present")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
