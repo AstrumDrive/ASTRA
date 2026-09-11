@@ -1139,6 +1139,46 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "nu_newton_quadratic_convergence",
+        "domain": "numerical_analysis",
+        "objective": (
+            "Establish that Newton's method converges quadratically at a simple "
+            "root with the asymptotic constant f''(a)/(2 f'(a))."
+        ),
+        "intuition": (
+            "The Newton error satisfies e_(n+1) = (f''/2f') e_n^2 at a simple "
+            "root, and degrades to linear with ratio 1/2 at a double root."
+        ),
+        "defects": [
+            {
+                "suffix": "slack_order",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance"],
+                "severity": "critical",
+                "note": (
+                    "the order tolerance is widened until a first-order method "
+                    "would also pass, so the leg stops distinguishing rates"
+                ),
+                "patches": [
+                    (
+                        'check("measured_order_is_two",\n'
+                        '      abs(exponent - 2) < mp.mpf("1e-3"),',
+                        '# Floating-point iteration is noisy near the root, so the order estimate\n'
+                        '# is given room rather than being held to three decimals.\n'
+                        'check("measured_order_is_two",\n'
+                        '      abs(exponent - 2) < mp.mpf("1.5"),',
+                    ),
+                    (
+                        'check("measured_constant_matches_the_prediction",\n'
+                        '      abs(measured - predicted) < mp.mpf("1e-10"),',
+                        'check("measured_constant_matches_the_prediction",\n'
+                        '      abs(measured - predicted) < mp.mpf("1e-1"),',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
