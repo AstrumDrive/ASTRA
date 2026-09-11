@@ -1,0 +1,159 @@
+"""Hermitian matrices have real spectra and an orthonormal eigenbasis.
+
+CLAIM: for a Hermitian matrix the eigenvalues are real, eigenvectors belonging
+to distinct eigenvalues are orthogonal, and the matrix is unitarily
+diagonalizable so that A = U D U^dagger with D real diagonal.
+
+Legs:
+  1. symbolic  -- a Hermitian matrix with symbolic real entries has a
+                  characteristic polynomial with real roots, shown through the
+                  discriminant rather than by inspecting numbers;
+  2. concrete  -- an explicit complex Hermitian matrix is diagonalized exactly
+                  and the reconstruction A - U D U^dagger is the zero matrix;
+  3. orthogonal -- eigenvectors for distinct eigenvalues have vanishing inner
+                  product, checked exactly over the Gaussian rationals;
+  4. falsifier -- a non-Hermitian matrix with complex eigenvalues is rejected by
+                  the same reality test, so the test has power.
+"""
+import itertools
+
+import sympy as sp
+
+FAILURES = []
+
+
+def check(name, ok, detail=""):
+    if ok is True:
+        print(f"CHECK {name}: OK {detail}".rstrip())
+        return True
+    FAILURES.append(name)
+    print(f"CHECK {name}: FAIL {detail}".rstrip())
+    return False
+
+
+def is_hermitian(matrix):
+    return sp.simplify(matrix - matrix.conjugate().T) == sp.zeros(*matrix.shape)
+
+
+# ---------------------------------------------------------------- leg 1
+a, d = sp.symbols("a d", real=True)
+b_re, b_im = sp.symbols("b_re b_im", real=True)
+b = b_re + sp.I * b_im
+symbolic = sp.Matrix([[a, b], [sp.conjugate(b), d]])
+
+check("symbolic_matrix_is_hermitian", is_hermitian(symbolic),
+      "A = A^dagger with symbolic real diagonal and complex off-diagonal")
+
+lam = sp.Symbol("lambda")
+characteristic = sp.simplify(sp.expand((symbolic - lam * sp.eye(2)).det()))
+# For a 2x2 the roots are real exactly when the discriminant is nonnegative.
+# Here it equals (a - d)^2 + 4|b|^2, a sum of squares, so reality is structural.
+discriminant = sp.simplify(sp.expand((a + d) ** 2 - 4 * (a * d - (b_re**2 + b_im**2))))
+expected = sp.expand((a - d) ** 2 + 4 * (b_re**2 + b_im**2))
+check("discriminant_is_a_sum_of_squares",
+      sp.simplify(discriminant - expected) == 0,
+      f"discriminant = {sp.factor(expected)}")
+
+# Nonnegativity is established by an explicit sum-of-squares certificate rather
+# than by asking the assumptions engine, which returns None here. Each summand
+# is the square of a real expression, so the total cannot be negative for any
+# real entries, and the roots of a real quadratic with nonnegative discriminant
+# are real.
+certificate = (a - d) ** 2 + (2 * b_re) ** 2 + (2 * b_im) ** 2
+check("discriminant_is_a_sum_of_three_real_squares",
+      sp.simplify(sp.expand(expected - certificate)) == 0,
+      f"discriminant = (a-d)^2 + (2 b_re)^2 + (2 b_im)^2")
+
+squares_are_real = all(
+    bool(sp.simplify(sp.im(term)) == 0)
+    for term in ((a - d), 2 * b_re, 2 * b_im)
+)
+check("certificate_terms_are_real_hence_squares_nonnegative", squares_are_real,
+      "each squared expression is real, so no term can be negative")
+
+# Independent numeric confirmation over the declared domain, which would expose
+# a certificate that is algebraically right but irrelevant.
+import random as _random
+_random.seed(20260911)
+worst = None
+for _ in range(3000):
+    subs = {sym: _random.uniform(-50, 50) for sym in (a, d, b_re, b_im)}
+    value = float(expected.subs(subs))
+    worst = value if worst is None else min(worst, value)
+check("discriminant_nonnegative_on_random_reals", worst >= 0,
+      f"minimum over 3000 random real assignments = {worst:.6f}")
+
+
+# ---------------------------------------------------------------- leg 2
+# Entries chosen so the spectrum is {1, 4, 5}: distinct and rational, which
+# keeps the eigenvectors exact instead of burying the result in nested radicals
+# that only simplify() could compare. The claim is about Hermitian matrices in
+# general; leg 1 carries the symbolic case, and this one carries exactness.
+A = sp.Matrix([
+    [2, 1 - sp.I, 0],
+    [1 + sp.I, 3, 0],
+    [0, 0, 5],
+])
+check("concrete_matrix_is_hermitian", is_hermitian(A), "A = A^dagger exactly")
+
+eigen = A.eigenvals()
+all_real = all(bool(sp.simplify(sp.im(value)) == 0) for value in eigen)
+check("concrete_eigenvalues_are_real", all_real,
+      f"{len(eigen)} distinct eigenvalues, all with zero imaginary part")
+
+# Reconstruct from the spectral decomposition. Vectors are normalised with the
+# Hermitian inner product, so U is unitary by construction and the check is on A.
+vectors = []
+values = []
+for value, _multiplicity, basis in A.eigenvects():
+    for vector in basis:
+        norm = sp.sqrt(sp.simplify((vector.conjugate().T * vector)[0, 0]))
+        vectors.append(sp.simplify(vector / norm))
+        values.append(sp.simplify(value))
+
+U = sp.Matrix.hstack(*vectors)
+D = sp.diag(*values)
+unitary_gap = sp.simplify(U * U.conjugate().T - sp.eye(3))
+check("eigenbasis_is_unitary", unitary_gap == sp.zeros(3, 3),
+      "U U^dagger = I exactly")
+
+reconstruction = sp.simplify(A - U * D * U.conjugate().T)
+check("spectral_reconstruction_exact",
+      reconstruction == sp.zeros(3, 3),
+      f"A - U D U^dagger = {reconstruction.tolist()}")
+
+
+# ---------------------------------------------------------------- leg 3
+orthogonal_ok = True
+pairs = 0
+for i, j in itertools.combinations(range(len(vectors)), 2):
+    if sp.simplify(values[i] - values[j]) == 0:
+        continue
+    pairs += 1
+    inner = sp.simplify((vectors[i].conjugate().T * vectors[j])[0, 0])
+    if inner != 0:
+        orthogonal_ok = False
+        break
+check("distinct_eigenvalues_give_orthogonal_vectors", orthogonal_ok,
+      f"{pairs} pairs with distinct eigenvalues, all inner products zero")
+
+
+# ---------------------------------------------------------------- leg 4
+# A non-Hermitian matrix with genuinely complex eigenvalues must be rejected by
+# the same reality test, otherwise leg 2 would pass for any matrix.
+rotation = sp.Matrix([[0, -1], [1, 0]])
+check("falsifier_matrix_is_not_hermitian", not is_hermitian(rotation),
+      "the rotation generator is real antisymmetric, not Hermitian")
+
+rotation_values = rotation.eigenvals()
+has_complex = any(bool(sp.simplify(sp.im(value)) != 0) for value in rotation_values)
+check("falsifier_rejects_complex_spectrum", has_complex,
+      f"eigenvalues {list(rotation_values)} are not real, and the test sees it")
+
+
+print()
+print(f"legs_failed={len(FAILURES)} {FAILURES}")
+if FAILURES:
+    print("VERDICT: FAIL")
+    raise SystemExit(1)
+print("VERDICT: PASS")

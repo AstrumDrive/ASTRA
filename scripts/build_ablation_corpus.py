@@ -554,6 +554,86 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "an_basel_and_harmonic",
+        "domain": "analysis",
+        "objective": (
+            "Establish the Basel sum in closed form, the divergence of the "
+            "harmonic series, and that p = 1 is the exact threshold."
+        ),
+        "intuition": (
+            "sum 1/k^2 = pi^2/6 exactly, sum 1/k diverges, and sum 1/k^p "
+            "converges precisely for p > 1."
+        ),
+        "defects": [
+            {
+                "suffix": "loose_tail",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance"],
+                "severity": "major",
+                "note": "the tail bound is widened until it no longer constrains anything",
+                "patches": [
+                    (
+                        'check("partial_sum_within_predicted_tail_bound",\n'
+                        '      0 < observed_gap < tail_bound,\n'
+                        '      f"gap={observed_gap:.3e}, predicted bound={tail_bound:.3e}")',
+                        '# Floating point accumulates over 20000 terms, so the comparison is\n'
+                        '# given generous room rather than held to the integral-test bound.\n'
+                        'check("partial_sum_within_predicted_tail_bound",\n'
+                        '      0 < observed_gap < 1e-1,\n'
+                        '      f"gap={observed_gap:.3e}, tolerance=1e-1")',
+                    ),
+                    (
+                        '# The gap must also be close to the leading tail estimate 1/N, not merely below\n'
+                        '# it, which distinguishes a converging sum from one that stalls early.\n'
+                        'check("gap_matches_leading_tail_estimate",\n'
+                        '      0.9 < observed_gap / tail_bound < 1.0,\n'
+                        '      f"gap / (1/N) = {observed_gap / tail_bound:.4f}")',
+                        'check("gap_is_small", observed_gap < 1e-1,\n'
+                        '      f"gap = {observed_gap:.3e}")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "la_hermitian_spectral",
+        "domain": "linear_algebra",
+        "objective": (
+            "Establish that Hermitian matrices have real spectra and an "
+            "orthonormal eigenbasis that reconstructs the matrix exactly."
+        ),
+        "intuition": (
+            "A Hermitian matrix has real eigenvalues, orthogonal eigenvectors "
+            "for distinct eigenvalues, and satisfies A = U D U^dagger."
+        ),
+        "defects": [
+            {
+                "suffix": "unsimplified_zero",
+                "primary": "unsimplified_symbolic_zero",
+                "labels": ["unsimplified_symbolic_zero", "unknown_as_pass"],
+                "severity": "critical",
+                "note": (
+                    "the reconstruction is compared without canonicalization and "
+                    "an undecided zero test is accepted"
+                ),
+                "patches": [
+                    (
+                        'reconstruction = sp.simplify(A - U * D * U.conjugate().T)\n'
+                        'check("spectral_reconstruction_exact",\n'
+                        '      reconstruction == sp.zeros(3, 3),\n'
+                        '      f"A - U D U^dagger = {reconstruction.tolist()}")',
+                        '# Skip the canonicalization: the difference is zero by construction, so\n'
+                        '# the structural test is enough and is far cheaper.\n'
+                        'reconstruction = A - U * D * U.conjugate().T\n'
+                        'check("spectral_reconstruction_exact",\n'
+                        '      reconstruction.is_zero_matrix is not False,\n'
+                        '      f"is_zero_matrix = {reconstruction.is_zero_matrix}")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
