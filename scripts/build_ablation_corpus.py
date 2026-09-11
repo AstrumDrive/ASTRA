@@ -1350,6 +1350,55 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "me_euler_buckling",
+        "domain": "structural_mechanics",
+        "objective": (
+            "Establish the Euler buckling spectrum for a pinned column and "
+            "derive the clamped-clamped factor from its boundary conditions."
+        ),
+        "intuition": (
+            "Non-trivial shapes exist only at P = n^2 pi^2 EI / L^2, and "
+            "clamping both ends raises the critical load by four."
+        ),
+        "defects": [
+            {
+                "suffix": "effective_length",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "self_comparison"],
+                "severity": "critical",
+                "note": (
+                    "the clamped factor is recovered by squaring an assumed "
+                    "effective length instead of solving the boundary problem"
+                ),
+                "patches": [
+                    (
+                        'conditions = [\n'
+                        '    clamped.subs(x, 0),\n'
+                        '    sp.diff(clamped, x).subs(x, 0),\n'
+                        '    clamped.subs(x, L),\n'
+                        '    sp.diff(clamped, x).subs(x, L),\n'
+                        ']\n'
+                        'coefficient_matrix = sp.Matrix([\n'
+                        '    [sp.expand(condition).coeff(coefficient) for coefficient in (C1, C2, C3, C4)]\n'
+                        '    for condition in conditions\n'
+                        '])\n'
+                        'determinant = sp.simplify(sp.trigsimp(coefficient_matrix.det()))\n'
+                        'check("clamped_boundary_determinant_is_the_eigenvalue_condition",\n'
+                        '      sp.simplify(determinant\n'
+                        '                  - kk * (L * kk * sp.sin(L * kk) + 2 * sp.cos(L * kk) - 2)) == 0,\n'
+                        '      f"det = {sp.factor(determinant)}, whose zeros are the buckling loads")',
+                        '# The clamped column has effective length L/2, which is standard, so the\n'
+                        '# determinant does not need to be assembled: the factor follows from\n'
+                        '# squaring the effective length.\n'
+                        'determinant = kk * (L * kk * sp.sin(L * kk) + 2 * sp.cos(L * kk) - 2)\n'
+                        'check("clamped_boundary_determinant_is_the_eigenvalue_condition", True,\n'
+                        '      "effective length L/2, as tabulated")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
