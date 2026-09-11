@@ -1449,6 +1449,133 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "cm_kepler_orbit",
+        "domain": "classical_mechanics",
+        "objective": (
+            "Derive the Kepler orbit from the Lagrangian and show that closure "
+            "belongs to the inverse square law rather than to the integrator."
+        ),
+        "intuition": (
+            "The angle is cyclic, so r^2 thetadot is constant; in u = 1/r the "
+            "radial equation is a linear oscillator whose period gives Kepler's "
+            "third law, and a 1/r^3 term shifts the frequency and opens the orbit."
+        ),
+        "defects": [
+            {
+                "suffix": "period_from_the_formula",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the period said to be measured by integration is assigned "
+                    "from the analytic prediction, so the numeric leg compares "
+                    "Kepler's third law with itself"
+                ),
+                "patches": [
+                    (
+                        'measured_period, measured_angle = integrate(0.0, ONE_TURN_STEPS)',
+                        '# The conic is exact, so the period it predicts is cleaner than the\n'
+                        '# integrated one; the integration is kept for the periapsis angle.\n'
+                        'measured_period = predicted_period\n'
+                        '_integrated_period, measured_angle = integrate(0.0, ONE_TURN_STEPS)',
+                    ),
+                ],
+            },
+            {
+                "suffix": "retyped_radial_equation",
+                "primary": "link_in_comment",
+                "labels": ["link_in_comment", "missing_assumption"],
+                "severity": "major",
+                "note": (
+                    "the orbit equation is transformed from a retyped copy of the "
+                    "radial equation instead of from the one the Lagrangian "
+                    "produced, so the whole first leg is decorative and a wrong "
+                    "potential upstream would never reach any later check"
+                ),
+                "patches": [
+                    (
+                        '# The equation transformed here is the one leg 1 DERIVED, not a retyped\n'
+                        '# copy of it. Substituting the three atoms is what carries the Lagrangian\n'
+                        '# into this leg, so a wrong potential upstream shows up as a wrong orbit\n'
+                        '# equation here instead of being quietly re-entered correctly.\n'
+                        'radial_law = sp.simplify(radial_el)\n'
+                        'residual = sp.simplify(radial_law.subs([\n'
+                        '    (sp.Derivative(r_t, t, 2), radial_acceleration),\n'
+                        '    (sp.Derivative(theta_t, t), angular_speed),\n'
+                        '    (r_t, radius),\n'
+                        ']))',
+                        '# The radial equation derived in leg 1, written out in u.\n'
+                        'residual = sp.simplify(\n'
+                        '    radial_acceleration - radius * angular_speed ** 2 + GM / radius ** 2\n'
+                        ')',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "st_cramer_rao_bound",
+        "domain": "statistics",
+        "objective": (
+            "Show that the sample mean attains the Cramer-Rao bound and that a "
+            "biased estimator can sit below it without contradicting the theorem."
+        ),
+        "intuition": (
+            "The score equation solves to the sample mean, the information is "
+            "n/sigma^2 by both definitions, and the bound constrains unbiased "
+            "estimators only, which is the hypothesis usually left unsaid."
+        ),
+        "defects": [
+            {
+                "suffix": "unbiasedness_assumed",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "unbiasedness is declared to hold for any average of the "
+                    "observations, which is false and is exactly what the last "
+                    "leg contradicts, and the check that would have caught it is "
+                    "replaced by a constant"
+                ),
+                "patches": [
+                    (
+                        'estimator_pair = (draws[0] + draws[1]) / 2\n'
+                        'check("the_two_observation_average_is_also_unbiased",\n'
+                        '      sp.simplify(expectation(estimator_pair) - mu) == 0,\n'
+                        '      f"E[mu_pair] = {sp.simplify(expectation(estimator_pair))}")',
+                        '# Any average of the observations is unbiased, so the bound applies to\n'
+                        '# all of them and the expectation need not be recomputed each time.\n'
+                        'estimator_pair = (draws[0] + draws[1]) / 2\n'
+                        'check("the_two_observation_average_is_also_unbiased", True,\n'
+                        '      "an average of observations is unbiased by construction")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "targets_from_the_simulation",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the exact variances the simulation is compared against are "
+                    "read off that same simulation, so both agreement checks "
+                    "compare a number with itself and the symbolic results are "
+                    "never tested against anything"
+                ),
+                "patches": [
+                    (
+                        'exact_mean_variance = as_float(variance_mean.subs({sigma: SIGMA_TRUE}))\n'
+                        'exact_pair_variance = as_float(variance_pair.subs({sigma: SIGMA_TRUE}))',
+                        '# Taking the targets from the simulation itself avoids any mismatch of\n'
+                        '# parameterisation between the symbolic variance and the simulated one.\n'
+                        '_, exact_mean_variance = moments(means)\n'
+                        '_, exact_pair_variance = moments(pairs)',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
