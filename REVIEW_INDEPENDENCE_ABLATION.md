@@ -244,6 +244,16 @@ Each item below has bitten ASTRA before or is a standard failure of this design.
    by preflight in every other arm. **Control:** report preflight catches
    separately so the model reviewer's marginal contribution is visible rather
    than inflated by the floor.
+9. **Length as a giveaway.** Each defective case is a patch of its sound base,
+   so the two could differ systematically in size and a reviewer could then
+   discriminate on length rather than on mathematics, which would make the
+   experiment measure its own construction. **Control:** measured, not assumed.
+   At 32 sound and 46 defective cases the best possible classifier that reads
+   only the line count scores 59.0%, exactly the majority baseline, so length
+   carries no information at all about the stratum. Paired against its own base,
+   a defective case is 0.54 lines shorter on average out of 184, with 23 longer
+   and 18 shorter among the 41 unequal pairs, a sign test at p = 0.53. This is
+   rechecked at the final corpus size before stage 3 runs.
 
 ---
 

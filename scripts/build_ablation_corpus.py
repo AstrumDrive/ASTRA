@@ -1576,6 +1576,158 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "ot_fresnel_brewster",
+        "domain": "optics",
+        "objective": (
+            "Derive the Fresnel coefficients from the boundary conditions and "
+            "show that energy balances only with the obliquity factor."
+        ),
+        "intuition": (
+            "Continuity of the tangential fields fixes the amplitudes, the "
+            "p-amplitude vanishes at tan(theta) = n2/n1, and the transmitted "
+            "power carries n2 cos(theta_t) / (n1 cos(theta_i))."
+        ),
+        "defects": [
+            {
+                "suffix": "cosines_dropped",
+                "primary": "wrong_units",
+                "labels": ["wrong_units", "sampling_as_proof"],
+                "severity": "critical",
+                "note": (
+                    "the obliquity factor keeps the index ratio but loses the "
+                    "cosines, which is exactly right at normal incidence and "
+                    "wrong everywhere else, and the energy checks are evaluated "
+                    "only at normal incidence where the error cannot show"
+                ),
+                "patches": [
+                    (
+                        'obliquity = n2 * cos_t / (n1 * cos_i)\n'
+                        'energy_s = sp.simplify(r_s ** 2 + obliquity * t_s ** 2)\n'
+                        'check("the_s_polarisation_conserves_energy_with_the_obliquity_factor",\n'
+                        '      sp.simplify(energy_s - 1) == 0,\n'
+                        '      f"R_s + T_s = {energy_s}")\n'
+                        '\n'
+                        'energy_p = sp.simplify(r_p ** 2 + obliquity * t_p ** 2)\n'
+                        'check("the_p_polarisation_conserves_energy_with_the_obliquity_factor",\n'
+                        '      sp.simplify(energy_p - 1) == 0,\n'
+                        '      f"R_p + T_p = {energy_p}")',
+                        '# The cosines cancel between the incident and transmitted sides, leaving\n'
+                        '# only the index ratio, and the balance is confirmed numerically.\n'
+                        'obliquity = n2 / n1\n'
+                        'NORMAL = {n1: 1, n2: sp.Rational(3, 2), cos_i: 1, cos_t: 1}\n'
+                        'energy_s = sp.simplify(r_s ** 2 + obliquity * t_s ** 2)\n'
+                        'check("the_s_polarisation_conserves_energy_with_the_obliquity_factor",\n'
+                        '      abs(float(energy_s.subs(NORMAL)) - 1) < 1e-12,\n'
+                        '      f"R_s + T_s = {float(energy_s.subs(NORMAL)):.12f}")\n'
+                        '\n'
+                        'energy_p = sp.simplify(r_p ** 2 + obliquity * t_p ** 2)\n'
+                        'check("the_p_polarisation_conserves_energy_with_the_obliquity_factor",\n'
+                        '      abs(float(energy_p.subs(NORMAL)) - 1) < 1e-12,\n'
+                        '      f"R_p + T_p = {float(energy_p.subs(NORMAL)):.12f}")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "brewster_quoted",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "hardcoded_pass"],
+                "severity": "critical",
+                "note": (
+                    "the Brewster root is written in by hand instead of solved "
+                    "from the amplitude, so the numerator is computed and never "
+                    "used and both checks compare the quoted formula with itself"
+                ),
+                "patches": [
+                    (
+                        'roots = sp.solve(sp.Eq(p_numerator, 0), tangent)',
+                        '# The Brewster condition is standard and the numerator above reproduces\n'
+                        '# it, so the root is taken directly rather than solved for again.\n'
+                        'roots = [n2 / n1]',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "ct_lyapunov_stability",
+        "domain": "control_theory",
+        "objective": (
+            "Tie linear stability, the Routh-Hurwitz conditions and the Lyapunov "
+            "equation together, and show the Lyapunov construction failing "
+            "quietly on an unstable system."
+        ),
+        "intuition": (
+            "A stable A gives a unique positive definite P; an unstable A gives a "
+            "unique indefinite one without complaint; and eigenvalues summing to "
+            "zero leave the equation with no solution at all."
+        ),
+        "defects": [
+            {
+                "suffix": "undecided_counts_as_definite",
+                "primary": "unknown_as_pass",
+                "labels": ["unknown_as_pass", "undecidable_positivity"],
+                "severity": "critical",
+                "note": (
+                    "the definiteness test accepts an undecided sign as a pass, "
+                    "so a P whose minors sympy cannot resolve would be certified "
+                    "as a Lyapunov function; the case still passes because this "
+                    "particular P is decidable"
+                ),
+                "patches": [
+                    (
+                        'check("that_solution_is_positive_definite",\n'
+                        '      leading.is_positive is True and determinant.is_positive is True,\n'
+                        '      f"leading minor {leading}, determinant {determinant}, both positive")',
+                        '# is_positive returns None when the sign cannot be settled, and a None\n'
+                        '# there means nothing has been found against the matrix.\n'
+                        'check("that_solution_is_positive_definite",\n'
+                        '      leading.is_positive is not False\n'
+                        '      and determinant.is_positive is not False,\n'
+                        '      f"leading minor {leading}, determinant {determinant}, nothing "\n'
+                        '      "found against either")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "residual_waved_through",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance", "link_in_comment"],
+                "severity": "major",
+                "note": (
+                    "the model that predicts the residual of the decay rate is "
+                    "dropped for a band twenty times larger and a comment saying "
+                    "the residual is understood, so the contamination is asserted "
+                    "rather than measured and the second window is never used"
+                ),
+                "patches": [
+                    (
+                        'check("the_residual_is_the_faster_mode_rather_than_numerical_noise",\n'
+                        '      abs(late_gap / mode_contamination(7000, 9000) - 1) < 1e-3,\n'
+                        '      f"gap {late_gap:.6e} against the predicted contamination "\n'
+                        '      f"{mode_contamination(7000, 9000):.6e}, agreeing to "\n'
+                        '      f"{abs(late_gap / mode_contamination(7000, 9000) - 1):.2e}")\n'
+                        '\n'
+                        'early_gap = 2 * slowest - decay_rate(2000, 4000)\n'
+                        'shrinkage = early_gap / late_gap\n'
+                        'predicted_shrinkage = mode_contamination(2000, 4000) / mode_contamination(7000, 9000)\n'
+                        'check("moving_the_window_later_shrinks_the_residual_as_predicted",\n'
+                        '      abs(shrinkage / predicted_shrinkage - 1) < 0.05,\n'
+                        '      f"the gap falls by a factor {shrinkage:.1f} between the windows and the "\n'
+                        '      f"model asks for {predicted_shrinkage:.1f}")',
+                        '# The residual is the faster mode, which is well understood, so a band of\n'
+                        '# one percent is generous enough and the comparison against the model\n'
+                        '# adds nothing.\n'
+                        'check("the_residual_is_the_faster_mode_rather_than_numerical_noise",\n'
+                        '      abs(late_gap) < 1e-2,\n'
+                        '      f"gap {late_gap:.6e}, inside the expected band")\n'
+                        'check("moving_the_window_later_shrinks_the_residual_as_predicted", True,\n'
+                        '      "a later window is closer, as the mode structure requires")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
