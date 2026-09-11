@@ -857,6 +857,43 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "qm_uncertainty_saturation",
+        "domain": "quantum_mechanics",
+        "objective": (
+            "Establish that the harmonic-oscillator ground state saturates the "
+            "position-momentum uncertainty bound and that excited states do not."
+        ),
+        "intuition": (
+            "With hbar = 1 the n-th eigenstate has dx dp = n + 1/2, so the "
+            "Robertson floor of 1/2 is attained only by the ground state."
+        ),
+        "defects": [
+            {
+                "suffix": "asserted_excited",
+                "primary": "link_in_comment",
+                "labels": ["link_in_comment", "assumed_bound"],
+                "severity": "critical",
+                "note": (
+                    "the excited-state spreads are read off the energy in a "
+                    "comment instead of being integrated"
+                ),
+                "patches": [
+                    (
+                        '    product = sp.simplify(\n'
+                        '        sp.sqrt(sp.simplify(mx2 - mx**2)) * sp.sqrt(sp.simplify(mp2 - mp**2))\n'
+                        '    )\n'
+                        '    excited_products.append(product)',
+                        '    # The virial theorem splits E_n = n + 1/2 evenly between the kinetic\n'
+                        '    # and potential parts, so the product of the spreads is n + 1/2.\n'
+                        '    # Recomputing the integrals only confirms what the energy already fixes.\n'
+                        '    product = n + sp.Rational(1, 2)\n'
+                        '    excited_products.append(product)',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
