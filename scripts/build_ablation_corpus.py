@@ -1179,6 +1179,90 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "op_lagrange_multipliers",
+        "domain": "optimization",
+        "objective": (
+            "Establish the constrained maximum of x*y on x + y = s and show the "
+            "multiplier is the derivative of the optimal value."
+        ),
+        "intuition": (
+            "The maximum is x = y = s/2 with value s^2/4, and the multiplier "
+            "equals dF*/ds, which is the envelope theorem."
+        ),
+        "defects": [
+            {
+                "suffix": "one_route",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the second route is replaced by the first one's answer, so "
+                    "the cross-check compares a result with itself"
+                ),
+                "patches": [
+                    (
+                        'reduced = sp.simplify(objective.subs(y, s - x))\n'
+                        'critical = sp.solve(sp.Eq(sp.diff(reduced, x), 0), x)',
+                        '# Substitution must land on the same point the multipliers already gave,\n'
+                        '# so the critical point is taken from there instead of re-solving.\n'
+                        'reduced = sp.simplify(objective.subs(y, s - x))\n'
+                        'critical = [solution[x]]',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "in_shannon_entropy_maximum",
+        "domain": "information_theory",
+        "objective": (
+            "Establish that Shannon entropy is maximised by the uniform "
+            "distribution with maximum log n."
+        ),
+        "intuition": (
+            "H(p) = -sum p log p is bounded by log n, attained only by the "
+            "uniform distribution, which follows from Gibbs' inequality."
+        ),
+        "defects": [
+            {
+                "suffix": "sampled_bound",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "assumed_bound"],
+                "severity": "critical",
+                "note": (
+                    "the Gibbs derivation is dropped and the universal bound is "
+                    "left to twenty thousand random draws"
+                ),
+                "patches": [
+                    (
+                        'gap = sp.simplify(t - 1 - sp.log(t))\n'
+                        'stationary_points = sp.solve(sp.Eq(sp.diff(gap, t), 0), t)\n'
+                        'check("log_bound_has_its_only_stationary_point_at_one",\n'
+                        '      stationary_points == [1],\n'
+                        '      f"d/dt (t - 1 - log t) vanishes at t = {stationary_points}")\n'
+                        '\n'
+                        'check("that_point_is_a_minimum_of_the_gap",\n'
+                        '      bool(sp.diff(gap, t, 2).subs(t, 1) > 0),\n'
+                        '      f"second derivative at t = 1 is {sp.diff(gap, t, 2).subs(t, 1)}, positive")\n'
+                        '\n'
+                        'check("the_gap_vanishes_there_and_only_there",\n'
+                        '      sp.simplify(gap.subs(t, 1)) == 0,\n'
+                        '      "so log t = t - 1 exactly at t = 1 and log t < t - 1 elsewhere")',
+                        '# The bound log t <= t - 1 is elementary and the sampling below covers\n'
+                        '# the distribution space densely, so working through its equality case\n'
+                        '# adds nothing the numbers do not already show.\n'
+                        'check("log_bound_has_its_only_stationary_point_at_one", True,\n'
+                        '      "standard elementary inequality")\n'
+                        'check("that_point_is_a_minimum_of_the_gap", True,\n'
+                        '      "standard elementary inequality")\n'
+                        'check("the_gap_vanishes_there_and_only_there", True,\n'
+                        '      "standard elementary inequality")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
