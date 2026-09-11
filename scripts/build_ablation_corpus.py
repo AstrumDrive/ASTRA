@@ -1865,6 +1865,160 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "cy_fermat_test_and_carmichael",
+        "domain": "cryptography",
+        "objective": (
+            "Show that the Fermat primality test has an unreachable failure "
+            "branch on Carmichael numbers and that Miller-Rabin does not."
+        ),
+        "intuition": (
+            "The bases that fail to expose n form a subgroup of the units, "
+            "proper for an ordinary composite and the whole group for a "
+            "Carmichael number, which is why retrying more bases cannot help."
+        ),
+        "defects": [
+            {
+                "suffix": "sampled_bases",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "proxy_continuity"],
+                "severity": "critical",
+                "note": (
+                    "the claim that EVERY unit lies is drawn from a strided "
+                    "subsample of a hundred bases, which cannot establish a "
+                    "statement about the whole group; the conclusion happens to "
+                    "be true, so nothing in the run exposes the reasoning"
+                ),
+                "patches": [
+                    (
+                        'for candidate in CARMICHAELS:\n'
+                        '    total = len(units(candidate))\n'
+                        '    liars = fermat_liars(candidate)\n'
+                        '    check(f"the_liars_modulo_{candidate}_are_every_last_unit",\n'
+                        '          len(liars) == total,\n'
+                        '          f"all {total} units lie, so the subgroup is the whole group, there is "\n'
+                        '          "no witness to find and retrying with more bases cannot help")',
+                        '# Walking every unit is wasteful when a spread of a hundred bases settles it.\n'
+                        'for candidate in CARMICHAELS:\n'
+                        '    total = len(units(candidate))\n'
+                        '    sample = units(candidate)[::7][:100]\n'
+                        '    liars = [a for a in sample if pow(a, candidate - 1, candidate) == 1]\n'
+                        '    check(f"the_liars_modulo_{candidate}_are_every_last_unit",\n'
+                        '          len(liars) == len(sample),\n'
+                        '          f"all {len(sample)} bases sampled from the {total} units lie, so "\n'
+                        '          "every unit does and there is no witness to find")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "vacuous_prime_control",
+                "primary": "unreachable_failure",
+                "labels": ["unreachable_failure", "missing_domain"],
+                "severity": "major",
+                "note": (
+                    "the prime control uses a prime whose predecessor carries a "
+                    "single factor of two, so the square root chain never runs "
+                    "and a Miller-Rabin with that chain deleted would pass the "
+                    "control unchanged; the control is present and inert"
+                ),
+                "patches": [
+                    (
+                        '# 577 rather than a prime like 563: 562 carries a single factor of two, so the\n'
+                        '# square root chain never runs and a Miller-Rabin with that chain deleted would\n'
+                        '# still accuse nobody. 576 is 2^6 times 9, so the chain is exercised and the\n'
+                        '# control has something to control.\n'
+                        'PRIME_CONTROL = 577',
+                        '# Any prime serves as the control, so the nearest one below the Carmichael\n'
+                        '# numbers is taken.\n'
+                        'PRIME_CONTROL = 563',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "ap_lane_emden_polytropes",
+        "domain": "astrophysics",
+        "objective": (
+            "Reduce hydrostatic equilibrium to Lane-Emden and show that a "
+            "polytrope's radius is finite only below index five."
+        ),
+        "intuition": (
+            "Index one gives sin(xi)/xi with a radius independent of the central "
+            "density, index five gives a profile positive everywhere, so the "
+            "star is infinite while its mass is not."
+        ),
+        "defects": [
+            {
+                "suffix": "regularity_left_implicit",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "cos(xi)/xi solves the index one equation exactly as well as "
+                    "sin(xi)/xi, and only regularity at the centre excludes it; "
+                    "the condition is dropped here, so nothing in the case would "
+                    "reject a profile that diverges at the middle of the star"
+                ),
+                "patches": [
+                    (
+                        '# Solving the equation is not enough to pick a star. cos(xi)/xi solves it just\n'
+                        '# as well and is excluded only by regularity at the centre, so that condition\n'
+                        '# is imposed here rather than left implicit in the choice of profile.\n'
+                        'rejected = sp.cos(xi) / xi\n'
+                        'check("the_discarded_solution_solves_the_equation_too",\n'
+                        '      residual_at(1, rejected) == 0,\n'
+                        '      f"residual is {residual_at(1, rejected)}, so the equation alone does not choose")\n'
+                        '\n'
+                        'check("and_regularity_at_the_centre_is_what_chooses_between_them",\n'
+                        '      sp.limit(unit_profile, xi, 0) == 1\n'
+                        '      and sp.limit(sp.diff(unit_profile, xi), xi, 0) == 0\n'
+                        '      and sp.limit(rejected, xi, 0) == sp.oo,\n'
+                        '      f"sin(xi)/xi tends to {sp.limit(unit_profile, xi, 0)} with zero slope, "\n'
+                        '      "while cos(xi)/xi diverges")',
+                        '# The equation determines the profile, so sin(xi)/xi is the index one\n'
+                        '# solution and nothing further need be imposed on it.\n'
+                        'rejected = sp.cos(xi) / xi\n'
+                        'check("the_discarded_solution_solves_the_equation_too", True,\n'
+                        '      "the second branch is not the physical one")\n'
+                        '\n'
+                        'check("and_regularity_at_the_centre_is_what_chooses_between_them", True,\n'
+                        '      "sin(xi)/xi is the standard index one profile")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "one_calibration_case",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "the integrator is calibrated at index one alone, where the "
+                    "equation is linear and homogeneous so an error in the "
+                    "central value is a pure rescaling and cannot move the zero; "
+                    "the one case that would feel such an error is removed, and "
+                    "the calibration is blind to the failure it exists to catch"
+                ),
+                "patches": [
+                    (
+                        '# Index one alone would not validate the integrator: there the equation is\n'
+                        '# linear and homogeneous, so an error in the central value is a pure rescaling\n'
+                        '# and cannot move the zero. Index zero carries a source, and does feel one.\n'
+                        'flat_located, _ = integrate(0, 5e-4, 20.0)\n'
+                        'check("the_integrator_also_reproduces_the_index_zero_zero",\n'
+                        '      abs(flat_located - math.sqrt(6)) < 1e-11,\n'
+                        '      f"found xi_1 = {flat_located:.13f} against sqrt(6) = {math.sqrt(6):.13f}, "\n'
+                        '      f"apart by {abs(flat_located - math.sqrt(6)):.3e}")',
+                        '# One closed-form index is calibration enough; the same integrator runs at\n'
+                        '# every other index without modification.\n'
+                        'flat_located, _ = integrate(0, 5e-4, 20.0)\n'
+                        'check("the_integrator_also_reproduces_the_index_zero_zero", True,\n'
+                        '      f"index zero gives xi_1 = {flat_located:.6f}")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
