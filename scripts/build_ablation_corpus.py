@@ -894,6 +894,116 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "nt_bezout_and_gcd",
+        "domain": "number_theory",
+        "objective": (
+            "Establish Bezout's identity and characterise the gcd as the least "
+            "positive integer combination of the two arguments."
+        ),
+        "intuition": (
+            "The extended Euclidean algorithm returns g, x, y with ax + by = g, "
+            "g divides both, every common divisor divides g, and g is minimal."
+        ),
+        "defects": [
+            {
+                "suffix": "asserted_minimality",
+                "primary": "link_in_comment",
+                "labels": ["link_in_comment", "assumed_bound"],
+                "severity": "critical",
+                "note": "minimality is asserted in prose, the search is deleted",
+                "patches": [
+                    (
+                        'minimal_ok = True\n'
+                        'minimal_detail = ""\n'
+                        'for a in range(-12, 13):\n'
+                        '    for b in range(-12, 13):\n'
+                        '        if a == 0 and b == 0:\n'
+                        '            continue\n'
+                        '        g, _x, _y = extended_euclid(a, b)\n'
+                        '        smallest = None\n'
+                        '        for x in range(-40, 41):\n'
+                        '            for y in range(-40, 41):\n'
+                        '                value = a * x + b * y\n'
+                        '                if value > 0 and (smallest is None or value < smallest):\n'
+                        '                    smallest = value\n'
+                        '        if smallest != g:\n'
+                        '            minimal_ok = False\n'
+                        '            minimal_detail = f"a={a}, b={b}: least positive combination {smallest} != g={g}"\n'
+                        '            break\n'
+                        '    if not minimal_ok:\n'
+                        '        break\n'
+                        'check("gcd_is_the_least_positive_combination", minimal_ok,\n'
+                        '      minimal_detail or "625 pairs, combination range exhausted for each")',
+                        '# The set of integer combinations of a and b is exactly the set of\n'
+                        '# multiples of their gcd, so the least positive one is the gcd itself.\n'
+                        '# Searching the combinations would only reproduce that fact.\n'
+                        'minimal_ok = True\n'
+                        'check("gcd_is_the_least_positive_combination", minimal_ok,\n'
+                        '      "the combinations are exactly the multiples of g")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "sm_two_level_schottky",
+        "domain": "statistical_mechanics",
+        "objective": (
+            "Establish the two-level partition function, its mean energy, and "
+            "that the heat capacity has an interior maximum."
+        ),
+        "intuition": (
+            "Z = 1 + exp(-beta eps) gives <E> = eps/(exp(beta eps) + 1), and the "
+            "heat capacity vanishes at both temperature limits, peaking between."
+        ),
+        "defects": [
+            {
+                "suffix": "grid_peak",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "sampling_as_proof"],
+                "severity": "critical",
+                "note": (
+                    "the maximum is taken as the largest value on a grid, which "
+                    "cannot distinguish a peak from a sampling artefact"
+                ),
+                "patches": [
+                    (
+                        'mp.mp.dps = 40\n'
+                        'stationary_fn = sp.lambdify(x, stationary, "mpmath")\n'
+                        'root = mp.findroot(stationary_fn, mp.mpf("2.4"))\n'
+                        'second = sp.lambdify(x, sp.diff(shape, x, 2), "mpmath")(root)\n'
+                        '\n'
+                        'check("stationary_point_located",\n'
+                        '      abs(mp.mpf(stationary_fn(root))) < mp.mpf("1e-30"),\n'
+                        '      f"dC/dx = {mp.nstr(abs(stationary_fn(root)), 4)} at x = {mp.nstr(root, 12)}")\n'
+                        'check("stationary_point_is_a_maximum", bool(second < 0),\n'
+                        '      f"second derivative there = {mp.nstr(second, 6)} < 0")',
+                        '# A fine grid locates the peak well enough; solving the stationarity\n'
+                        '# condition and checking a second derivative adds nothing the scan\n'
+                        '# does not already show.\n'
+                        'grid = [mp.mpf(j) / 100 for j in range(1, 601)]\n'
+                        'shape_fn = sp.lambdify(x, shape, "mpmath")\n'
+                        'root = max(grid, key=shape_fn)\n'
+                        'check("stationary_point_located", True,\n'
+                        '      f"largest grid value at x = {mp.nstr(root, 12)}")\n'
+                        'check("stationary_point_is_a_maximum", True,\n'
+                        '      "it is the largest value sampled")',
+                    ),
+                    (
+                        'check("peak_is_at_the_known_schottky_value",\n'
+                        '      abs(root - mp.mpf("2.399357280074")) < mp.mpf("1e-9"),\n'
+                        '      f"x_peak = {mp.nstr(root, 12)}")',
+                        '# The grid spacing is 0.01, so agreement to two decimals is all that\n'
+                        '# can be expected and all that is required here.\n'
+                        'check("peak_is_at_the_known_schottky_value",\n'
+                        '      abs(root - mp.mpf("2.399357280074")) < mp.mpf("1e-2"),\n'
+                        '      f"x_peak = {mp.nstr(root, 12)}")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
