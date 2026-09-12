@@ -2536,6 +2536,196 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "gt_nash_and_pareto",
+        "domain": "game_theory",
+        "objective": (
+            "Enumerate the pure equilibria of two games and show that "
+            "equilibrium is neither efficiency nor guaranteed to exist."
+        ),
+        "intuition": (
+            "The dilemma's only equilibrium is worse for both than another "
+            "cell, and that better cell is not stable either; matching pennies "
+            "has no pure equilibrium and needs a mix."
+        ),
+        "defects": [
+            {
+                "suffix": "solution_taken_as_equilibrium",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the mix is obtained by solving the indifference condition "
+                    "and is then declared an equilibrium without testing it; "
+                    "solving an equation and having no profitable deviation are "
+                    "different statements and only the second is the definition"
+                ),
+                "patches": [
+                    (
+                        'payoffs_at_mix = {choice: sp.simplify(column_payoff(choice, mix))\n'
+                        '                  for choice in SIDES}\n'
+                        'check("at_that_mix_the_column_player_cannot_do_better_by_any_pure_choice",\n'
+                        '      len(set(payoffs_at_mix.values())) == 1,\n'
+                        '      f"both pure replies pay {set(payoffs_at_mix.values())}, so no deviation "\n'
+                        '      "gains anything and the profile is an equilibrium rather than merely a "\n'
+                        '      "solution of the equation")\n'
+                        '\n'
+                        'off_mix = sp.Rational(3, 4)\n'
+                        'spread = sp.simplify(\n'
+                        '    sp.Max(*[column_payoff(choice, off_mix) for choice in SIDES])\n'
+                        '    - sp.Min(*[column_payoff(choice, off_mix) for choice in SIDES])\n'
+                        ')\n'
+                        'check("while_away_from_it_one_reply_is_strictly_better",\n'
+                        '      bool(spread > 0),\n'
+                        '      f"at p = {off_mix} the two replies differ by {spread}, so the row player "\n'
+                        '      "would be exploited, which is what the indifference condition prevents")\n',
+                        '# The mix that solves the indifference condition is the equilibrium.\n'
+                        'check("at_that_mix_the_column_player_cannot_do_better_by_any_pure_choice", True,\n'
+                        '      f"p = {mix} solves the indifference condition")\n'
+                        '\n'
+                        'check("while_away_from_it_one_reply_is_strictly_better", True,\n'
+                        '      "away from the solution the condition no longer holds")\n'
+                        '\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "zero_sum_only",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "which player's payoffs the indifference condition uses is "
+                    "settled on matching pennies alone, where the game is zero "
+                    "sum and the two conditions coincide, so the one example "
+                    "chosen is exactly the one that cannot distinguish them"
+                ),
+                "patches": [
+                    (
+                        "# Matching pennies is zero sum, so the two players' indifference conditions\n"
+                        '# coincide and this game cannot tell whose payoffs the condition should use.\n'
+                        '# Getting that wrong is a common error, so a game where the two answers differ\n'
+                        '# is added rather than leaving the question untested.\n'
+                        'SEXES = {\n'
+                        '    ("opera", "opera"): (sp.Integer(2), sp.Integer(1)),\n'
+                        '    ("opera", "football"): (sp.Integer(0), sp.Integer(0)),\n'
+                        '    ("football", "opera"): (sp.Integer(0), sp.Integer(0)),\n'
+                        '    ("football", "football"): (sp.Integer(1), sp.Integer(2)),\n'
+                        '}\n'
+                        'VENUES = ["opera", "football"]\n'
+                        '\n'
+                        '\n'
+                        'def mix_making_opponent_indifferent(game, rows, columns, index):\n'
+                        '    """The row mix leaving the column player indifferent, read off payoff `index`."""\n'
+                        '    first, second = columns\n'
+                        '    left = (probability * game[(rows[0], first)][index]\n'
+                        '            + (1 - probability) * game[(rows[1], first)][index])\n'
+                        '    right = (probability * game[(rows[0], second)][index]\n'
+                        '             + (1 - probability) * game[(rows[1], second)][index])\n'
+                        '    found = sp.solve(sp.Eq(left, right), probability)\n'
+                        '    return sp.simplify(sum(found)) if found else sp.nan\n'
+                        '\n'
+                        '\n'
+                        'correct = mix_making_opponent_indifferent(SEXES, VENUES, VENUES, 1)\n'
+                        'wrong = mix_making_opponent_indifferent(SEXES, VENUES, VENUES, 0)\n'
+                        'check("in_a_non_zero_sum_game_the_two_indifference_conditions_differ",\n'
+                        '      sp.simplify(correct - wrong) != 0,\n'
+                        '      f"using the column player\'s payoffs gives p = {correct} and using the row "\n'
+                        '      f"player\'s gives p = {wrong}, so the two are not interchangeable")\n'
+                        '\n'
+                        'check("and_it_is_the_opponents_payoffs_that_the_condition_uses",\n'
+                        '      sp.simplify(correct - sp.Rational(2, 3)) == 0,\n'
+                        '      f"the equilibrium mix is p = {correct}, which is what leaves the column "\n'
+                        '      "player unable to prefer either venue")\n'
+                        '\n',
+                        '# Matching pennies already fixes which payoffs the condition uses, so no\n'
+                        '# further game is needed.\n'
+                        'check("in_a_non_zero_sum_game_the_two_indifference_conditions_differ", True,\n'
+                        '      "the condition is written over the opponent\'s payoffs")\n'
+                        '\n'
+                        'check("and_it_is_the_opponents_payoffs_that_the_condition_uses", True,\n'
+                        '      "as the mixed equilibrium above shows")\n'
+                        '\n'
+                        '\n',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "cs_master_theorem_gap",
+        "domain": "algorithms",
+        "objective": (
+            "Verify the three cases of the master theorem by unrolling, and "
+            "exhibit a recurrence that falls between them."
+        ),
+        "intuition": (
+            "Each case is a comparison against n to the log_b a; a driving "
+            "function of n over log n is neither polynomially smaller nor "
+            "larger nor of that order, and unrolls to a harmonic number."
+        ),
+        "defects": [
+            {
+                "suffix": "one_exclusion",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the claim is that NONE of the three cases applies, and only "
+                    "one of the three exclusions is computed while the other two "
+                    "are asserted; failing the first case says nothing about the "
+                    "other two"
+                ),
+                "patches": [
+                    (
+                        'larger = sp.limit(gap_driving / n ** (1 + eps), n, sp.oo)\n'
+                        'check("and_it_is_not_polynomially_larger_either",\n'
+                        '      larger == 0,\n'
+                        '      f"f(n) over n to the one plus epsilon tends to {larger}, so the third "\n'
+                        '      "case cannot apply either")\n'
+                        '\n'
+                        'ratio = sp.limit(gap_driving / n, n, sp.oo)\n'
+                        'check("while_it_is_not_of_the_critical_order_either",\n'
+                        '      ratio == 0,\n'
+                        '      f"f(n) over n itself tends to {ratio}, so it is not the balanced case; "\n'
+                        '      "all three are excluded and the theorem simply says nothing here")\n',
+                        '# The first exclusion already places the driving function outside the theorem.\n'
+                        'check("and_it_is_not_polynomially_larger_either", True,\n'
+                        '      "a function that is not polynomially smaller is not polynomially larger")\n'
+                        '\n'
+                        'check("while_it_is_not_of_the_critical_order_either", True,\n'
+                        '      "nor is it of the critical order")\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "reindexing_unchecked",
+                "primary": "link_in_comment",
+                "labels": ["link_in_comment", "unreachable_failure"],
+                "severity": "major",
+                "note": (
+                    "the sum is reindexed to make sympy recognise the harmonic "
+                    "series, and the comment says the level by level evaluation "
+                    "confirms the reindexing while that confirmation is replaced "
+                    "by a constant, so the one step that could have gone wrong "
+                    "is the one left untested"
+                ),
+                "patches": [
+                    (
+                        'checked = [depth for depth in (4, 8, 16)\n'
+                        '           if exact_total(depth) != 2 ** depth * sp.harmonic(depth)]\n'
+                        'check("and_the_closed_form_matches_a_direct_evaluation",\n'
+                        '      checked == [],\n'
+                        '      "at depths four, eight and sixteen the summed form and the level by level "\n'
+                        '      "evaluation agree exactly, so the closed form is not a misreading of the "\n'
+                        '      "summation")\n',
+                        'check("and_the_closed_form_matches_a_direct_evaluation", True,\n'
+                        '      "the summation and the level by level evaluation are the same computation")\n',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
