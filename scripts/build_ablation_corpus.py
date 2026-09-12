@@ -2726,6 +2726,122 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "sp_walk_clt_and_levy",
+        "domain": "stochastic_processes",
+        "objective": (
+            "Establish the square-root scaling and the normal limit for a walk "
+            "with finite variance, and show both failing for a Cauchy step."
+        ),
+        "intuition": (
+            "Variances add, so the spread grows as root n and the scaled sum "
+            "goes normal at the Berry-Esseen rate; with an infinite second "
+            "moment the sum scales as n and an empirical variance never settles."
+        ),
+        "defects": [
+            {
+                "suffix": "one_rung",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the ladder is cut to a single step count, so the claim that "
+                    "the distance to the normal FALLS is left comparing an empty "
+                    "sequence of pairs and passes without testing anything; the "
+                    "approach to the limit is what was being measured"
+                ),
+                "patches": [
+                    (
+                        "LADDER = [1, 5, 20, 100]",
+                        "LADDER = [100]",
+                    ),
+                ],
+            },
+            {
+                "suffix": "bound_by_hand",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "link_in_comment"],
+                "severity": "critical",
+                "note": (
+                    "the Berry-Esseen bound is replaced by a flat one, which any "
+                    "distance below a half certainly satisfies, so the rate is no "
+                    "longer being tested; the third absolute moment is still "
+                    "computed and is now read by nothing"
+                ),
+                "patches": [
+                    (
+                        "bounds = {count: 0.47 * float(third) / math.sqrt(count) for count in LADDER}",
+                        "# A distance is at most one by definition, which is bound enough.\n"
+                        "bounds = {count: 1.0 for count in LADDER}",
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "fi_put_call_parity",
+        "domain": "finance",
+        "objective": (
+            "Derive put-call parity by replication and show that satisfying it "
+            "identifies no model, not even with one price matched."
+        ),
+        "intuition": (
+            "Parity is a statement about payoffs, so every arbitrage-free model "
+            "has it; Black-Scholes and the normal model both do while pricing "
+            "differently away from the money."
+        ),
+        "defects": [
+            {
+                "suffix": "put_from_parity",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the normal model's put is obtained FROM parity instead of "
+                    "from its own formula, so the leg that checks parity in that "
+                    "model checks an identity it just imposed and could not fail "
+                    "whatever the call price were"
+                ),
+                "patches": [
+                    (
+                        'def normal_put_price(price, kay, years, sigma_normal, interest):\n'
+                        '    ahead = price * math.exp(interest * years)\n'
+                        '    moneyness = (ahead - kay) / (sigma_normal * math.sqrt(years))\n'
+                        '    density = math.exp(-moneyness ** 2 / 2) / math.sqrt(2 * math.pi)\n'
+                        '    return math.exp(-interest * years) * (\n'
+                        '        (kay - ahead) * cumulative(-moneyness) + sigma_normal * math.sqrt(years) * density\n'
+                        '    )\n',
+                        'def normal_put_price(price, kay, years, sigma_normal, interest):\n'
+                        '    # Parity gives the put from the call, which saves repeating the formula.\n'
+                        '    return (normal_price(price, kay, years, sigma_normal, interest)\n'
+                        '            - (price - kay * math.exp(-interest * years)))',
+                    ),
+                ],
+            },
+            {
+                "suffix": "near_the_money_only",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "wrong_tolerance"],
+                "severity": "critical",
+                "note": (
+                    "the disagreement between the models is probed at one strike "
+                    "close to where they were calibrated to agree, and the bar is "
+                    "lowered to a tenth of a per cent, so the leg reports a "
+                    "difference without showing it is material"
+                ),
+                "patches": [
+                    (
+                        "STRIKES = [60.0, 80.0, 120.0, 150.0]",
+                        "STRIKES = [105.0]",
+                    ),
+                    (
+                        "      max(abs(value) for value in relative.values()) > 0.2,",
+                        "      max(abs(value) for value in relative.values()) > 0.001,",
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
