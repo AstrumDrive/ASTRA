@@ -355,13 +355,23 @@ above on methodological grounds, and it also means a run stopped by quota loses
 a random share of every arm rather than whole arms, which keeps the paired tests
 computable on what completed.
 
-Launch with:
+Launch with the project interpreter, not a bare `python`. The repository venv is
+the environment `requirements.txt` describes; a system interpreter on this
+machine satisfies most imports and is missing several pinned ones, which is
+enough for this track to run and not enough for the run to be the configuration
+the manifest records:
 
 ```
-python scripts/run_quality_benchmarks.py --tier release --tracks validator_audit \
+.\venv\Scripts\python.exe scripts\run_quality_benchmarks.py --tier release \
+  --tracks validator_audit \
   --config full,abl-self,abl-weights,abl-cross,abl-p-shipped \
   --repeats 3 --shuffle-seed 20260912
 ```
+
+Confirm `.\venv\Scripts\python.exe .\scripts\astra_doctor.py --json` reports
+`status: PASS` first. The doctor is interpreter-relative, so a red doctor may
+mean the wrong interpreter rather than a missing dependency, and a green one run
+under the wrong interpreter would mean nothing at all.
 
 ### Stage 4, end-to-end confirmation, conditional
 
