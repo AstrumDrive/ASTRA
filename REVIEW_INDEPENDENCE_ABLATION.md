@@ -347,6 +347,17 @@ is 14 to 20 hours. Reported in full, including discards. The arithmetic is
 stated here so that the quota cost is agreed before the run rather than
 discovered during it.
 
+Of those 2190 audits, 1692 actually reach a model: five of the 146 cases are
+answered deterministically by the validator preflight and never leave the
+machine, in every arm. `scripts/estimate_ablation_tokens.py` rebuilds all 1692
+reviewer prompts exactly as the client assembles them and prices them against
+live calls that reported their own usage, giving **24 million tokens give or
+take 2**, about 16.8 M on the weekly-limited Claude account and 6.9 M on Codex.
+Two figures in there are worth knowing before the run rather than after: this
+code tokenises at 2.41 characters per token, not the four a prose estimate would
+assume, and the Claude CLI charges roughly 4,200 tokens of harness preamble on
+every call before any content, which is a fifth of that side of the run.
+
 **This stage cannot be moved to the cluster.** The `validator_audit` track pins
 its oracle to `local` in the runner, and Astrum carries no reviewer CLI, so
 every one of the 1752 calls is made from the workstation against a weekly
