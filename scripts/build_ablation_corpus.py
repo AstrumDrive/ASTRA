@@ -2206,6 +2206,177 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "pd_heat_backward_instability",
+        "domain": "partial_differential_equations",
+        "objective": (
+            "Separate variables for the heat equation and show that running it "
+            "backwards is ill posed rather than merely difficult."
+        ),
+        "intuition": (
+            "Mode n decays as exp(-alpha (n pi / L)^2 t), so backwards it is "
+            "amplified without bound in n, and an explicit scheme is stable only "
+            "below a ratio its own amplification factor fixes."
+        ),
+        "defects": [
+            {
+                "suffix": "unseeded_instability",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance", "sampling_as_proof"],
+                "severity": "critical",
+                "note": (
+                    "the unstable mode is the one alternating between grid "
+                    "points, which a smooth profile barely contains, so the run "
+                    "past the limit grows only out of rounding and reaches 36; "
+                    "calling that an explosion with a threshold of ten hides "
+                    "that the amplification factor is never actually tested"
+                ),
+                "patches": [
+                    (
+                        '# The unstable mode is the one alternating from grid point to grid point, and a\n'
+                        '# smooth profile barely contains it, so an unseeded run grows only out of\n'
+                        '# rounding. Seeding it deliberately turns "it explodes" into a number the\n'
+                        '# amplification factor above has to predict.\n'
+                        'SEED, SEEDED_STEPS = 1e-8, 100\n'
+                        'seeded = [value + SEED * (-1) ** index for index, value in enumerate(start)]\n'
+                        '\n'
+                        'unstable = evolve(seeded, 0.6, SEEDED_STEPS)\n'
+                        'reached = max(abs(value) for value in unstable)\n'
+                        'predicted_growth = SEED * abs(1 - 4 * 0.6) ** SEEDED_STEPS\n'
+                        'check("falsifier_outside_it_the_seeded_mode_grows_as_the_factor_says",\n'
+                        '      abs(reached / predicted_growth - 1) < 0.1,\n'
+                        '      f"at r = 0.6 the alternating seed of {SEED:.0e} reaches {reached:.4e} after "\n'
+                        '      f"{SEEDED_STEPS} steps, against {predicted_growth:.4e} from the factor, a "\n'
+                        '      f"ratio of {reached / predicted_growth:.3f}")\n'
+                        '\n'
+                        'quiet = evolve(seeded, STABLE_RATIO, SEEDED_STEPS)\n'
+                        'disturbance = max(abs(a - b) for a, b in zip(quiet, evolve(start, STABLE_RATIO, SEEDED_STEPS)))\n'
+                        'check("while_inside_the_limit_the_same_seed_dies_away",\n'
+                        '      disturbance < SEED / 100,\n'
+                        '      f"at r = {STABLE_RATIO} the same seed leaves {disturbance:.3e}, three orders "\n'
+                        '      f"below the {SEED:.0e} it started at. What survives is not the alternating "\n'
+                        '      "part, which is down by ten to the thirty, but the low mode content the "\n'
+                        '      "seed also carries, and that decays slowly rather than growing; the same "\n'
+                        '      f"quantity at r = 0.6 is {reached:.3e}, larger by a factor of "\n'
+                        '      f"{reached / disturbance:.1e}")\n'
+                        '\n',
+                        '# Past the limit the scheme is unstable, which the same profile shows.\n'
+                        'unstable = evolve(start, 0.6, 120)\n'
+                        'reached = max(abs(value) for value in unstable)\n'
+                        'check("falsifier_outside_it_the_seeded_mode_grows_as_the_factor_says",\n'
+                        '      reached > 10,\n'
+                        '      f"at r = 0.6, past the half the derivation gives, the solution reaches "\n'
+                        '      f"{reached:.3e} after 120 steps")\n'
+                        '\n'
+                        'check("while_inside_the_limit_the_same_seed_dies_away",\n'
+                        '      max(abs(value) for value in evolve(start, STABLE_RATIO, 120)) < 1.0,\n'
+                        '      f"at r = {STABLE_RATIO} it stays bounded instead")\n'
+                        '\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "short_ladder",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "assumed_bound"],
+                "severity": "critical",
+                "note": (
+                    "unboundedness in the mode number is argued from three "
+                    "modes reaching a factor of twelve, and the limit that would "
+                    "settle it is replaced by an appeal to the exponent; a trend "
+                    "over three points is not a statement about a supremum"
+                ),
+                "patches": [
+                    (
+                        'factors = [\n'
+                        '    float(amplification.subs({alpha: 1, L: 1, n: index}))\n'
+                        '    for index in (1, 5, 10, 20)\n'
+                        ']\n'
+                        'check("the_backward_amplification_grows_without_bound_in_the_mode_number",\n'
+                        '      all(later > earlier for earlier, later in zip(factors, factors[1:]))\n'
+                        '      and factors[-1] > 1e17,\n'
+                        '      f"over a hundredth of a time unit the factors are "\n'
+                        '      f"{\', \'.join(f\'{value:.3e}\' for value in factors)} for modes 1, 5, 10 and 20")\n'
+                        '\n'
+                        'check("and_no_finite_bound_survives_the_limit",\n'
+                        '      sp.limit(amplification.subs({alpha: 1, L: 1}), n, sp.oo) == sp.oo,\n'
+                        '      "the supremum over modes is infinite, which is exactly the failure of "\n'
+                        '      "continuous dependence that Hadamard\'s third condition asks about")',
+                        'factors = [\n'
+                        '    float(amplification.subs({alpha: 1, L: 1, n: index}))\n'
+                        '    for index in (1, 3, 5)\n'
+                        ']\n'
+                        'check("the_backward_amplification_grows_without_bound_in_the_mode_number",\n'
+                        '      all(later > earlier for earlier, later in zip(factors, factors[1:]))\n'
+                        '      and factors[-1] > 10,\n'
+                        '      f"over a hundredth of a time unit the factors are "\n'
+                        '      f"{\', \'.join(f\'{value:.3e}\' for value in factors)} for modes 1, 3 and 5, "\n'
+                        '      "and they are clearly climbing")\n'
+                        '\n'
+                        '# The growth is exponential in the square of the mode number, so the trend above\n'
+                        '# settles the matter without taking a limit.\n'
+                        'check("and_no_finite_bound_survives_the_limit", True,\n'
+                        '      "the exponent grows quadratically in the mode number")',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "gp_degree_sequence",
+        "domain": "graph_theory",
+        "objective": (
+            "Verify the handshake lemma and the Erdos-Gallai criterion "
+            "exhaustively, then show that neither the degree sequence nor the "
+            "spectrum determines a graph."
+        ),
+        "intuition": (
+            "Every invariant here is necessary and none is sufficient, and each "
+            "failure has to be caught by a different one."
+        ),
+        "defects": [
+            {
+                "suffix": "sampled_sequences",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "missing_domain"],
+                "severity": "critical",
+                "note": (
+                    "the criterion is claimed to decide realisability on every "
+                    "candidate sequence and is tested on one in four of them, so "
+                    "a sequence where the inequalities and the construction "
+                    "disagree could sit in the three that are skipped"
+                ),
+                "patches": [
+                    (
+                        '        range(VERTICES - 1, -1, -1), VERTICES)\n'
+                        ']',
+                        '        range(VERTICES - 1, -1, -1), VERTICES)\n'
+                        '][::4]',
+                    ),
+                ],
+            },
+            {
+                "suffix": "burnside_from_the_classes",
+                "primary": "self_comparison",
+                "labels": ["self_comparison", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the two counts of isomorphism classes are meant to be "
+                    "independent routes to the same number, and the second is "
+                    "read off the first, so the agreement is guaranteed and the "
+                    "orbit counting is never exercised"
+                ),
+                "patches": [
+                    (
+                        'burnside = sum(1 << edge_orbits(p) for p in PERMUTATIONS) / len(PERMUTATIONS)',
+                        '# The canonical forms have already sorted the graphs into orbits, so the orbit\n'
+                        '# count is read off them rather than summed again.\n'
+                        'burnside = float(len(classes))',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
