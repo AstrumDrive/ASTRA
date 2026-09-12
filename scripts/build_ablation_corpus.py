@@ -31,9 +31,11 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -2623,103 +2625,133 @@ def verdict_of(output: str) -> str:
 
 
 # --------------------------------------------------------------------- build
-def build(verify_only: bool) -> int:
-    sound_cases: list[dict] = []
-    flawed_cases: list[dict] = []
+def process_entry(entry: dict, tmp: Path) -> tuple[list, list, list, list]:
+    """Run every gate for one sound base and the variants derived from it.
+
+    Returns the log lines, the sound cases (none or one), the flawed cases and
+    the problems, rather than printing and appending directly, so that entries
+    can be checked concurrently and still reported in registry order.
+    """
+    log: list[str] = []
+    sound: list[dict] = []
+    flawed: list[dict] = []
     problems: list[str] = []
-    tmp = ROOT / "workspace" / "_corpus_build"
-    tmp.mkdir(parents=True, exist_ok=True)
 
-    for entry in REGISTRY:
-        base = entry["base"]
-        path = CASE_DIR / f"{base}.py"
-        if not path.exists():
-            problems.append(f"{base}: missing {path}")
-            continue
-        source = path.read_text(encoding="utf-8")
-        lines = source.count("\n") + 1
-        if not LONG_MIN <= lines <= LONG_MAX:
-            problems.append(f"{base}: {lines} lines, outside [{LONG_MIN},{LONG_MAX}]")
+    base = entry["base"]
+    path = CASE_DIR / f"{base}.py"
+    if not path.exists():
+        problems.append(f"{base}: missing {path}")
+        return log, sound, flawed, problems
 
-        cannot_fail = tautologies(source)
-        if cannot_fail:
+    source = path.read_text(encoding="utf-8")
+    lines = source.count("\n") + 1
+    if not LONG_MIN <= lines <= LONG_MAX:
+        problems.append(f"{base}: {lines} lines, outside [{LONG_MIN},{LONG_MAX}]")
+
+    cannot_fail = tautologies(source)
+    if cannot_fail:
+        problems.append(
+            f"{base}: sound validator contains checks that cannot fail: "
+            + "; ".join(cannot_fail)
+        )
+        return log, sound, flawed, problems
+
+    dead = dead_assignments(source)
+    if dead:
+        problems.append(
+            f"{base}: sound validator computes values it never uses: "
+            + "; ".join(dead)
+        )
+        return log, sound, flawed, problems
+
+    code, output = run(path)
+    got = verdict_of(output)
+    if not (code == 0 and got == "PASS"):
+        problems.append(f"{base}: sound base exited {code} with verdict {got}")
+        log.append(output[-900:])
+        return log, sound, flawed, problems
+    log.append(f"[sound ] {base:34} {lines:4d} lines  PASS")
+
+    sound.append({
+        "id": f"abl_sound_{base}",
+        "track": "validator_audit",
+        "domain": entry["domain"],
+        "difficulty": "long",
+        "expected": "APPROVED",
+        "expected_review": ["APPROVED"],
+        "expected_defects": [],
+        "severity": "none",
+        "tags": ["ablation", "release_only", "sound", "long"],
+        "objective": entry["objective"],
+        "intuition": entry["intuition"],
+        "code": source,
+    })
+
+    for defect in entry["defects"]:
+        name = f"{base}_{defect['suffix']}"
+        for label in defect["labels"]:
+            if label not in KNOWN_LABELS:
+                problems.append(f"{name}: unknown defect label {label!r}")
+        if defect["primary"] not in defect["labels"]:
+            problems.append(f"{name}: primary {defect['primary']!r} not in labels")
+        variant = apply_patches(source, defect["patches"], name)
+        variant_path = tmp / f"{name}.py"
+        variant_path.write_text(variant, encoding="utf-8")
+        vcode, voutput = run(variant_path)
+        vgot = verdict_of(voutput)
+        # A useful defective case still runs and still claims success.
+        if not (vcode == 0 and vgot == "PASS"):
             problems.append(
-                f"{base}: sound validator contains checks that cannot fail: "
-                + "; ".join(cannot_fail)
+                f"{name}: defective variant exited {vcode} with verdict {vgot}; "
+                "it would be caught by preflight, not by the reviewer"
             )
+            log.append(voutput[-700:])
             continue
-
-        dead = dead_assignments(source)
-        if dead:
-            problems.append(
-                f"{base}: sound validator computes values it never uses: "
-                + "; ".join(dead)
-            )
-            continue
-
-        code, output = run(path)
-        got = verdict_of(output)
-        if not (code == 0 and got == "PASS"):
-            problems.append(f"{base}: sound base exited {code} with verdict {got}")
-            print(output[-900:])
-            continue
-        print(f"[sound ] {base:34} {lines:4d} lines  PASS")
-
-        sound_cases.append({
-            "id": f"abl_sound_{base}",
+        log.append(f"[flawed] {name:34} {variant.count(chr(10)) + 1:4d} lines  PASS "
+                   f"({defect['primary']})")
+        flawed.append({
+            "id": f"abl_flawed_{name}",
             "track": "validator_audit",
             "domain": entry["domain"],
             "difficulty": "long",
-            "expected": "APPROVED",
-            "expected_review": ["APPROVED"],
-            "expected_defects": [],
-            "severity": "none",
-            "tags": ["ablation", "release_only", "sound", "long"],
+            "expected": "REVISE",
+            "expected_review": ["REVISE", "REJECT"],
+            "expected_defects": defect["labels"],
+            "severity": defect["severity"],
+            "tags": ["ablation", "release_only", "flawed", "long",
+                     defect["primary"]],
             "objective": entry["objective"],
             "intuition": entry["intuition"],
-            "code": source,
+            "primary_defect": defect["primary"],
+            "injected_note": defect["note"],
+            "derived_from": f"abl_sound_{base}",
+            "code": variant,
         })
 
-        for defect in entry["defects"]:
-            name = f"{base}_{defect['suffix']}"
-            for label in defect["labels"]:
-                if label not in KNOWN_LABELS:
-                    problems.append(f"{name}: unknown defect label {label!r}")
-            if defect["primary"] not in defect["labels"]:
-                problems.append(f"{name}: primary {defect['primary']!r} not in labels")
-            variant = apply_patches(source, defect["patches"], name)
-            variant_path = tmp / f"{name}.py"
-            variant_path.write_text(variant, encoding="utf-8")
-            vcode, voutput = run(variant_path)
-            vgot = verdict_of(voutput)
-            # A useful defective case still runs and still claims success.
-            if not (vcode == 0 and vgot == "PASS"):
-                problems.append(
-                    f"{name}: defective variant exited {vcode} with verdict {vgot}; "
-                    "it would be caught by preflight, not by the reviewer"
-                )
-                print(voutput[-700:])
-                continue
-            print(f"[flawed] {name:34} {variant.count(chr(10)) + 1:4d} lines  PASS "
-                  f"({defect['primary']})")
-            flawed_cases.append({
-                "id": f"abl_flawed_{name}",
-                "track": "validator_audit",
-                "domain": entry["domain"],
-                "difficulty": "long",
-                "expected": "REVISE",
-                "expected_review": ["REVISE", "REJECT"],
-                "expected_defects": defect["labels"],
-                "severity": defect["severity"],
-                "tags": ["ablation", "release_only", "flawed", "long",
-                         defect["primary"]],
-                "objective": entry["objective"],
-                "intuition": entry["intuition"],
-                "primary_defect": defect["primary"],
-                "injected_note": defect["note"],
-                "derived_from": f"abl_sound_{base}",
-                "code": variant,
-            })
+    return log, sound, flawed, problems
+
+
+def build(verify_only: bool) -> int:
+    tmp = ROOT / "workspace" / "_corpus_build"
+    tmp.mkdir(parents=True, exist_ok=True)
+
+    # Every gate is a subprocess, so the entries are checked concurrently. The
+    # results are collected in registry order and only then printed and
+    # accumulated, which leaves the report and the emitted corpus byte for byte
+    # what a serial sweep would have produced.
+    workers = min(6, os.cpu_count() or 2)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        collected = list(pool.map(lambda item: process_entry(item, tmp), REGISTRY))
+
+    sound_cases: list[dict] = []
+    flawed_cases: list[dict] = []
+    problems: list[str] = []
+    for log, sound, flawed, issues in collected:
+        for line in log:
+            print(line)
+        sound_cases.extend(sound)
+        flawed_cases.extend(flawed)
+        problems.extend(issues)
 
     print()
     print(f"sound {len(sound_cases)}   flawed {len(flawed_cases)}   "
