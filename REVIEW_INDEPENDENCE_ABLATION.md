@@ -333,14 +333,35 @@ that preflight rejects tests the harness, not the reviewer.
 
 ### Stage 3, full run
 
-132 cases, 5 arms, `k` from the power calculation, interleaved and seeded.
-At `k = 3` this is 1980 audits, of which 1584 are model calls — above the
-pilot's order-of-1200 estimate because the defective stratum came out at 82
-rather than 50: 22 bases yielded one variant, 25 yielded two, and three yielded
-more, since a base admits a defective twin only where a real defect can be
-injected without preflight catching it.
-Reported in full, including discards. The arithmetic is stated here so that the
-quota cost is agreed before the run rather than discovered during it.
+146 cases, 5 arms, `k` from the power calculation, interleaved and seeded. That
+is the 132 ablation cases plus the 14 legacy short cases the plan above keeps
+inside the corpus, which is what the `release` tier of the `validator_audit`
+track selects. At `k = 3` this is 2190 audits, of which 1752 are model calls,
+876 through the Claude CLI and 876 through the Codex CLI, since arm D makes no
+model call at all. That is above the pilot's order-of-1200 estimate because the
+defective stratum came out at 82 rather than 50: 22 bases yielded one variant,
+25 yielded two, and three yielded more, since a base admits a defective twin
+only where a real defect can be injected without preflight catching it. Measured
+on two arms, an audit takes 105 to 160 seconds, so at four parallel jobs the run
+is 14 to 20 hours. Reported in full, including discards. The arithmetic is
+stated here so that the quota cost is agreed before the run rather than
+discovered during it.
+
+**This stage cannot be moved to the cluster.** The `validator_audit` track pins
+its oracle to `local` in the runner, and Astrum carries no reviewer CLI, so
+every one of the 1752 calls is made from the workstation against a weekly
+per-account limit. Interleaving is what makes that survivable: it is registered
+above on methodological grounds, and it also means a run stopped by quota loses
+a random share of every arm rather than whole arms, which keeps the paired tests
+computable on what completed.
+
+Launch with:
+
+```
+python scripts/run_quality_benchmarks.py --tier release --tracks validator_audit \
+  --config full,abl-self,abl-weights,abl-cross,abl-p-shipped \
+  --repeats 3 --shuffle-seed 20260912
+```
 
 ### Stage 4, end-to-end confirmation, conditional
 
