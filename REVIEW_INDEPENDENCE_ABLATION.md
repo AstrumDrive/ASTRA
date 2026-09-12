@@ -129,6 +129,19 @@ Three problems, in order of how much they threaten the conclusion:
 
 ### 3.3 Required extension
 
+> **Superseded by the pilot, 2026-09-11.** The table below is the plan as
+> registered before stage 1 and is left unedited so that the revision is
+> visible rather than silently absorbed. The pilot measured the sound stratum as
+> the binding constraint and set the requirement at 40 to 66 sound cases; see
+> `REVIEW_INDEPENDENCE_PILOT_20260911.md`, "What this implies for the corpus".
+> **Delivered:** 50 sound bases and 82 defective variants, 132 cases, all long,
+> built by `scripts/build_ablation_corpus.py` and emitted to
+> `ablation_sound.json` and `ablation_flawed.json`. The short strata were not
+> built: the pilot showed the discrimination question lives in the long stratum,
+> and short cases would have added rows without adding power to the comparison
+> that is underpowered. That is a reduction in scope against the registered plan
+> and is recorded here as one.
+
 Target **60 cases**, stratified, keeping the existing 14 inside it:
 
 | Stratum | Cases | Source |
@@ -248,16 +261,24 @@ Each item below has bitten ASTRA before or is a standard failure of this design.
    so the two could differ systematically in size and a reviewer could then
    discriminate on length rather than on mathematics, which would make the
    experiment measure its own construction. **Control:** measured, not assumed.
-   At 48 sound and 78 defective cases the best possible classifier that reads
-   only the line count scores 62.7% against a majority baseline of 61.9%. That
-   edge is one case in a hundred and twenty-six and it is not evidence: the
-   statistic is the maximum over every threshold evaluated on the same data, so
-   it is biased upward and will sit a case or two above the baseline on pure
-   noise. The paired test carries no such bias and is flat, a defective case
-   being 2.12 lines shorter on average out of 206, with 28 longer and 36 shorter
-   among the 64 unequal pairs, a sign test at p = 0.38. Both are recomputed at
-   every corpus extension and again at the final size before stage 3 runs;
-   neither has ever been typed by hand.
+   At the final size of 50 sound and 82 defective cases the best possible
+   classifier that reads only the line count scores 62.9% against a majority
+   baseline of 62.1%. That edge is one case in a hundred and thirty-two and it
+   is not evidence: the statistic is the maximum over every threshold evaluated
+   on the same data, so it is biased upward and will sit a case or two above the
+   baseline on pure noise. The threshold that achieves it is 320 lines, the
+   upper limit the corpus gate enforces, so the winning rule is "call everything
+   defective" with one case rescued — which is the majority baseline wearing a
+   threshold. The paired test carries no such bias: a defective case runs 2.33
+   lines shorter on average out of 209, with 28 longer and 40 shorter among the
+   68 unequal pairs, a two-sided sign test at p = 0.18. That is a drift toward
+   shorter and away from the p = 0.38 measured at 48 bases, so it is reported
+   rather than rounded off; at p = 0.18 it remains consistent with no effect,
+   and an effect of 2.3 lines in 208 is in any case far below what a reviewer
+   reading the mathematics would have to ignore to exploit it. Both statistics
+   are recomputed at every corpus extension and again at the final size before
+   stage 3 runs by `scripts/check_length_confound.py`, which reads the emitted
+   corpus; neither has ever been typed by hand.
 
 ---
 
@@ -297,16 +318,29 @@ worth doing, because a null on H1c is a publishable and actionable result. If
 arms S and D are within noise, stop and investigate the harness, because that
 would mean the reviewer is not contributing at all.
 
-### Stage 2, corpus extension
+### Stage 2, corpus extension — done, 2026-09-12
 
-Build the 60-case stratified corpus of section 3.3. This is hand work and is
-the real cost of the experiment, measured in days rather than quota.
+Build the corpus of section 3.3 as the pilot revised it. This is hand work and
+is the real cost of the experiment, measured in days rather than quota.
+**Delivered:** 132 cases, 50 sound and 82 defective, across 43 scientific
+domains. Every sound base passes six gates on every build — length inside
+[120, 320], no check that cannot fail, no value computed and never used, the
+base runs and prints its verdict, every defective variant still runs and still
+prints `VERDICT: PASS`, and every patch applies exactly once — and each base
+was separately mutation-tested until every one of its checks had been driven to
+FAIL by some mutation. The gate that matters most is the fifth: a defective case
+that preflight rejects tests the harness, not the reviewer.
 
 ### Stage 3, full run
 
-60 cases, 5 arms, `k` from the power calculation, interleaved and seeded.
-At `k = 3` this is 900 audits, of which 720 are model calls. Reported in full,
-including discards.
+132 cases, 5 arms, `k` from the power calculation, interleaved and seeded.
+At `k = 3` this is 1980 audits, of which 1584 are model calls — above the
+pilot's order-of-1200 estimate because the defective stratum came out at 82
+rather than 50: 22 bases yielded one variant, 25 yielded two, and three yielded
+more, since a base admits a defective twin only where a real defect can be
+injected without preflight catching it.
+Reported in full, including discards. The arithmetic is stated here so that the
+quota cost is agreed before the run rather than discovered during it.
 
 ### Stage 4, end-to-end confirmation, conditional
 

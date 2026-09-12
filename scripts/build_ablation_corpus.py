@@ -2979,6 +2979,183 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "ec_lotka_volterra_neutral_cycles",
+        "domain": "ecology",
+        "objective": (
+            "Establish that the predator-prey equations have a centre at their "
+            "interior equilibrium, and that the centre is structurally unstable."
+        ),
+        "intuition": (
+            "A first integral makes every orbit closed and the Jacobian has zero "
+            "trace, but any self-limitation on the prey makes the trace negative, "
+            "so the closed orbits are a boundary case rather than a prediction."
+        ),
+        "defects": [
+            {
+                "suffix": "centre_assumed",
+                "primary": "missing_assumption",
+                "labels": ["missing_assumption", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the perturbation that destroys the centre is removed and "
+                    "the closed orbits are asserted instead, so the case proves "
+                    "that the model predicts cycles while saying nothing about "
+                    "whether that prediction survives a term the model omits"
+                ),
+                "patches": [
+                    (
+                        '# Add a self-limitation to the prey and ask what happens to the real part. The\n'
+                        '# equilibrium moves, so it is re-solved rather than reused.\n'
+                        'damped_prey = a * x - b * x * y - e * x ** 2\n'
+                        'damped_rest = sp.solve([sp.Eq(damped_prey, 0), sp.Eq(predator_rate, 0)], [x, y],\n'
+                        '                       dict=True)\n'
+                        'damped_interior = [point for point in damped_rest\n'
+                        '                   if point.get(x, 0) != 0 and point.get(y, 0) != 0]\n'
+                        'damped_jacobian = sp.Matrix(\n'
+                        '    [[sp.diff(damped_prey, x), sp.diff(damped_prey, y)],\n'
+                        '     [sp.diff(predator_rate, x), sp.diff(predator_rate, y)]]\n'
+                        ').subs(damped_interior[0] if damped_interior else {})\n'
+                        'damped_trace = sp.simplify(damped_jacobian.trace())\n'
+                        'check("falsifier_any_self_limitation_makes_the_trace_negative",\n'
+                        '      sp.simplify(damped_trace + e * d / c) == 0\n'
+                        '      and damped_trace.subs({e: 1, d: 1, c: 1}).is_negative is True,\n'
+                        '      f"the trace becomes {damped_trace}, negative for every positive e however "\n'
+                        '      "small, so the eigenvalues leave the imaginary axis at once and the centre "\n'
+                        '      "is not a robust feature of the model")\n'
+                        '\n'
+                        'check("and_the_determinant_stays_positive_so_it_is_a_spiral_not_a_saddle",\n'
+                        '      sp.simplify(damped_jacobian.det()).subs({a: 1, b: 1, c: 1, d: sp.Rational(1, 2),\n'
+                        '                                               e: sp.Rational(1, 10)}).is_positive is True,\n'
+                        '      f"the determinant is {sp.simplify(damped_jacobian.det())}, still positive, "\n'
+                        '      "so the orbits wind inward rather than running off")',
+                        '# A centre is what the equations give, and the equations are the model.\n'
+                        'check("falsifier_any_self_limitation_makes_the_trace_negative", True,\n'
+                        '      "the trace at the equilibrium is zero and the determinant is a d, so the "\n'
+                        '      "eigenvalues sit on the imaginary axis and the orbits close")\n'
+                        '\n'
+                        'check("and_the_determinant_stays_positive_so_it_is_a_spiral_not_a_saddle", True,\n'
+                        '      "the determinant is positive, so the equilibrium is not a saddle and the "\n'
+                        '      "prediction of cycles is what the model makes")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "instant_amplitude",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "wrong_tolerance"],
+                "severity": "major",
+                "note": (
+                    "the decay amplitude is read at one instant per turn rather "
+                    "than as an envelope, which samples a phase of an orbit that "
+                    "is not a Euclidean circle, and the agreement band is widened "
+                    "fifteenfold so that a ten per cent mismatch with the "
+                    "eigenvalue is reported as confirming it"
+                ),
+                "patches": [
+                    (
+                        'def envelope(trail, centre, turn):\n'
+                        '    """The largest distance from the centre during one turn.\n'
+                        '\n'
+                        '    Measured as an envelope rather than at a single instant: the orbit is an\n'
+                        '    ellipse in a metric that is not the Euclidean one, so the distance breathes\n'
+                        '    within each turn and one endpoint samples a phase rather than an amplitude.\n'
+                        '    """\n'
+                        '    window = trail[turn * per_turn:(turn + 1) * per_turn]\n'
+                        '    return max(math.dist(point, centre) for point in window)',
+                        'def envelope(trail, centre, turn):\n'
+                        '    """The distance from the centre at the end of one turn."""\n'
+                        '    return math.dist(trail[(turn + 1) * per_turn - 1], centre)',
+                    ),
+                    (
+                        "      and abs((last_turn / first_turn) / predicted_decay - 1) < 0.01,",
+                        "      and abs((last_turn / first_turn) / predicted_decay - 1) < 0.15,",
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "pc_clausius_clapeyron_window",
+        "domain": "physical_chemistry",
+        "objective": (
+            "Separate the exact Clausius-Clapeyron relation from the three "
+            "approximations behind its integrated straight-line form, and rank "
+            "them by how much each actually costs."
+        ),
+        "intuition": (
+            "Equality of chemical potentials gives dP/dT = dH/(T dV) exactly; "
+            "the line in one over T needs a negligible liquid volume, an ideal "
+            "vapour and a constant enthalpy, and only the third matters, which "
+            "shows up as a fitted enthalpy that depends on the temperature range."
+        ),
+        "defects": [
+            {
+                "suffix": "ranked_wrong",
+                "primary": "unreachable_failure",
+                "labels": ["unreachable_failure", "missing_assumption"],
+                "severity": "critical",
+                "note": (
+                    "the comparison of the three approximations is replaced by "
+                    "an assertion that the ideal gas term dominates, which is "
+                    "false by two orders of magnitude and cannot fail, so the "
+                    "one assumption that governs the accuracy is the one the "
+                    "case never sizes"
+                ),
+                "patches": [
+                    (
+                        'check("and_it_is_the_largest_of_the_three_approximations",\n'
+                        '      enthalpy_error > 100 * volume_error and enthalpy_error > 5 * ideal_error,\n'
+                        '      f"the three cost {100 * volume_error:.3f}, {100 * ideal_error:.2f} and "\n'
+                        '      f"{100 * enthalpy_error:.0f} per cent respectively, so the one that is "\n'
+                        '      f"never stated dominates the other two by "\n'
+                        '      f"{ratio_of(enthalpy_error, volume_error):.0f} and "\n'
+                        '      f"{ratio_of(enthalpy_error, ideal_error):.0f} times, and the two that are "\n'
+                        '      "defended at length are the two that do not matter here")',
+                        '# The two volume assumptions are the ones the derivation actually makes, so\n'
+                        '# they are the ones that set how far the straight line can be trusted.\n'
+                        'check("and_it_is_the_largest_of_the_three_approximations_by_two_orders", True,\n'
+                        '      "the ideal gas assumption dominates the error budget, so the line is good "\n'
+                        '      "to a couple of per cent wherever the vapour stays dilute")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "endpoint_truth",
+                "primary": "proxy_continuity",
+                "labels": ["proxy_continuity", "wrong_tolerance"],
+                "severity": "major",
+                "note": (
+                    "each fitted enthalpy is compared with the true value at the "
+                    "far end of its window instead of at the midpoint that a "
+                    "least squares slope actually measures, and the band is "
+                    "widened fivefold to absorb the resulting mismatch, so the "
+                    "agreement no longer distinguishes a local fit from a wrong one"
+                ),
+                "patches": [
+                    (
+                        'cold_true = vaporisation(0.5 * (LOW + MID))\n'
+                        'hot_true = vaporisation(0.5 * (MID + HIGH))\n'
+                        'check("each_window_returns_the_true_enthalpy_at_its_own_midpoint",\n'
+                        '      abs(cold - cold_true) / cold_true < 0.02\n'
+                        '      and abs(hot - hot_true) / hot_true < 0.02,\n'
+                        '      f"the cold fit gives {cold:,.0f} against a midpoint truth of "\n'
+                        '      f"{cold_true:,.0f} and the hot fit {hot:,.0f} against {hot_true:,.0f}, so "\n'
+                        '      "the straight line is not wrong, it is local: it measures the enthalpy in "\n'
+                        '      "the middle of whatever range was used")',
+                        'cold_true = vaporisation(LOW)\n'
+                        'hot_true = vaporisation(HIGH)\n'
+                        'check("each_window_returns_the_true_enthalpy_over_its_range",\n'
+                        '      abs(cold - cold_true) / cold_true < 0.10\n'
+                        '      and abs(hot - hot_true) / hot_true < 0.10,\n'
+                        '      f"the cold fit gives {cold:,.0f} against a truth of {cold_true:,.0f} and "\n'
+                        '      f"the hot fit {hot:,.0f} against {hot_true:,.0f}, so the straight line "\n'
+                        '      "recovers the enthalpy over the range it was fitted to")',
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
