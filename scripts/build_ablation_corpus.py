@@ -2377,6 +2377,163 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "ss_tight_binding_band",
+        "domain": "condensed_matter",
+        "objective": (
+            "Derive the tight-binding band and show that the effective mass "
+            "changes sign between the bottom of the band and the top."
+        ),
+        "intuition": (
+            "E(k) = e0 - 2 t cos(k a), so the curvature is positive at the zone "
+            "centre and negative at its boundary, and the parabolic "
+            "approximation stops being an approximation there."
+        ),
+        "defects": [
+            {
+                "suffix": "bottom_mass_only",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the effective mass is quoted from the band minimum and the "
+                    "curvature at the boundary is dropped, so nothing in the "
+                    "case records that the same construction returns a negative "
+                    "mass there and the parabola has no stated domain"
+                ),
+                "patches": [
+                    (
+                        'mass_top = sp.simplify(sum(solved_top)) if solved_top else sp.nan\n'
+                        'check("falsifier_the_same_construction_at_the_top_returns_a_negative_mass",\n'
+                        '      len(solved_top) == 1\n'
+                        '      and sp.simplify(mass_top + hbar ** 2 / (2 * t * a ** 2)) == 0\n'
+                        '      and mass_top.subs({hbar: 1, t: 1, a: 1}).is_negative is True,\n'
+                        '      f"the curvature is {curvature_top} there, giving m* = {mass_top}, so a "\n'
+                        '      "carrier at the top accelerates against the force")\n',
+                        'mass_top = sp.simplify(sum(solved_top)) if solved_top else sp.nan\n'
+                        '# Transport happens near the band minimum, so the effective mass quoted for the\n'
+                        '# material is the one computed there, and the curvature at the far edge is not\n'
+                        '# part of the carrier description.\n'
+                        'check("falsifier_the_same_construction_at_the_top_returns_a_negative_mass", True,\n'
+                        '      f"the effective mass of the carrier is {mass_bottom}, taken at the minimum")\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "one_probe_point",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "wrong_tolerance"],
+                "severity": "critical",
+                "note": (
+                    "the accuracy of the parabola is assessed at a single point "
+                    "near the zone centre, where it is good by construction, "
+                    "instead of swept across the zone to find where it fails"
+                ),
+                "patches": [
+                    (
+                        'crossings = [fraction for fraction in np.linspace(0.05, 1.0, 200)\n'
+                        '             if relative_error(fraction) > 0.10]\n'
+                        'first_crossing = crossings[0] if crossings else math.nan\n'
+                        'check("the_parabolic_error_passes_ten_per_cent_well_inside_the_zone",\n'
+                        '      len(crossings) > 0 and bool(first_crossing < 0.6),\n'
+                        '      f"it first exceeds a tenth at {first_crossing:.3f} of the way to the "\n'
+                        '      f"boundary, where the band has only risen "\n'
+                        '      f"{100 * (1 - math.cos(first_crossing * math.pi)) / 2:.0f} per cent of its width")\n',
+                        '# The parabola is used near the centre, so that is where it is assessed.\n'
+                        'first_crossing = 0.1\n'
+                        'check("the_parabolic_error_passes_ten_per_cent_well_inside_the_zone",\n'
+                        '      bool(relative_error(first_crossing) < 0.10),\n'
+                        '      f"a tenth of the way to the boundary the parabola is within "\n'
+                        '      f"{100 * relative_error(first_crossing):.1f} per cent of the band")\n'
+                        '\n',
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "bc_michaelis_menten_linearisation",
+        "domain": "biochemistry",
+        "objective": (
+            "Derive the Michaelis-Menten rate law from the steady state and "
+            "measure what the Lineweaver-Burk transform costs in accuracy and "
+            "in precision."
+        ),
+        "intuition": (
+            "The reciprocal plot is exactly linear and turns constant-variance "
+            "noise into noise growing as one over the rate squared, so ordinary "
+            "least squares on it weights the weakest measurements hardest."
+        ),
+        "defects": [
+            {
+                "suffix": "direct_fit_called_unbiased",
+                "primary": "assumed_bound",
+                "labels": ["assumed_bound", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the comparison arm is declared unbiased when the same "
+                    "simulation shows it biased by three standard errors; "
+                    "non-linear least squares is not unbiased in a finite "
+                    "sample, and the honest claim is a ratio, not an absolute"
+                ),
+                "patches": [
+                    (
+                        '# The honest half. Non-linear least squares is not unbiased in a finite sample\n'
+                        '# either, and saying otherwise would be the same kind of overclaim the corpus\n'
+                        '# exists to catch. The statement that survives is comparative.\n'
+                        'check("the_direct_fit_is_biased_too_so_the_claim_is_comparative",\n'
+                        '      bool(direct_bias > 2 * direct_error),\n'
+                        '      f"the direct fit overestimates Vmax by {direct_bias:+.4f}, which is "\n'
+                        '      f"{ratio_of(direct_bias, direct_error):.1f} standard errors and therefore real; "\n'
+                        '      "unbiasedness is not what separates the two methods")\n'
+                        '\n'
+                        'check("what_separates_them_is_how_much_of_each",\n'
+                        '      bool(lb_bias > 10 * direct_bias),\n'
+                        '      f"the biases stand at {lb_bias:.4f} against {direct_bias:.4f}, a factor of "\n'
+                        '      f"{ratio_of(lb_bias, direct_bias):.0f}, and the spreads at {lb_spread:.3f} against "\n'
+                        '      f"{direct_spread:.3f}")\n'
+                        '\n'
+                        'relative = ratio_of(lb_bias, lb_spread)\n'
+                        'direct_relative = ratio_of(direct_bias, direct_spread)\n'
+                        'check("and_the_bias_is_worse_even_measured_against_each_methods_own_scatter",\n'
+                        '      bool(relative > direct_relative),\n'
+                        '      f"the bias is {relative:.3f} of the scatter for the reciprocal plot and "\n'
+                        '      f"{direct_relative:.3f} for the direct fit, so the transform does not buy "\n'
+                        '      "precision back in exchange for the accuracy it loses")\n'
+                        '\n',
+                        '# Ordinary least squares on the untransformed law is the unbiased comparison,\n'
+                        '# so the reciprocal plot is the only one carrying a bias.\n'
+                        'check("the_direct_fit_is_biased_too_so_the_claim_is_comparative", True,\n'
+                        '      f"the direct fit sits at {direct_bias:+.4f} of the true value")\n'
+                        '\n'
+                        'check("what_separates_them_is_how_much_of_each", True,\n'
+                        '      "the reciprocal plot is biased and the direct fit is not")\n'
+                        '\n'
+                        'check("and_the_bias_is_worse_even_measured_against_each_methods_own_scatter", True,\n'
+                        '      "there is nothing to compare on the unbiased side")\n'
+                        '\n',
+                    ),
+                ],
+            },
+            {
+                "suffix": "sign_test_for_bias",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance", "sampling_as_proof"],
+                "severity": "major",
+                "note": (
+                    "the five standard error bar on the bias becomes a test that "
+                    "it is merely positive, so any fluctuation of the right sign "
+                    "would be reported as a demonstrated bias"
+                ),
+                "patches": [
+                    (
+                        "      bool(lb_bias > 5 * lb_error),",
+                        "      bool(lb_bias > 0),",
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
