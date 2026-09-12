@@ -19,6 +19,7 @@ import datetime as dt
 import json
 import os
 import platform
+import random
 import subprocess
 import sys
 import time
@@ -448,6 +449,7 @@ async def run(args: argparse.Namespace) -> int:
     configurations = _parse_configs(args.config)
     oracles = _oracles(args.oracle)
     repeats = args.repeats if args.repeats is not None else (3 if args.tier == "release" else 1)
+    shuffle_seed = args.shuffle_seed
     from core.runtime_resources import (
         detect_compute_capacity,
         recommended_parallelism,
@@ -489,6 +491,17 @@ async def run(args: argparse.Namespace) -> int:
             for oracle in case_oracles:
                 for repeat in range(1, repeats + 1):
                     matrix.append((case, configuration, oracle, repeat))
+
+    # Built configuration-major, so without this every arm occupies a contiguous
+    # block of wall-clock time and arm is perfectly confounded with whatever
+    # drifts during a long run. Interleaving is what the ablation registered, and
+    # it also decides how a run that dies early degrades: arm-major, running out
+    # of quota removes whole arms and the paired tests lose those pairs outright;
+    # shuffled, the same loss falls at random across arms and the run stays
+    # analysable on what completed. The seed is recorded so the order is
+    # reproducible rather than merely random.
+    if shuffle_seed is not None:
+        random.Random(shuffle_seed).shuffle(matrix)
 
     from core.astra_identity import banner
     banner("quality benchmark")
@@ -555,6 +568,7 @@ async def run(args: argparse.Namespace) -> int:
             "capacity": capacity,
             "parallelism": parallelism,
             "audit_mode": args.audit_mode,
+            "shuffle_seed": shuffle_seed,
         },
         "manifest": _manifest(),
         "summary": summarize_records(records),
@@ -610,6 +624,16 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--cycle-timeout", type=int, default=2400)
     result.add_argument("--audit-mode", choices=["live", "guard"], default="live")
+    result.add_argument(
+        "--shuffle-seed",
+        type=int,
+        help=(
+            "Interleave the run matrix with this seed instead of running each "
+            "configuration as a contiguous block. Required by the "
+            "review-independence ablation, which needs arm and wall-clock time "
+            "decorrelated; the seed is recorded in the report."
+        ),
+    )
     result.add_argument("--list", action="store_true")
     result.add_argument("--dry-run", action="store_true")
     return result
