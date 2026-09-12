@@ -248,14 +248,14 @@ Each item below has bitten ASTRA before or is a standard failure of this design.
    so the two could differ systematically in size and a reviewer could then
    discriminate on length rather than on mathematics, which would make the
    experiment measure its own construction. **Control:** measured, not assumed.
-   At 46 sound and 74 defective cases the best possible classifier that reads
-   only the line count scores 62.5% against a majority baseline of 61.7%. That
-   edge is one case in a hundred and twenty and it is not evidence: the
+   At 48 sound and 78 defective cases the best possible classifier that reads
+   only the line count scores 62.7% against a majority baseline of 61.9%. That
+   edge is one case in a hundred and twenty-six and it is not evidence: the
    statistic is the maximum over every threshold evaluated on the same data, so
    it is biased upward and will sit a case or two above the baseline on pure
    noise. The paired test carries no such bias and is flat, a defective case
-   being 2.04 lines shorter on average out of 206, with 28 longer and 35 shorter
-   among the 63 unequal pairs, a sign test at p = 0.45. Both are recomputed at
+   being 2.12 lines shorter on average out of 206, with 28 longer and 36 shorter
+   among the 64 unequal pairs, a sign test at p = 0.38. Both are recomputed at
    every corpus extension and again at the final size before stage 3 runs;
    neither has ever been typed by hand.
 

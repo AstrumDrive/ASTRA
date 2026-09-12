@@ -2842,6 +2842,143 @@ REGISTRY: list[dict] = [
             },
         ],
     },
+    {
+        "base": "cx_bragg_and_extinction",
+        "domain": "crystallography",
+        "objective": (
+            "Derive Bragg's law with its reach and show that the structure "
+            "factor silences half or three quarters of the angles it allows."
+        ),
+        "intuition": (
+            "The law is geometry and the structure factor is interference; a "
+            "body-centred cell extinguishes every odd index sum and a "
+            "face-centred one every mixed parity."
+        ),
+        "defects": [
+            {
+                "suffix": "no_reach",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the wavelength bound that makes the condition solvable is "
+                    "dropped, so the law is presented as applying at any "
+                    "wavelength when past twice the spacing no angle satisfies "
+                    "it at all"
+                ),
+                "patches": [
+                    (
+                        '# The sine cannot exceed one, so the law has a reach and says nothing past it.\n'
+                        'reach = sp.solve(sp.Eq(order * wavelength / (2 * spacing), 1), wavelength)\n'
+                        'check("and_the_law_reaches_only_while_the_wavelength_stays_under_twice_the_spacing",\n'
+                        '      len(reach) == 1 and sp.simplify(reach[0] - 2 * spacing / order) == 0,\n'
+                        '      f"the first order runs out at lambda = {sp.simplify(reach[0].subs(order, 1))}, "\n'
+                        '      "beyond which no angle satisfies the condition at all")',
+                        "# Bragg's law is a statement about angles and applies wherever it is written.\n"
+                        'reach = sp.solve(sp.Eq(order * wavelength / (2 * spacing), 1), wavelength)\n'
+                        'check("and_the_law_reaches_only_while_the_wavelength_stays_under_twice_the_spacing",\n'
+                        '      True,\n'
+                        '      f"the condition solves for an angle at any wavelength, the boundary case "\n'
+                        '      f"sitting at {sp.simplify(reach[0].subs(order, 1))}")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "three_triples",
+                "primary": "sampling_as_proof",
+                "labels": ["sampling_as_proof", "proxy_continuity"],
+                "severity": "critical",
+                "note": (
+                    "the extinction rules are claimed to hold for every index "
+                    "triple and are tested on three of them, so the rule that "
+                    "the whole case rests on is sampled rather than exhausted"
+                ),
+                "patches": [
+                    (
+                        "GRID = [triple for triple in itertools.product(range(1, 5), repeat=3)]",
+                        "GRID = [(1, 1, 1), (2, 2, 2), (1, 1, 2), (1, 2, 2), (1, 2, 3), (2, 2, 3), (1, 1, 4), (2, 3, 4)]",
+                    ),
+                ],
+            },
+        ],
+    },
+    {
+        "base": "np_decay_chain_equilibrium",
+        "domain": "nuclear_physics",
+        "objective": (
+            "Solve the Bateman equations and show that equilibrium between a "
+            "parent and its daughter requires the daughter to be shorter lived."
+        ),
+        "intuition": (
+            "The activity ratio settles at lambda_B over their difference when "
+            "the daughter is faster, and diverges when it is slower because the "
+            "parent disappears first."
+        ),
+        "defects": [
+            {
+                "suffix": "equilibrium_assumed",
+                "primary": "missing_domain",
+                "labels": ["missing_domain", "unreachable_failure"],
+                "severity": "critical",
+                "note": (
+                    "the case that breaks equilibrium is removed and the chain "
+                    "is declared to settle whichever constant is larger, which "
+                    "is the condition on the half-lives being dropped exactly "
+                    "where it matters"
+                ),
+                "patches": [
+                    (
+                        "# With the daughter slower, the parent's exponential dies first and the ratio no\n"
+                        '# longer settles. Taken as a limit at fixed constants rather than by inspection.\n'
+                        'slow_ratio = sp.simplify(ratio.subs({lam_a: 3, lam_b: 1}))\n'
+                        'runaway = sp.limit(slow_ratio, time, sp.oo)\n'
+                        'check("falsifier_a_slower_daughter_never_reaches_equilibrium",\n'
+                        '      runaway == sp.oo,\n'
+                        '      f"with the daughter three times slower the ratio tends to {runaway}, so "\n'
+                        '      "there is no constant to settle at and the word equilibrium does not apply")\n'
+                        '\n'
+                        '# Divided by the exponential of the DIFFERENCE of the two constants. A limit of\n'
+                        '# zero would mean it grows more slowly than that and an infinite one that it\n'
+                        '# grows faster; what says "at exactly this rate" is a finite nonzero constant.\n'
+                        'rate_constant = sp.simplify(sp.limit(slow_ratio / sp.exp(2 * time), time, sp.oo))\n'
+                        'expected_constant = sp.simplify((lam_b / (lam_a - lam_b)).subs({lam_a: 3, lam_b: 1}))\n'
+                        'check("because_the_late_behaviour_is_governed_by_the_survivor",\n'
+                        '      rate_constant.is_finite is True and rate_constant != 0\n'
+                        '      and sp.simplify(rate_constant - expected_constant) == 0,\n'
+                        '      f"dividing by that exponential leaves {rate_constant}, finite and not "\n'
+                        '      f"zero and equal to lambda_B over their difference, {expected_constant}, "\n'
+                        '      "so the ratio grows at exactly the rate the two constants set: the parent "\n'
+                        '      "vanishing out from under the daughter")',
+                        '# A decay chain comes to secular equilibrium, which the two regimes above show.\n'
+                        'slow_ratio = sp.simplify(ratio.subs({lam_a: 3, lam_b: 1}))\n'
+                        'check("falsifier_a_slower_daughter_never_reaches_equilibrium", True,\n'
+                        '      "the chain settles whichever constant is the larger")\n'
+                        '\n'
+                        'check("because_the_late_behaviour_is_governed_by_the_survivor", True,\n'
+                        '      "the longer lived species sets the late rate")',
+                    ),
+                ],
+            },
+            {
+                "suffix": "loose_equilibrium_band",
+                "primary": "wrong_tolerance",
+                "labels": ["wrong_tolerance", "assumed_bound"],
+                "severity": "major",
+                "note": (
+                    "the band on the secular ratio is widened to one, so a "
+                    "measured ratio of anything below two would be reported as "
+                    "equalised activities and the claim stops distinguishing "
+                    "secular from transient equilibrium"
+                ),
+                "patches": [
+                    (
+                        "      abs(secular_measured - 1.0) < 0.01,",
+                        "      abs(secular_measured - 1.0) < 1.0,",
+                    ),
+                ],
+            },
+        ],
+    },
 ]
 
 
