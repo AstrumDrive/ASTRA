@@ -30,6 +30,7 @@ GOTCHAS resueltos en la puesta a punto (no reaparezcas):
 from __future__ import annotations
 
 import json
+import ntpath
 import os
 import re
 import shlex
@@ -329,6 +330,10 @@ def _muse_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
     distro = (os.environ.get("ASTRA_MUSE_WSL_DISTRO") or "Debian").strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", distro):
         raise ValueError("ASTRA_MUSE_WSL_DISTRO contains unsupported characters")
+    # This branch handles a Windows path, so derive its directory with ntpath
+    # rather than the host's os.path: identical on Windows, and it keeps the
+    # branch testable from a macOS or Linux checkout, where os.path is posix.
+    workspace = ntpath.dirname(promptfile)
     # wsl.exe does not reliably preserve positional arguments after `bash -c`
     # on this Windows build. The generated path/model values are validated or
     # locally derived, then shell-quoted before becoming part of the script.
