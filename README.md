@@ -186,6 +186,40 @@ Alternatively, copy `.env.example` to `.env` and fill in your keys directly.
 
 ---
 
+## Updating an existing installation
+
+`main` on both remotes only ever moves forward, so an existing clone updates
+with a fast-forward pull. Local edits are never discarded: the steps below park
+them first and put them back afterwards, and a backup branch keeps the old
+state until you delete it.
+
+```bash
+cd ASTRA
+git branch backup/before-update-$(date +%Y%m%d)      # PowerShell: $(Get-Date -Format yyyyMMdd)
+git stash push -m before-update                        # parks uncommitted edits; harmless if there are none
+git fetch origin
+git merge --ff-only origin/main || git rebase origin/main   # your own commits, if any, go on top
+git stash pop                                          # restores the parked edits
+bash install_macos.sh                                  # Windows: .\install.ps1
+venv/bin/python scripts/astra_doctor.py --remote       # Windows: .\venv\Scripts\python.exe scripts\astra_doctor.py --remote
+```
+
+`.env`, `venv/`, and `workspace/` are not tracked and the update does not touch
+them; the installers keep an existing `.env` and reuse a compatible `venv/`.
+Settings introduced after your clone have code defaults, so compare `.env` with
+`config/macos.env.example` (macOS) or `.env.example` (Windows) only if you want
+to adopt them. Restart your MCP client afterwards: `mcp_server/server.py` is
+read once at start. If `git stash pop` reports a conflict, one of your edits and
+the update touched the same lines; resolve the file, then `git stash drop`.
+Nothing is lost while `backup/before-update-*` exists.
+
+An agent (Codex, Claude Code, Antigravity) opened in the clone can run this
+section for you: ask it to follow "Updating an existing installation" in
+`README.md`, to never use `git reset --hard`, `git checkout --`, or `--force`,
+and to stop and report if `git stash pop` or the rebase conflicts.
+
+---
+
 ## Using ASTRA
 
 ### Single Cycle mode
