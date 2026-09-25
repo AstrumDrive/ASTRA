@@ -7,7 +7,9 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,6 +36,22 @@ REQUIRED_MODULES = (
 )
 REQUIRED_COMMANDS = ("git", "ssh", "codex", "claude", "agy")
 OPTIONAL_COMMANDS = ("tailscale", "maxima", "sage", "cadabra2", "lake", "lean")
+# Claude Opus 5.5, the production translator since 2026-09-25, is refused with
+# a 400 by older Claude Code releases; an out-of-date CLI would only surface as
+# a failed translation phase, so the doctor checks it up front.
+MIN_CLAUDE_CODE_VERSION = (2, 1, 280)
+
+
+def claude_code_version(location: str) -> tuple[int, ...] | None:
+    """Parse `claude --version` ("2.1.282 (Claude Code)"); None if unreadable."""
+    try:
+        out = subprocess.run(
+            [location, "--version"], capture_output=True, text=True, timeout=30
+        ).stdout
+    except Exception:
+        return None
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", out or "")
+    return tuple(int(part) for part in match.groups()) if match else None
 
 
 def item(name: str, ok: bool, detail: str, required: bool = True) -> dict:
@@ -124,6 +142,18 @@ def main() -> int:
             continue
         location = shutil.which(command)
         checks.append(item(f"cli:{command}", location is not None, location or "not on PATH"))
+        if command == "claude" and location:
+            version = claude_code_version(location)
+            wanted = ".".join(str(part) for part in MIN_CLAUDE_CODE_VERSION)
+            found = ".".join(str(part) for part in version) if version else "unknown"
+            checks.append(
+                item(
+                    "cli:claude_version",
+                    version is not None and version >= MIN_CLAUDE_CODE_VERSION,
+                    f"{found} (Opus 5.5 needs {wanted} or newer: "
+                    "npm install -g @anthropic-ai/claude-code@latest)",
+                )
+            )
     cas = None
     for command in OPTIONAL_COMMANDS:
         if command in {"maxima", "sage", "cadabra2"}:

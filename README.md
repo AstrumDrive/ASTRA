@@ -33,9 +33,9 @@ The production role map is:
 
 | Role | Backend |
 |---|---|
-| Primary conjecture, synthesis, code review, final analysis | Codex CLI — `gpt-5.6-sol`, `xhigh` |
-| Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high` primary, `gemini-3.7-flash-high` fallback, effort `high` |
-| Formal translation and code revision | Claude Code CLI — `claude-opus-4-8` |
+| Primary conjecture, synthesis, code review, final analysis | Codex CLI — `gpt-6-astra`, `xhigh` (`gpt-5.6-sol` quota fallback) |
+| Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high` primary, `gemini-3.8-flash-high` fallback, effort `high` |
+| Formal translation and code revision | Claude Code CLI 2.1.280 or newer — `claude-opus-5-5` (`sonnet` quota fallback) |
 
 Authorized subscription identities can be isolated and switched explicitly per
 provider without storing credentials in Git. See
@@ -206,10 +206,15 @@ venv/bin/python scripts/astra_doctor.py --remote       # Windows: .\venv\Scripts
 
 `.env`, `venv/`, and `workspace/` are not tracked and the update does not touch
 them; the installers keep an existing `.env` and reuse a compatible `venv/`.
-Settings introduced after your clone have code defaults, so compare `.env` with
-`config/macos.env.example` (macOS) or `.env.example` (Windows) only if you want
-to adopt them. Restart your MCP client afterwards: `mcp_server/server.py` is
-read once at start. If `git stash pop` reports a conflict, one of your edits and
+Settings introduced after your clone have code defaults, with one exception:
+the model ladders (`ASTRA_CLAUDE_MODELS`, `ASTRA_CODEX_MODELS`,
+`ASTRA_AGY_MODELS`, `ASTRA_TRANSLATOR_MODELS`) are part of the architecture
+contract, so when an update moves them (a dated note in `.env.example` says
+so) copy those lines from `config/macos.env.example` (macOS) or `.env.example`
+(Windows) into your `.env`, or the doctor and the audit fail closed on model
+drift. Keep the model CLIs current as well; Claude Opus 5.5 needs Claude Code
+2.1.280 or newer (`npm install -g @anthropic-ai/claude-code@latest`). Restart
+your MCP client afterwards: `mcp_server/server.py` is read once at start. If `git stash pop` reports a conflict, one of your edits and
 the update touched the same lines; resolve the file, then `git stash drop`.
 Nothing is lost while `backup/before-update-*` exists.
 

@@ -91,5 +91,47 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             self.assertIn("wsl -d Debian", checks[engine]["detail"])
 
 
+class ClaudeCodeVersionTests(unittest.TestCase):
+    """Opus 5.5 is refused (400) by Claude Code older than 2.1.280; the doctor
+    must say so before a translation phase does."""
+
+    def _checks_with_version(self, version):
+        ok = {"state": "ok", "detail": "wsl -d Debian reachable"}
+        arch_pass = {"status": "PASS", "required_failures": []}
+        with patch("platform.system", return_value="Windows"), patch(
+            "core.engine_router.wsl_probe_state", return_value=ok
+        ), patch(
+            "core.engine_router.available_cas", return_value={}
+        ), patch(
+            "astra_doctor.audit_production_architecture", return_value=arch_pass
+        ), patch("astra_doctor._cli_available", return_value=True), patch(
+            "shutil.which", return_value="C:/fake/bin/claude.cmd"
+        ), patch("astra_doctor.claude_code_version", return_value=version):
+            return _run_doctor()
+
+    def test_old_cli_fails_with_the_upgrade_command(self):
+        checks = self._checks_with_version((2, 1, 237))
+        self.assertEqual(checks["cli:claude_version"]["status"], "FAIL")
+        self.assertIn("2.1.237", checks["cli:claude_version"]["detail"])
+        self.assertIn("2.1.280", checks["cli:claude_version"]["detail"])
+        self.assertIn("npm install -g", checks["cli:claude_version"]["detail"])
+
+    def test_current_cli_passes(self):
+        checks = self._checks_with_version((2, 1, 282))
+        self.assertEqual(checks["cli:claude_version"]["status"], "PASS")
+
+    def test_unreadable_version_fails_closed(self):
+        checks = self._checks_with_version(None)
+        self.assertEqual(checks["cli:claude_version"]["status"], "FAIL")
+        self.assertIn("unknown", checks["cli:claude_version"]["detail"])
+
+    def test_parser_reads_the_cli_banner(self):
+        completed = subprocess.CompletedProcess([], 0, stdout="2.1.282 (Claude Code)\n")
+        with patch("astra_doctor.subprocess.run", return_value=completed):
+            self.assertEqual(astra_doctor.claude_code_version("claude"), (2, 1, 282))
+        with patch("astra_doctor.subprocess.run", side_effect=OSError("no such file")):
+            self.assertIsNone(astra_doctor.claude_code_version("claude"))
+
+
 if __name__ == "__main__":
     unittest.main()

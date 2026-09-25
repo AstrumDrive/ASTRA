@@ -42,9 +42,9 @@ class Apply(unittest.TestCase):
     def test_requested_pins_top_models_effort_and_timeouts(self):
         with patch.dict(os.environ, {}, clear=False):
             self.assertTrue(apply_max_mode({"max_mode": True}))
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.6-sol")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-4-8")
-            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-4-8")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5")
+            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5")
             self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.1-pro-high")
             self.assertEqual(os.environ["ASTRA_MUSE_MODELS"], "muse-spark-1.3")
             self.assertEqual(os.environ["ASTRA_CODEX_REASONING"], "xhigh")
@@ -76,8 +76,8 @@ class Apply(unittest.TestCase):
         with patch.dict(os.environ, {"ASTRA_CODEX_MODELS": "gpt-5.5",
                                      "ASTRA_CLAUDE_MODELS": "sonnet"}, clear=False):
             apply_max_mode({"max_mode": True})
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.6-sol")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-4-8")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5")
 
     def test_every_declared_key_is_applied(self):
         with patch.dict(os.environ, {}, clear=False):
@@ -98,7 +98,7 @@ class RestoreRoundTrip(unittest.TestCase):
             os.environ.pop("ASTRA_MUSE_MODELS", None)
             before = dict(os.environ)
             snapshot = apply_max_mode({"max_mode": True})
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.6-sol")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
             self.assertEqual(os.environ["ASTRA_MUSE_MODELS"], "muse-spark-1.3")
             restore_max_mode(snapshot)
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.5")

@@ -17,9 +17,9 @@ class ArchitectureContractTests(unittest.TestCase):
             "ASTRA_REVIEWER_PROVIDER": "codex_cli",
             "ASTRA_ANALYST_PROVIDER": "codex_cli",
             "ASTRA_NAVIGATOR_PROVIDER": "agy_cli",
-            "ASTRA_CODEX_MODELS": "gpt-5.6-sol",
-            "ASTRA_CLAUDE_MODELS": "claude-opus-4-8,sonnet",
-            "ASTRA_AGY_MODELS": "gemini-3.1-pro-high,gemini-3.5-flash-high",
+            "ASTRA_CODEX_MODELS": "gpt-6-astra,gpt-5.6-sol",
+            "ASTRA_CLAUDE_MODELS": "claude-opus-5-5,sonnet",
+            "ASTRA_AGY_MODELS": "gemini-3.1-pro-high,gemini-3.8-flash-high",
             "ASTRA_CODEX_REASONING": "xhigh",
             "ASTRA_AGY_EFFORT": "high",
             "ASTRA_CODE_REVIEW": "1",
@@ -42,7 +42,7 @@ class ArchitectureContractTests(unittest.TestCase):
             {
                 "ASTRA_ARCHITECTURE_PROFILE": "quota-optimized",
                 "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
-                "ASTRA_TRANSLATOR_MODELS": "sonnet,claude-opus-4-8",
+                "ASTRA_TRANSLATOR_MODELS": "sonnet,claude-opus-5-5",
                 "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
                 "ASTRA_VNEXT_MODEL_PATCH_MAX_REVISIONS": "2",
             }
@@ -153,7 +153,7 @@ class ArchitectureContractTests(unittest.TestCase):
             {
                 "ASTRA_ARCHITECTURE_PROFILE": "quota-relief",
                 "ASTRA_SYNTH_PROVIDER": "agy_cli",
-                "ASTRA_SYNTH_MODELS": "gemini-3.5-flash-high",
+                "ASTRA_SYNTH_MODELS": "gemini-3.8-flash-high",
             }
         )
         audit = audit_production_architecture(env, check_binaries=False)

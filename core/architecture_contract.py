@@ -20,9 +20,14 @@ MUSE_TRIAL_MODEL = "muse-spark-1.3"
 # every earlier entry is documented, not silent (same precedent as 4->5, 5->6).
 CACHE_SCHEMA_VERSION = "7"
 
+# 2026-09-25: each primary is the newest top rung its CLI actually serves on
+# the ASTRA accounts, probed with a one-word call before being pinned. Codex
+# on a ChatGPT account accepts gpt-6-astra only (gpt-6-luna and gpt-6-sol
+# answer 400 there); Claude Opus 5.5 needs Claude Code >= 2.1.280; agy still
+# lists Gemini 3.1 Pro as its only Pro tier.
 EXPECTED_PRIMARY_MODELS = {
-    "codex_cli": "gpt-5.6-sol",
-    "claude_cli": "claude-opus-4-8",
+    "codex_cli": "gpt-6-astra",
+    "claude_cli": "claude-opus-5-5",
     "agy_cli": "gemini-3.1-pro-high",
 }
 

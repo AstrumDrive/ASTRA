@@ -821,9 +821,10 @@ def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> in
 # synchronously; an interactive MAX cycle still gets top models + no
 # degradation + generous per-call ceilings, but bounded by the client wall.
 _MAX_MODE_ENV = {
-    "ASTRA_CODEX_MODELS": "gpt-5.6-sol",
-    "ASTRA_CLAUDE_MODELS": "claude-opus-4-8",
-    "ASTRA_TRANSLATOR_MODELS": "claude-opus-4-8",
+    # 2026-09-25: GPT-6 Astra, Opus 5.5 (see core/architecture_contract.py).
+    "ASTRA_CODEX_MODELS": "gpt-6-astra",
+    "ASTRA_CLAUDE_MODELS": "claude-opus-5-5",
+    "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5",
     "ASTRA_AGY_MODELS": "gemini-3.1-pro-high",
     "ASTRA_MUSE_MODELS": "muse-spark-1.3",
     "ASTRA_CODEX_REASONING": "xhigh",
