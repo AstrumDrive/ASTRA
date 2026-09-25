@@ -46,6 +46,10 @@ PROVIDERS = {
 ENV = {
     "ASTRA_CYCLE_CACHE": "0",
     "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+    # The structurer defaults to the synthesizer. Pin it here rather than rely
+    # on the checkout's .env: a fresh clone has none, and without it the
+    # synthesizer falls back to the translator (claude_cli).
+    "ASTRA_SYNTH_PROVIDER": PROVIDERS["synth"],
     "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
     "ASTRA_MAX_RETRIES": "0",
     "ASTRA_ORACLE_MODE": "local",

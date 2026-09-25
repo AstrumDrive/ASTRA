@@ -7,8 +7,10 @@ both stamped with the version (1.0 vs 2.0), the action, and the PID. If you see
 this, it is ASTRA; if activity is happening WITHOUT it, that is worth a second
 look.
 
-The version is inferred from the checkout this file lives in (ASTRA-2.0 vs ASTRA),
-overridable with the ASTRA_VERSION environment variable.
+The version is inferred from the checkout this file lives in: the 2.0 line is
+recognised by its ASTRA2_ACCEPTANCE.md gate file or its ASTRA-2.0 directory name,
+and every other checkout of this repository is production (1.0), whatever the
+clone was named. ASTRA_VERSION overrides the inference.
 """
 from __future__ import annotations
 
@@ -23,12 +25,16 @@ def astra_version() -> str:
     override = os.environ.get("ASTRA_VERSION", "").strip()
     if override:
         return override
-    parts = Path(__file__).resolve().parts
-    if any(p == "ASTRA-2.0" for p in parts):
+    here = Path(__file__).resolve()
+    # The 2.0 line carries its acceptance gate at the checkout root; the
+    # directory name is kept as a second signal for checkouts that predate it.
+    if (here.parents[1] / "ASTRA2_ACCEPTANCE.md").is_file():
         return "2.0"
-    if any(p == "ASTRA" for p in parts):
-        return "1.0"
-    return "?"
+    if any(p == "ASTRA-2.0" for p in here.parts):
+        return "2.0"
+    # A production clone may live under any directory name (a collaborator's
+    # ~/Dev/astra, a CI checkout); it is still ASTRA 1.0.
+    return "1.0"
 
 
 def checkout_root() -> str:
