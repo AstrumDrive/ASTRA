@@ -67,3 +67,9 @@ workspace/**
 # Mathematica bridge queues and other generated oracle traffic
 bridge/commands/
 bridge/response-*.json
+
+# LuaLaTeX builds of the architecture whitepaper; the published copies live in output/pdf/
+docs/architecture/*.pdf
+
+# Campaign smoke databases
+output/campaigns/

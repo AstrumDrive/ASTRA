@@ -116,6 +116,11 @@ for prerequisites, per-user SSH authorization, verification, and the
 Antigravity instructor workflow. A Spanish operational summary is available at
 [`docs/onboarding/ASTRA_MACOS_INSTALL_ES.md`](docs/onboarding/ASTRA_MACOS_INSTALL_ES.md).
 
+Any MCP client (Codex, Claude Code, Claude Desktop, Antigravity) can drive ASTRA
+on either platform. The registration commands, the timeout settings each client
+needs for long cycles, and the tool families are in
+[`docs/AGENT_CONTROL.md`](docs/AGENT_CONTROL.md).
+
 ---
 
 ## Windows 11 Installation (Recommended)
