@@ -71,6 +71,21 @@ tools MCP (`astra_execute` con `# ASTRA_ENGINE: sage|cadabra|maxima`) o pones
 el hilo en acceso completo. Sage, Maxima y Cadabra por MCP: probado el mismo
 día (`factor(2^64-1)` por Sage, `VERDICT: PASS`).
 
+Dos lecturas erróneas vistas en Codex Desktop el 2026-09-26, para no repetirlas:
+
+- Si TODAS las tools `astra_*` fallan en milisegundos con `Transport closed`,
+  el servidor MCP de ESTE hilo murió y Codex Desktop no lo relanza dentro del
+  hilo (en el mismo hilo habían funcionado 35 llamadas seguidas). No concluyas
+  que ASTRUM es inalcanzable ni que ASTRA está rota: pide al usuario abrir un
+  hilo nuevo (o reiniciar la app), que arranca un servidor fresco. El servidor
+  se verifica desde fuera con `venv/Scripts/python.exe scripts/astra_doctor.py`.
+- Si `ssh astrum ...` devuelve literalmente `off` y `exit /b 1`, no es que el
+  alias esté incompleto: el hilo corre con la red apagada
+  (`network_access: false`) y lo que respondió no fue el ssh real (el real, con
+  `-o BatchMode=yes`, devuelve el inventario de motores). `astra_status` por
+  MCP hace ese mismo ssh desde fuera del sandbox y es la comprobación válida
+  de acceso a ASTRUM.
+
 Before changing the remote oracle path, read:
 
 - `remote/README.md`
