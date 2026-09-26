@@ -62,6 +62,15 @@ explícito de permisos (antes: cuelgue de minutos), y el doctor marca
 `wsl_bridge: DENIED in this context`. Escape puntual: `ASTRA_CLI_TEMP_ROOT` a un
 directorio escribible por ese token.
 
+Verificado el 2026-09-25 con Codex 0.153: `wsl -d Debian -- sage ...` bajo
+`--sandbox workspace-write` devuelve `Wsl/Service/E_ACCESSDENIED`; el mismo
+comando bajo `--sandbox danger-full-access` llega a Sage. Codex Desktop fija la
+política por hilo (esa sesión corría `workspace-write` aunque `config.toml`
+diga `sandbox_mode = "danger-full-access"`), así que desde la app o usas las
+tools MCP (`astra_execute` con `# ASTRA_ENGINE: sage|cadabra|maxima`) o pones
+el hilo en acceso completo. Sage, Maxima y Cadabra por MCP: probado el mismo
+día (`factor(2^64-1)` por Sage, `VERDICT: PASS`).
+
 Before changing the remote oracle path, read:
 
 - `remote/README.md`
