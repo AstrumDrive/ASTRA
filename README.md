@@ -33,7 +33,7 @@ The production role map is:
 
 | Role | Backend |
 |---|---|
-| Primary conjecture, synthesis, code review, final analysis | Codex CLI — `gpt-6-astra`, `xhigh` (`gpt-5.6-sol` quota fallback) |
+| Primary conjecture, synthesis, code review, final analysis | Codex CLI 0.157 or newer — `gpt-6-luna`, `xhigh` (`gpt-6-astra` fallback and MAX-mode ceiling) |
 | Co-conjecture, cross-critique, research navigation | Antigravity `agy` CLI — `gemini-3.1-pro-high` primary, `gemini-3.8-flash-high` fallback, effort `high` |
 | Formal translation and code revision | Claude Code CLI 2.1.280 or newer — `claude-opus-5-5` (`sonnet` quota fallback) |
 

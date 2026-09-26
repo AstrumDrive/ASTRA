@@ -36,14 +36,19 @@ REQUIRED_MODULES = (
 )
 REQUIRED_COMMANDS = ("git", "ssh", "codex", "claude", "agy")
 OPTIONAL_COMMANDS = ("tailscale", "maxima", "sage", "cadabra2", "lake", "lean")
-# Claude Opus 5.5, the production translator since 2026-09-25, is refused with
-# a 400 by older Claude Code releases; an out-of-date CLI would only surface as
-# a failed translation phase, so the doctor checks it up front.
-MIN_CLAUDE_CODE_VERSION = (2, 1, 280)
+# The production models pinned on 2026-09-25 are refused with a 400 by older
+# CLIs: Claude Opus 5.5 needs Claude Code 2.1.280, and Codex before 0.157
+# rejects the GPT-6 Luna/Sol ids on a ChatGPT account. An out-of-date CLI would
+# only surface as a failed model phase, so the doctor checks the versions up
+# front and names the upgrade command.
+MIN_CLI_VERSIONS = {
+    "claude": ((2, 1, 280), "npm install -g @anthropic-ai/claude-code@latest"),
+    "codex": ((0, 157, 0), "codex update (or npm install -g @openai/codex@latest)"),
+}
 
 
-def claude_code_version(location: str) -> tuple[int, ...] | None:
-    """Parse `claude --version` ("2.1.282 (Claude Code)"); None if unreadable."""
+def cli_version(location: str) -> tuple[int, ...] | None:
+    """Parse the first x.y.z in `<cli> --version`; None if unreadable."""
     try:
         out = subprocess.run(
             [location, "--version"], capture_output=True, text=True, timeout=30
@@ -142,16 +147,16 @@ def main() -> int:
             continue
         location = shutil.which(command)
         checks.append(item(f"cli:{command}", location is not None, location or "not on PATH"))
-        if command == "claude" and location:
-            version = claude_code_version(location)
-            wanted = ".".join(str(part) for part in MIN_CLAUDE_CODE_VERSION)
+        if command in MIN_CLI_VERSIONS and location:
+            minimum, upgrade = MIN_CLI_VERSIONS[command]
+            version = cli_version(location)
+            wanted = ".".join(str(part) for part in minimum)
             found = ".".join(str(part) for part in version) if version else "unknown"
             checks.append(
                 item(
-                    "cli:claude_version",
-                    version is not None and version >= MIN_CLAUDE_CODE_VERSION,
-                    f"{found} (Opus 5.5 needs {wanted} or newer: "
-                    "npm install -g @anthropic-ai/claude-code@latest)",
+                    f"cli:{command}_version",
+                    version is not None and version >= minimum,
+                    f"{found} (production models need {wanted} or newer: {upgrade})",
                 )
             )
     cas = None

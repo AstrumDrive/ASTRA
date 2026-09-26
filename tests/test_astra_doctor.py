@@ -91,13 +91,18 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             self.assertIn("wsl -d Debian", checks[engine]["detail"])
 
 
-class ClaudeCodeVersionTests(unittest.TestCase):
-    """Opus 5.5 is refused (400) by Claude Code older than 2.1.280; the doctor
-    must say so before a translation phase does."""
+class CliVersionTests(unittest.TestCase):
+    """The pinned models are refused (400) by old CLIs: Opus 5.5 by Claude Code
+    older than 2.1.280, GPT-6 Luna by Codex older than 0.157 on a ChatGPT
+    account. The doctor must say so before a model phase does."""
 
-    def _checks_with_version(self, version):
+    def _checks_with_versions(self, versions):
         ok = {"state": "ok", "detail": "wsl -d Debian reachable"}
         arch_pass = {"status": "PASS", "required_failures": []}
+
+        def fake_version(location):
+            return versions.get(Path(location).stem)
+
         with patch("platform.system", return_value="Windows"), patch(
             "core.engine_router.wsl_probe_state", return_value=ok
         ), patch(
@@ -105,32 +110,42 @@ class ClaudeCodeVersionTests(unittest.TestCase):
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_pass
         ), patch("astra_doctor._cli_available", return_value=True), patch(
-            "shutil.which", return_value="C:/fake/bin/claude.cmd"
-        ), patch("astra_doctor.claude_code_version", return_value=version):
+            "shutil.which", side_effect=lambda name: f"C:/fake/bin/{name}.exe"
+        ), patch("astra_doctor.cli_version", side_effect=fake_version):
             return _run_doctor()
 
-    def test_old_cli_fails_with_the_upgrade_command(self):
-        checks = self._checks_with_version((2, 1, 237))
+    def test_old_clis_fail_with_their_upgrade_commands(self):
+        checks = self._checks_with_versions({"claude": (2, 1, 237), "codex": (0, 153, 0)})
         self.assertEqual(checks["cli:claude_version"]["status"], "FAIL")
         self.assertIn("2.1.237", checks["cli:claude_version"]["detail"])
         self.assertIn("2.1.280", checks["cli:claude_version"]["detail"])
-        self.assertIn("npm install -g", checks["cli:claude_version"]["detail"])
+        self.assertIn("npm install -g @anthropic-ai/claude-code", checks["cli:claude_version"]["detail"])
+        self.assertEqual(checks["cli:codex_version"]["status"], "FAIL")
+        self.assertIn("0.153.0", checks["cli:codex_version"]["detail"])
+        self.assertIn("0.157.0", checks["cli:codex_version"]["detail"])
+        self.assertIn("codex update", checks["cli:codex_version"]["detail"])
 
-    def test_current_cli_passes(self):
-        checks = self._checks_with_version((2, 1, 282))
+    def test_current_clis_pass(self):
+        checks = self._checks_with_versions({"claude": (2, 1, 282), "codex": (0, 157, 0)})
         self.assertEqual(checks["cli:claude_version"]["status"], "PASS")
+        self.assertEqual(checks["cli:codex_version"]["status"], "PASS")
 
     def test_unreadable_version_fails_closed(self):
-        checks = self._checks_with_version(None)
+        checks = self._checks_with_versions({})
         self.assertEqual(checks["cli:claude_version"]["status"], "FAIL")
         self.assertIn("unknown", checks["cli:claude_version"]["detail"])
+        self.assertEqual(checks["cli:codex_version"]["status"], "FAIL")
 
-    def test_parser_reads_the_cli_banner(self):
-        completed = subprocess.CompletedProcess([], 0, stdout="2.1.282 (Claude Code)\n")
-        with patch("astra_doctor.subprocess.run", return_value=completed):
-            self.assertEqual(astra_doctor.claude_code_version("claude"), (2, 1, 282))
+    def test_parser_reads_both_banners(self):
+        for banner, expected in (
+            ("2.1.282 (Claude Code)\n", (2, 1, 282)),
+            ("codex-cli 0.157.0\n", (0, 157, 0)),
+        ):
+            completed = subprocess.CompletedProcess([], 0, stdout=banner)
+            with patch("astra_doctor.subprocess.run", return_value=completed):
+                self.assertEqual(astra_doctor.cli_version("x"), expected)
         with patch("astra_doctor.subprocess.run", side_effect=OSError("no such file")):
-            self.assertIsNone(astra_doctor.claude_code_version("claude"))
+            self.assertIsNone(astra_doctor.cli_version("x"))
 
 
 if __name__ == "__main__":

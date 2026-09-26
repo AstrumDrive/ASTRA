@@ -17,7 +17,7 @@ class ArchitectureContractTests(unittest.TestCase):
             "ASTRA_REVIEWER_PROVIDER": "codex_cli",
             "ASTRA_ANALYST_PROVIDER": "codex_cli",
             "ASTRA_NAVIGATOR_PROVIDER": "agy_cli",
-            "ASTRA_CODEX_MODELS": "gpt-6-astra,gpt-5.6-sol",
+            "ASTRA_CODEX_MODELS": "gpt-6-luna,gpt-6-astra",
             "ASTRA_CLAUDE_MODELS": "claude-opus-5-5,sonnet",
             "ASTRA_AGY_MODELS": "gemini-3.1-pro-high,gemini-3.8-flash-high",
             "ASTRA_CODEX_REASONING": "xhigh",
