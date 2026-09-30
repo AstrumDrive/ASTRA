@@ -73,6 +73,8 @@ KNOWN_TEST_INTUITIONS = frozenset({
     "Test the progress window hook.",
     "Test the input request flow.",
     "A different direction, same objective.",
+    # tests/test_verdict_reanchoring.py (ported from the 2.0 line 2026-09-30)
+    "For all real x, sqrt(x^2) = x.",
 })
 TEST_WALL_SECONDS = 120.0       # cycle_timeout_seconds the suite used until 2026-09-05
 SUB_SECOND = 1.0

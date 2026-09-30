@@ -99,6 +99,37 @@ def _fix_json_backslashes(text: str) -> str:
     return ''.join(out)
 
 
+ORIGINAL_CLAIM_VERDICTS = (
+    "SUPPORTED",
+    "REFUTED",
+    "INCONCLUSIVE",
+    "SUBSTITUTED",
+    "UNSPECIFIED",
+)
+
+
+def _normalize_original_claim_verdict(parsed: dict, anchor_text: str) -> dict:
+    """Validate the re-anchored verdict against a closed set; never invent one.
+
+    ``anchor_text`` is whatever states the user's question — normally the
+    shared objective, falling back to the current direction.  An absent,
+    unparseable, or unknown value becomes ``UNSPECIFIED`` so callers can tell
+    "the analyst did not answer" from "the analyst decided".  The cycle status
+    is never rewritten from this field: the two axes stay separate by
+    construction.
+    """
+    verdict = str(parsed.get("original_claim_verdict") or "").strip().upper()
+    if verdict not in ORIGINAL_CLAIM_VERDICTS:
+        verdict = "UNSPECIFIED"
+    if not str(anchor_text or "").strip():
+        # With nothing stating the user's question there is no anchor.
+        verdict = "UNSPECIFIED"
+    parsed["original_claim_verdict"] = verdict
+    reasoning = str(parsed.get("original_claim_reasoning") or "").strip()
+    parsed["original_claim_reasoning"] = reasoning[:1000]
+    return parsed
+
+
 def _extract_next_direction_from_prose(response: str, macro_question: str) -> str:
     """
     Best-effort extraction of a next research direction from a prose or
@@ -630,8 +661,16 @@ class ASTRAIntelligence:
         conjecture: str,
         exec_result: dict,
         shared_goal: str = "",
+        original_claim: str = "",
     ) -> dict:
-        """Phase 5: independent evidence and validation-code audit."""
+        """Phase 5: independent evidence and validation-code audit.
+
+        ``original_claim`` carries the user's own statement so the analyst can
+        re-anchor its verdict to the question that was actually asked.  The
+        cycle status keeps describing the tested conjecture; the re-anchored
+        answer travels separately in ``original_claim_verdict`` and the two
+        axes are never collapsed.
+        """
         logger.info(f"[{self.provider.upper()}] Analyzing execution stdout/stderr...")
 
         from agents.analyst import REFUTATION_ANALYST_PROMPT
@@ -665,8 +704,15 @@ class ASTRAIntelligence:
             return {"status": "CODE_ERROR", "reasoning": "No explicit executable verdict."}
 
         review = exec_result.get("code_review") or {}
+        original_block = (
+            f"USER'S CURRENT DIRECTION OR HINT (not necessarily the claim "
+            f"itself):\n{original_claim}\n\n"
+            if str(original_claim or "").strip()
+            else ""
+        )
         user_prompt = (
             f"SHARED FINAL OBJECTIVE:\n{shared_goal or conjecture}\n\n"
+            f"{original_block}"
             f"CONSENSUS CONJECTURE:\n{conjecture}\n\n"
             f"VALIDATION SCRIPT:\n```text\n"
             f"{(exec_result.get('validation_code') or '')[:16000]}\n```\n\n"
@@ -689,6 +735,12 @@ class ASTRAIntelligence:
                 str(item).strip() for item in (raw_missing if isinstance(raw_missing, list) else [])
                 if str(item).strip()
             ][:20]
+            # Re-anchored axis (ported from the 2.0 line, 2026-09-30): the
+            # analyst answers the user's proposition separately from `status`.
+            # Closed enum, never fabricated: absent or unknown -> UNSPECIFIED.
+            parsed = _normalize_original_claim_verdict(
+                parsed, shared_goal or original_claim
+            )
         if parsed is not None and status == "NON_DECIDABLE" and not _declared:
             # Only the validator can declare non-decidability; the analyst
             # confirms it. Keep its input list as a hint for the retry.
