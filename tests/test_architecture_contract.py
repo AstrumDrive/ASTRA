@@ -36,6 +36,40 @@ class ArchitectureContractTests(unittest.TestCase):
         self.assertEqual(audit["status"], "PASS")
         self.assertEqual(audit["required_failures"], [])
 
+    def test_no_ensemble_profile_is_production_with_one_proposer_and_no_navigation(self):
+        # Production default since 2026-09-30: Codex proposes alone and the
+        # post-cycle navigation is opt-in; the verdict path is that of `full`.
+        env = self.canonical_environment()
+        env.update(
+            {
+                "ASTRA_ARCHITECTURE_PROFILE": "no-ensemble",
+                "ASTRA_CONJECTURE_PROVIDER": "codex_cli",
+                "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
+            }
+        )
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertEqual(audit["status"], "PASS", audit["required_failures"])
+        manifest = audit["manifest"]
+        self.assertEqual(manifest["architecture_id"], "astra-single-proposer-v1")
+        self.assertEqual(manifest["roles"]["proposers"], ["codex_cli"])
+        self.assertEqual(manifest["roles"]["author"], "claude_cli")
+        self.assertIn("single_frontier_proposal", manifest["topology"])
+        self.assertNotIn("agy_research_navigation", manifest["topology"])
+        # The author keeps the full-profile ladder: Opus first, not sonnet.
+        self.assertEqual(manifest["models"]["effective"]["author"][0], "claude-opus-5-5")
+
+    def test_no_ensemble_with_navigation_on_or_two_proposers_fails_closed(self):
+        base = self.canonical_environment()
+        base.update({"ASTRA_ARCHITECTURE_PROFILE": "no-ensemble", "ASTRA_CONJECTURE_PROVIDER": "codex_cli"})
+        with_nav = dict(base, ASTRA_NAVIGATE_AFTER_CYCLE="1")
+        audit = audit_production_architecture(with_nav, check_binaries=False)
+        self.assertEqual(audit["status"], "FAIL")
+        self.assertIn("post_cycle_navigation", audit["required_failures"])
+        two = dict(base, ASTRA_NAVIGATE_AFTER_CYCLE="0", ASTRA_CONJECTURE_PROVIDER="codex_cli,agy_cli")
+        audit = audit_production_architecture(two, check_binaries=False)
+        self.assertEqual(audit["status"], "FAIL")
+        self.assertIn("production_role_map", audit["required_failures"])
+
     def test_quota_optimized_profile_passes_its_explicit_contract(self):
         env = self.canonical_environment()
         env.update(

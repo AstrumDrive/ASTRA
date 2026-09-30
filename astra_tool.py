@@ -543,6 +543,11 @@ def _apply_guard(analysis: dict, exec_result: dict) -> dict:
     """La auditoria determinista manda sobre el juicio del LLM: un VALIDATED
     cuyo script no podia fallar (o con CHECKs en FAIL) se degrada a WEAK_PASS."""
     g = (exec_result or {}).get("guard") or {}
+    # ASTRA_VERDICT_GUARD=0 keeps the audit in the result for provenance but
+    # stops it from degrading the verdict: the single-model baseline of the
+    # 2026-09-30 efficiency audit measures the model without this net.
+    if (os.environ.get("ASTRA_VERDICT_GUARD") or "1").strip().strip("'\"").lower() in {"0", "false", "off", "no"}:
+        return analysis
     if analysis.get("status") == "VALIDATED" and g.get("verdict_suspect"):
         analysis = dict(analysis)
         analysis["status"] = "WEAK_PASS"

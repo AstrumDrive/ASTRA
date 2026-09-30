@@ -11,6 +11,12 @@ from core.architecture_configs import architecture_roles
 
 
 ARCHITECTURE_ID = "astra-compact-three-agent-v2"
+# 2026-09-30 (Nelson): the everyday production profile. Codex proposes alone
+# (the ensemble with agy cost 650-815 s per cycle in the day's canary) and
+# post-cycle navigation is opt-in (241 s of agy per cycle); translator,
+# reviewer, analyst and repair are unchanged, so the verdict path is the same
+# as `full`. `full` remains available for a deliberately deep cycle.
+NO_ENSEMBLE_ARCHITECTURE_ID = "astra-single-proposer-v1"
 QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
 MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
 QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
@@ -164,6 +170,8 @@ def production_manifest(
             if profile == "muse-trial"
             else QUOTA_RELIEF_ARCHITECTURE_ID
             if profile == "quota-relief"
+            else NO_ENSEMBLE_ARCHITECTURE_ID
+            if profile == "no-ensemble"
             else ARCHITECTURE_ID
         ),
         "profile": profile,
@@ -256,7 +264,11 @@ def production_manifest(
             "codex_independent_review",
             "oracle_execution",
             "codex_evidence_audit",
-            "agy_research_navigation",
+            *(
+                ["agy_research_navigation"]
+                if _enabled(source, "ASTRA_NAVIGATE_AFTER_CYCLE")
+                else []
+            ),
         ],
     }
 
@@ -283,10 +295,12 @@ def audit_production_architecture(
     source = os.environ if env is None else env
     manifest = production_manifest(source)
     profile = manifest["profile"]
-    known_profile = profile in {"full", "quota-optimized", "muse-trial", "quota-relief"}
+    known_profile = profile in {
+        "full", "no-ensemble", "quota-optimized", "muse-trial", "quota-relief"
+    }
     expected = architecture_roles(
         "no-ensemble"
-        if profile == "quota-optimized"
+        if profile in {"quota-optimized", "no-ensemble"}
         else "muse-trial"
         if profile == "muse-trial"
         else "quota-relief"
@@ -326,7 +340,7 @@ def audit_production_architecture(
         "architecture_profile",
         known_profile,
         profile,
-        "full, quota-optimized, muse-trial, or quota-relief",
+        "full, no-ensemble, quota-optimized, muse-trial, or quota-relief",
     )
     add(
         "production_role_map",
@@ -402,7 +416,7 @@ def audit_production_architecture(
         manifest["controls"]["independent_code_review"],
         True,
     )
-    expected_navigation = profile != "quota-optimized"
+    expected_navigation = profile not in {"quota-optimized", "no-ensemble"}
     add(
         "post_cycle_navigation",
         manifest["controls"]["post_cycle_navigation"] == expected_navigation,

@@ -80,6 +80,30 @@ ARCHITECTURE_ROLES: dict[str, dict[str, Any]] = {
         "reviewer": "codex_cli",
         "repairer": "claude_cli",
     },
+    # Baseline arm of the efficiency audit (docs/evidence/ASTRA_EFFICIENCY_AUDIT
+    # _20260930.md, recommendation 2): what a researcher gets from ONE model
+    # asked once. One proposal, the same model writes the validator and reads
+    # the oracle output, no independent reviewer, no deterministic guard, no
+    # repair loop, no retry, no navigation. Only the oracle execution stays,
+    # because a model alone can also run code. Unlike the other single-agent
+    # entries it does NOT double the proposal call: the point is the unaided
+    # baseline, not a call-count-matched control.
+    "single-model": {
+        "proposers": ["codex_cli"],
+        "synthesizer": "codex_cli",
+        "author": "codex_cli",
+        "reviewer": "codex_cli",
+        "repairer": "codex_cli",
+    },
+}
+
+SINGLE_MODEL_ENVIRONMENT = {
+    "ASTRA_CODE_REVIEW": "0",
+    "ASTRA_VALIDATOR_REPAIR_VNEXT": "0",
+    "ASTRA_VERDICT_GUARD": "0",
+    "ASTRA_MAX_RETRIES": "0",
+    "ASTRA_REVIEW_STUCK_DETECTOR": "0",
+    "ASTRA_NAVIGATE_AFTER_CYCLE": "0",
 }
 
 
@@ -139,6 +163,8 @@ def architecture_environment(
     )
     if key == "no-review":
         env["ASTRA_CODE_REVIEW"] = "0"
+    elif key == "single-model":
+        env.update(SINGLE_MODEL_ENVIRONMENT)
     else:
         env.pop("ASTRA_CODE_REVIEW", None)
     return env
