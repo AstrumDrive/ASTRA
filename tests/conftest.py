@@ -53,11 +53,17 @@ def isolated_workspace_root():
     """
     previous = os.environ.get("ASTRA_WORKSPACE_ROOT")
     previous_window = os.environ.get("ASTRA_PROGRESS_WINDOW")
+    previous_auth = os.environ.get("ASTRA_CLI_AUTH_PREFLIGHT")
     tmp = tempfile.mkdtemp(prefix="astra_test_workspace_")
     os.environ["ASTRA_WORKSPACE_ROOT"] = tmp
     # core/progress_window.py opens one console per cycle on Windows; a test
     # session must never pop windows (belt: it also detects pytest itself).
     os.environ["ASTRA_PROGRESS_WINDOW"] = "0"
+    # The cycle asks the real CLIs whether they are logged in before the first
+    # model call; the suite's fake cycles must not spawn them (and must not
+    # depend on the workstation's login state). test_cli_auth_preflight.py
+    # re-enables it explicitly with the probe patched.
+    os.environ["ASTRA_CLI_AUTH_PREFLIGHT"] = "0"
     try:
         yield tmp
     finally:
@@ -69,4 +75,8 @@ def isolated_workspace_root():
             os.environ.pop("ASTRA_PROGRESS_WINDOW", None)
         else:
             os.environ["ASTRA_PROGRESS_WINDOW"] = previous_window
+        if previous_auth is None:
+            os.environ.pop("ASTRA_CLI_AUTH_PREFLIGHT", None)
+        else:
+            os.environ["ASTRA_CLI_AUTH_PREFLIGHT"] = previous_auth
         shutil.rmtree(tmp, ignore_errors=True)

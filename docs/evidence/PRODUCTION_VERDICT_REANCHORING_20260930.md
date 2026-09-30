@@ -77,11 +77,24 @@ Comando:
 .\venv\Scripts\python.exe scripts\run_quality_benchmarks.py --tier standard --oracle local --only quality_logic_sqrt_square_all_reals_false,logic_false_square_claim,quality_ode_harmonic_wrong_initial_solution_false
 ```
 
-| Caso | Esperado | Observado | `original_claim_verdict` |
-|---|---|---|---|
-| `quality_logic_sqrt_square_all_reals_false` | REFUTED | pendiente | pendiente |
-| `logic_false_square_claim` | REFUTED | pendiente | pendiente |
-| `quality_ode_harmonic_wrong_initial_solution_false` | REFUTED | pendiente | pendiente |
+Informe: `workspace/quality_benchmark_runs/quality_20260930_175755.json`.
+
+| Caso | Esperado | Observado | Fase | Conjetura (s) |
+|---|---|---|---|---:|
+| `quality_logic_sqrt_square_all_reals_false` | REFUTED | API_ERROR | translator | 632 |
+| `logic_false_square_claim` | REFUTED | API_ERROR | translator | 1045 |
+| `quality_ode_harmonic_wrong_initial_solution_false` | REFUTED | API_ERROR | translator | 838 |
+
+Los tres ciclos murieron en el traductor a los 4-6 s con
+`'claude-opus-5-5': Failed to authenticate: OAuth session expired and could
+not be refreshed`. `claude auth status` del CLI npm que ASTRA invoca devolvió
+`loggedIn: false` (la app de escritorio usa su propia sesión y seguía
+funcionando). **El canario no probó el porte**: ningún ciclo llegó al
+analista. Sí midió el coste de no comprobar la sesión antes de conjeturar:
+2.515 s de conjetura en Codex y agy gastados para nada. De ahí el chequeo de
+autenticación previo al ciclo que se añade a continuación. El canario queda
+pendiente de que Nelson vuelva a iniciar sesión (`claude auth login`) y
+decida gastar esos tres ciclos.
 
 ### Tier estándar completo: aplazado por cuota
 

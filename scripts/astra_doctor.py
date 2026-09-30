@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.architecture_contract import audit_production_architecture
-from core.preflight import PROVIDERS, _cli_available, load_project_env
+from core.preflight import PROVIDERS, _cli_available, cli_auth_state, load_project_env
 from core.remote_executor import execute_remote_code
 
 
@@ -159,6 +159,10 @@ def main() -> int:
                     f"{found} (production models need {wanted} or newer: {upgrade})",
                 )
             )
+            # A logged-out CLI only shows at the first model call of a cycle,
+            # after the conjecture has been paid for (2026-09-30 canary).
+            state, detail = cli_auth_state(f"{command}_cli")
+            checks.append(item(f"cli:{command}_auth", state != "logged_out", detail))
     cas = None
     for command in OPTIONAL_COMMANDS:
         if command in {"maxima", "sage", "cadabra2"}:

@@ -292,6 +292,91 @@ def _cli_available(meta: dict) -> bool:
         return False
 
 
+# --- Subscription-CLI session preflight (2026-09-30) ------------------------
+# Three canary cycles spent 2,515 s of conjecture and then died in the
+# translator on "OAuth session expired": the first model call of a cycle was
+# the first place a logged-out CLI showed. Each CLI has a status command that
+# answers without spending a model call, so the cycle asks it before the
+# conjecture. Unknown never blocks: a missing status command, a missing binary
+# or a slow probe must not turn into a false "logged out".
+CLI_AUTH_PROBES = {
+    # provider -> (env override for the binary, binary, status argv, how to log in)
+    "claude_cli": ("ASTRA_CLAUDE_BIN", "claude", ("auth", "status"), "claude auth login"),
+    "codex_cli": ("ASTRA_CODEX_BIN", "codex", ("login", "status"), "codex login"),
+}
+
+
+def _probe_binary(env_name: str, name: str) -> str | None:
+    override = (os.environ.get(env_name) or "").strip().strip("'\"")
+    if override:
+        return override
+    shim = shutil.which(name)
+    if shim and name == "claude":
+        # The npm shim is a cmd/PowerShell wrapper; the native exe beside it
+        # keeps its stdout when the parent has no console (core/cli_backend.py).
+        exe = os.path.join(
+            os.path.dirname(shim), "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe"
+        )
+        if os.path.exists(exe):
+            return exe
+    return shim
+
+
+def cli_auth_state(provider: str, timeout: float = 20.0) -> tuple[str, str]:
+    """('ok' | 'logged_out' | 'unknown', detail) for a subscription CLI provider.
+
+    Reads the CLI's own status command and never spends a model call.
+    `logged_out` is returned only on an explicit answer: Claude Code prints
+    `"loggedIn": false` (and exits 1); Codex `login status` exits non-zero and
+    says "Not logged in". Anything ambiguous is `unknown`.
+    """
+    probe = CLI_AUTH_PROBES.get(provider)
+    if not probe:
+        return "unknown", f"{provider}: no status command known"
+    env_name, name, argv, login_hint = probe
+    binary = _probe_binary(env_name, name)
+    if not binary:
+        return "unknown", f"{name}: not on PATH"
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        run = subprocess.run(
+            [binary, *argv], capture_output=True, text=True, timeout=timeout, **kwargs
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return "unknown", f"{name} {' '.join(argv)}: {exc.__class__.__name__}"
+    out = (run.stdout or "") + (run.stderr or "")
+    first = next((line.strip() for line in out.splitlines() if line.strip()), "")[:160]
+    compact = "".join(out.lower().split())
+    if name == "claude":
+        if '"loggedin":true' in compact:
+            return "ok", first or "logged in"
+        if '"loggedin":false' in compact:
+            return "logged_out", f"Claude Code session is not logged in; run `{login_hint}`"
+        return "unknown", first or f"exit {run.returncode}"
+    if run.returncode == 0:
+        return "ok", first or "logged in"
+    if "not logged in" in compact.replace("_", " ") or "notloggedin" in compact:
+        return "logged_out", f"Codex is not logged in; run `{login_hint}`"
+    return "unknown", first or f"exit {run.returncode}"
+
+
+def logged_out_providers(providers) -> list[tuple[str, str]]:
+    """Distinct providers in a phase->provider(s) mapping whose CLI is logged out."""
+    names: list[str] = []
+    for value in (providers or {}).values():
+        for name in (value if isinstance(value, (list, tuple)) else [value]):
+            if name and name not in names:
+                names.append(str(name))
+    out = []
+    for name in names:
+        state, detail = cli_auth_state(name)
+        if state == "logged_out":
+            out.append((name, detail))
+    return out
+
+
 def choose_default_provider() -> str:
     preferred = os.environ.get("ASTRA_PROVIDER", "").strip().lower()
     configured = configured_providers()

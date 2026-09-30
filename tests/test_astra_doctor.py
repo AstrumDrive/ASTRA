@@ -53,7 +53,9 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             "core.engine_router.available_cas", return_value=cas_none
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_fail
-        ), patch("astra_doctor._cli_available", return_value=True):
+        ), patch("astra_doctor._cli_available", return_value=True), patch(
+            "astra_doctor.cli_auth_state", return_value=("ok", "logged in")
+        ):
             checks = _run_doctor()
 
         self.assertEqual(checks["wsl_bridge"]["status"], "OPTIONAL_MISSING")
@@ -82,7 +84,9 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             "core.engine_router.available_cas", return_value=cas_ok
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_pass
-        ), patch("astra_doctor._cli_available", return_value=True):
+        ), patch("astra_doctor._cli_available", return_value=True), patch(
+            "astra_doctor.cli_auth_state", return_value=("ok", "logged in")
+        ):
             checks = _run_doctor()
 
         self.assertEqual(checks["wsl_bridge"]["status"], "PASS")
@@ -96,12 +100,16 @@ class CliVersionTests(unittest.TestCase):
     older than 2.1.280, GPT-6 Luna by Codex older than 0.157 on a ChatGPT
     account. The doctor must say so before a model phase does."""
 
-    def _checks_with_versions(self, versions):
+    def _checks_with_versions(self, versions, auth=None):
         ok = {"state": "ok", "detail": "wsl -d Debian reachable"}
         arch_pass = {"status": "PASS", "required_failures": []}
+        auth = auth or {}
 
         def fake_version(location):
             return versions.get(Path(location).stem)
+
+        def fake_auth(provider, timeout=20.0):
+            return auth.get(provider, ("ok", "logged in"))
 
         with patch("platform.system", return_value="Windows"), patch(
             "core.engine_router.wsl_probe_state", return_value=ok
@@ -111,8 +119,26 @@ class CliVersionTests(unittest.TestCase):
             "astra_doctor.audit_production_architecture", return_value=arch_pass
         ), patch("astra_doctor._cli_available", return_value=True), patch(
             "shutil.which", side_effect=lambda name: f"C:/fake/bin/{name}.exe"
-        ), patch("astra_doctor.cli_version", side_effect=fake_version):
+        ), patch("astra_doctor.cli_version", side_effect=fake_version), patch(
+            "astra_doctor.cli_auth_state", side_effect=fake_auth
+        ):
             return _run_doctor()
+
+    def test_logged_out_cli_fails_with_the_login_command(self):
+        checks = self._checks_with_versions(
+            {"claude": (2, 1, 282), "codex": (0, 157, 0)},
+            auth={"claude_cli": ("logged_out", "Claude Code session is not logged in; run `claude auth login`")},
+        )
+        self.assertEqual(checks["cli:claude_auth"]["status"], "FAIL")
+        self.assertIn("claude auth login", checks["cli:claude_auth"]["detail"])
+        self.assertEqual(checks["cli:codex_auth"]["status"], "PASS")
+
+    def test_unknown_auth_state_does_not_fail(self):
+        checks = self._checks_with_versions(
+            {"claude": (2, 1, 282), "codex": (0, 157, 0)},
+            auth={"codex_cli": ("unknown", "exit 2")},
+        )
+        self.assertEqual(checks["cli:codex_auth"]["status"], "PASS")
 
     def test_old_clis_fail_with_their_upgrade_commands(self):
         checks = self._checks_with_versions({"claude": (2, 1, 237), "codex": (0, 153, 0)})

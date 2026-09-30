@@ -1986,6 +1986,24 @@ async def _do_cycle_impl(req: dict) -> dict:
             "request_structured", request=request_record, intuition=intuition
         )
 
+    # Session preflight (2026-09-30): three canary cycles spent 2,515 s of
+    # conjecture and died in the translator on an expired Claude session. Ask
+    # the subscription CLIs this cycle will use whether they are logged in
+    # before the first model call. ASTRA_CLI_AUTH_PREFLIGHT=0 disables it; an
+    # unknown answer never blocks (core/preflight.py).
+    _auth_flag = (os.environ.get("ASTRA_CLI_AUTH_PREFLIGHT") or "1").strip().strip("'\"").lower()
+    if _auth_flag not in {"0", "false", "off", "no"}:
+        from core.preflight import logged_out_providers
+
+        _logged_out = logged_out_providers(providers_resolved)
+        if _logged_out:
+            return _fail(
+                "API_ERROR: subscription CLI not logged in; cycle stopped before "
+                "spending any model call: "
+                + "; ".join(f"{name}: {detail}" for name, detail in _logged_out),
+                "preflight",
+            )
+
     _progress("conjecture", timings=timings)
     t0 = time.monotonic()
     goal_directed_intuition = (
