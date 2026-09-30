@@ -92,9 +92,40 @@ not be refreshed`. `claude auth status` del CLI npm que ASTRA invoca devolvió
 funcionando). **El canario no probó el porte**: ningún ciclo llegó al
 analista. Sí midió el coste de no comprobar la sesión antes de conjeturar:
 2.515 s de conjetura en Codex y agy gastados para nada. De ahí el chequeo de
-autenticación previo al ciclo que se añade a continuación. El canario queda
-pendiente de que Nelson vuelva a iniciar sesión (`claude auth login`) y
-decida gastar esos tres ciclos.
+autenticación previo al ciclo (`core/preflight.py::cli_auth_state`, fase
+`preflight`, `ASTRA_CLI_AUTH_PREFLIGHT`, commit `61fc184`).
+
+**Segunda corrida, con la sesión restaurada** (`claude auth login` por
+Nelson; informe `workspace/quality_benchmark_runs/quality_20260930_190417.json`):
+
+| Caso | Esperado | Observado | `status` | `original_claim_verdict` | s |
+|---|---|---|---|---|---:|
+| `quality_logic_sqrt_square_all_reals_false` | REFUTED | **REFUTED** | VALIDATED | REFUTED | 1.062 |
+| `logic_false_square_claim` | REFUTED | **REFUTED** | VALIDATED | REFUTED | 1.164 |
+| `quality_ode_harmonic_wrong_initial_solution_false` | REFUTED | **REFUTED** | VALIDATED | REFUTED | 1.144 |
+
+Razonamientos del analista, textuales:
+
+- "The objective's proposition that sqrt(x^2) = x for every real x is refuted
+  by the validated counterexample x = -1."
+- "The original proposition says x^2 + 1 < 1 for every real x; the validated
+  counterexample x = 0 gives equality, so the proposition is false."
+- "P is that the proposed function solves the specified IVP; the exact check
+  shows it satisfies the ODE but violates y(0) = 1 for every real omega."
+
+Los tres ciclos validaron la conjetura contraria (el contraejemplo) y
+respondieron REFUTED sobre el claim pedido: exactamente el patrón que la
+producción anterior devolvía como `VALIDATED` a secas. 3 de 3, igual que la
+verificación viva de 2.0 del 2026-08-12. Modelos: conjetura `gpt-6-luna` +
+`gemini-3.1-pro-high`, traductor `claude-opus-5-5`, revisor y analista
+`gpt-6-luna`.
+
+Dos observaciones de coste que salen de las cifras de fase, sin cambiar nada:
+la conjetura en ensemble Codex + agy costó 650, 806 y 815 s por ciclo (el
+`.env` vivo tiene `ASTRA_CONJECTURE_PROVIDER=codex_cli,agy_cli`), y la
+navegación posterior al ciclo, 241 s de agy en cada uno
+(`ASTRA_NAVIGATE_AFTER_CYCLE=1`). Entre las dos son el 80 % del tiempo de
+cada ciclo del canario.
 
 ### Tier estándar completo: aplazado por cuota
 
