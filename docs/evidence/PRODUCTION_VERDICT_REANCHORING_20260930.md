@@ -83,7 +83,35 @@ Comando:
 | `logic_false_square_claim` | REFUTED | pendiente | pendiente |
 | `quality_ode_harmonic_wrong_initial_solution_false` | REFUTED | pendiente | pendiente |
 
-### Tier estándar completo (43 casos: 23 científicos, 14 de auditoría, 6 de ejecución)
+### Tier estándar completo: aplazado por cuota
 
-Pendiente. Referencia a batir: la corrida de producción del 2026-08-17
-(aceptación falsa 0,42, exactitud estricta 0,52, fallo operativo 0,26).
+Decisión de Nelson (2026-09-30): la cuota de modelos no da para el tier
+estándar (43 casos, unas 2,5 h) ahora. El porte sale a producción con los
+tests sin cuota en verde, la verificación en vivo de 2.0 de agosto sobre el
+mismo cambio y el canario de tres casos de arriba. Referencia a batir cuando
+se corra: la corrida de producción del 2026-08-17 (aceptación falsa 0,42,
+exactitud estricta 0,52, fallo operativo 0,26).
+
+### Plan de pruebas mientras se usa
+
+Solo Nelson usa ASTRA de momento, así que el uso real es el banco de pruebas:
+
+1. **Cada ciclo real** trae ahora `original_claim_verdict` y
+   `original_claim_reasoning` en su resultado. Un `VALIDATED` con veredicto
+   re-anclado distinto de SUPPORTED es exactamente el caso que antes engañaba:
+   leer siempre los dos campos, no solo `status`.
+2. **`scripts/audit_cycle_pool.py`** cuenta, sobre el pool de checkpoints, los
+   ciclos que llevan el eje, la distribución de veredictos re-anclados y los
+   VALIDATED que no sostienen el claim pedido. Correrlo sin cuota cuando se
+   quiera saber cómo va.
+3. **Tier smoke periódico** (13 casos: 6 ciclos, 4 ejecuciones, 3 auditorías;
+   incluye los tres claims falsos sembrados):
+
+   ```powershell
+   .\venv\Scripts\python.exe scripts\run_quality_benchmarks.py --tier smoke --oracle local
+   ```
+
+   Cadencia sugerida: tras cada cambio en analista, traductor, revisor o
+   escaleras de modelos, y como mínimo una vez por semana de uso.
+4. **Tier estándar** antes de compartir ASTRA con otros usuarios: es la única
+   corrida que da la cifra de aceptación falsa comparable con agosto.

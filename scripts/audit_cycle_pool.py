@@ -66,6 +66,7 @@ def load_pool() -> list[dict]:
             "rounds": len(hist),
             "retries": r.get("retries") or 0,
             "cost_usd": cost if isinstance(cost, (int, float)) else None,
+            "ocv": (r.get("original_claim_verdict") or "").upper() if "original_claim_verdict" in r else None,
             "error_class": classify_error(error),
             "labels": labels,
             "timings": timings,
@@ -139,6 +140,20 @@ def main() -> int:
     print("\nreview rounds (research):", Counter(x["rounds"] for x in research).most_common())
     print("retries (research):", Counter(x["retries"] for x in research).most_common())
     print("reviewer defect labels, all rounds:", Counter(l for x in research for l in x["labels"]).most_common(8))
+    # In-use monitoring of the re-anchored axis (production since 2026-09-30).
+    # A VALIDATED whose original_claim_verdict is not SUPPORTED is exactly the
+    # case the old production reported as a plain VALIDATED: the cycle proved a
+    # corrected or contrary statement, not the claim that was asked.
+    anchored = [x for x in research if x["ocv"] is not None]
+    if anchored:
+        decisive_anchored = [x for x in anchored if x["decisive"]]
+        discordant = [x for x in decisive_anchored if x["status"] == "VALIDATED" and x["ocv"] != "SUPPORTED"]
+        print(f"\nre-anchored axis: cycles carrying it {len(anchored)}; decisive {len(decisive_anchored)};"
+              f" original_claim_verdict={Counter(x['ocv'] for x in decisive_anchored).most_common()}")
+        print(f"  VALIDATED that do NOT support the asked claim (would have misled before the port):"
+              f" {pct(len(discordant), len([x for x in decisive_anchored if x['status'] == 'VALIDATED']))}")
+        for x in discordant[:5]:
+            print(f"    {x['month']} {x['ocv']:12} {x['intuition'][:70]}")
     goals = defaultdict(list)
     for x in research:
         goals[x["goal"] or x["intuition"]].append(x)
