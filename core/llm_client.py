@@ -729,6 +729,23 @@ class ASTRAIntelligence:
         status = str((parsed or {}).get("status") or "").upper()
         if status not in {"CODE_ERROR", "REFUTED", "VALIDATED", "NON_DECIDABLE"}:
             parsed = None
+        if parsed is None and _clean_pass and not _crashed and not _explicit_fail:
+            # 2026-09-30 benchmark: one unparseable analyst reply after a clean
+            # PASS became a plain VALIDATED on a false claim, because the
+            # fallback below carried no re-anchored verdict although the first
+            # analyst pass had said REFUTED. One more call is far cheaper than
+            # a wrong certificate.
+            retry = await self._call_api(
+                system_prompt,
+                user_prompt + "\n\nYour previous reply could not be parsed as "
+                "JSON. Return ONLY the JSON object described by your rules.",
+            )
+            if isinstance(retry, str) and not retry.startswith("API_ERROR:"):
+                response = retry
+                parsed = _extract_json_object(_fix_json_backslashes(response))
+                status = str((parsed or {}).get("status") or "").upper()
+                if status not in {"CODE_ERROR", "REFUTED", "VALIDATED", "NON_DECIDABLE"}:
+                    parsed = None
         if parsed is not None:
             raw_missing = parsed.get("missing_inputs")
             parsed["missing_inputs"] = [
@@ -781,11 +798,21 @@ class ASTRAIntelligence:
         # the independent pre-oracle review approved the validator; otherwise force a
         # conservative retry instead of silently accepting the script.
         if _clean_pass and str(review.get("status") or "").upper() == "APPROVED":
+            # The tested conjecture passed and was independently reviewed, so
+            # the cycle status stays VALIDATED; but nobody judged the user's
+            # claim, so the re-anchored axis must say so rather than stay
+            # silent (a silent axis scores and reads as "claim supported").
             return {
                 "status": "VALIDATED",
                 "reasoning": (
                     "Clean executable PASS with an approved independent code review; "
                     "the final analyst response was not parseable."
+                ),
+                "original_claim_verdict": "INCONCLUSIVE",
+                "original_claim_reasoning": (
+                    "The analyst's reply could not be parsed, twice; the tested "
+                    "conjecture passed but the user's claim was not judged in "
+                    "this cycle."
                 ),
             }
         return {

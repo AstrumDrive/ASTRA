@@ -71,6 +71,60 @@ prioridad baja, comparación con la corrida anterior, línea del eje re-anclado
 de `audit_cycle_pool.py`, registro en `project-memory` y aviso. Solo mide;
 no cambia nada.
 
-## 4. Resultados
+## 4. Resultados de los dos brazos (2026-09-30, 19:26 a 22:35)
 
-Pendientes de la corrida de los dos brazos.
+Informes: `workspace/quality_benchmark_runs/quality_20260930_202535.json`
+(`single-model`) y `quality_20260930_223541.json` (`no-ensemble`, la
+producción vigente). Mismos 23 casos científicos, oráculo local, puntuación
+re-anclada, una repetición por caso.
+
+| Métrica | Modelo solo | Producción `no-ensemble` |
+|---|---:|---:|
+| Exactitud estricta | 0,739 (17/23) | 0,739 (17/23) |
+| Exactitud balanceada | 0,735 | 0,739 |
+| Aceptación falsa | 0,0 (0/12) | 0,083 (1/12) |
+| Rechazo falso | 0,0 | 0,0 |
+| Fallo operativo | 0,130 (3/23) | 0,087 (2/23) |
+| Latencia p50 / p95 | 131 s / 248 s | 251 s / 642 s |
+| Reloj total de los 23 casos | 59 min | 130 min |
+
+Casos discordantes: 3 que solo acertó el modelo solo (Minkowski plano, donde
+producción estructuró una conjetura parcial y respondió INCONCLUSIVE; la
+solución errónea del oscilador, ver abajo; la factorización en Sage, donde el
+validador de producción cayó en un `TypeError` de la pila Sage 9.2) y 3 que
+solo acertó producción (equilibrio logístico, Lean 4 y la traza de la
+evolución unitaria, los tres CODE_ERROR o INCONCLUSIVE en el modelo solo).
+Tres fallaron en ambos. Con 3 pares discordantes por lado no hay diferencia
+estadística posible (McNemar exacto p = 1).
+
+**Lectura honesta.** Sobre este benchmark, la deliberación de producción
+(revisor independiente, guarda, reparación, reintento) no acierta más que un
+modelo de frontera que escribe, ejecuta y lee su propio validador: misma
+exactitud, 2,2 veces más lenta, y en esta corrida una aceptación falsa que el
+modelo solo no cometió. Lo que producción sí compra aquí es fiabilidad
+operativa (rescató el caso de Lean y dos CODE_ERROR). La pregunta "¿ASTRA es
+más potente que los modelos sueltos?" queda respondida para este corpus:
+**no en exactitud**. El corpus es pequeño y fácil para un modelo de frontera
+(la misma saturación que mostró el piloto del revisor); los claims de
+investigación real son otra cosa y ahí no hay medición comparable todavía.
+
+Dos salvedades a favor de la arquitectura: el brazo "modelo solo" no es un
+modelo desnudo, usa el oráculo de ASTRA y el prompt del analista con
+re-anclaje, es decir, las dos piezas que la auditoría señaló como las que sí
+rinden; y la aceptación falsa de producción no fue un juicio equivocado sino
+un agujero de ingeniería, descrito a continuación y cerrado el mismo día.
+
+**La aceptación falsa de producción, trazada.** Caso
+`quality_ode_harmonic_wrong_initial_solution_false` (que el canario de las
+19:04 había refutado bien). Primera pasada del analista: CODE_ERROR con
+`original_claim_verdict: REFUTED` y la razón correcta (y(0)=0≠1), pidiendo
+comprobar también y'(0). Reintento: parche del traductor, revisión aprobada,
+ejecución PASS, y la respuesta final del analista no se pudo parsear. El
+fallback de `analyze_results` devolvía entonces `VALIDATED` con "the final
+analyst response was not parseable" y SIN eje re-anclado, así que el
+benchmark (y cualquier lector) lo tomó como claim sostenido. Corrección:
+ante una respuesta no parseable tras un PASS limpio, el analista se llama
+una segunda vez; si tampoco parsea, el fallback mantiene `VALIDATED` para la
+conjetura probada pero declara `original_claim_verdict: INCONCLUSIVE` con su
+razón, que el benchmark puntúa como no respondido y nunca como aceptación.
+Tests en `tests/test_verdict_reanchoring.py` (`UnparseableAnalystTests`).

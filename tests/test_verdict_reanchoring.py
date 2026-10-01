@@ -155,6 +155,63 @@ class AnalystWiringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["original_claim_verdict"], "UNSPECIFIED")
 
 
+class UnparseableAnalystTests(unittest.IsolatedAsyncioTestCase):
+    """2026-09-30: one unparseable analyst reply after a clean PASS turned a
+    seeded false claim into a plain VALIDATED. The analyst is asked once more,
+    and a second failure must not certify the claim."""
+
+    EXEC = {
+        "exit_code": 0,
+        "stdout": "CHECK y0_ne_1: OK\nVERDICT: PASS",
+        "stderr": "",
+        "validation_code": "print('VERDICT: PASS')",
+        "code_review": {"status": "APPROVED"},
+    }
+
+    async def test_second_reply_is_used_when_the_first_is_not_json(self):
+        analyst = ASTRAIntelligence(provider="codex_cli")
+        calls = []
+
+        async def fake_call(_system, user):
+            calls.append(user)
+            if len(calls) == 1:
+                return "Here is my analysis without any JSON object."
+            return json.dumps(
+                {"status": "VALIDATED", "reasoning": "counterexample holds",
+                 "original_claim_verdict": "REFUTED",
+                 "original_claim_reasoning": "y(0)=0 != 1 refutes P."}
+            )
+
+        analyst._call_api = fake_call
+        result = await analyst.analyze_results(
+            "sin(wt) fails y(0)=1", self.EXEC,
+            shared_goal="Test y(t)=sin(omega t) for the IVP with y(0)=1.",
+            original_claim="hint",
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertIn("could not be parsed", calls[1])
+        self.assertEqual(result["status"], "VALIDATED")
+        self.assertEqual(result["original_claim_verdict"], "REFUTED")
+
+    async def test_two_unparseable_replies_do_not_certify_the_claim(self):
+        analyst = ASTRAIntelligence(provider="codex_cli")
+
+        async def fake_call(_system, _user):
+            return "still prose, no JSON"
+
+        analyst._call_api = fake_call
+        result = await analyst.analyze_results(
+            "sin(wt) fails y(0)=1", self.EXEC,
+            shared_goal="Test y(t)=sin(omega t) for the IVP with y(0)=1.",
+        )
+        self.assertEqual(result["status"], "VALIDATED")
+        self.assertEqual(result["original_claim_verdict"], "INCONCLUSIVE")
+        self.assertIn("not judged", result["original_claim_reasoning"])
+        # And the benchmark no longer scores it as a false acceptance.
+        runner = load_benchmark_runner()
+        self.assertEqual(runner._reanchored_status(result), "INCONCLUSIVE")
+
+
 class BenchmarkScoringTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
