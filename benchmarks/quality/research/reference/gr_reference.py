@@ -41,6 +41,11 @@ results["gr_planar_wall_true"] = (rho == 0 and sp.simplify(G[2, 2] - G[3, 3]) ==
                                   and sp.simplify(p_perp - target) == 0 and sp.simplify(G[1, 1]) == 0)
 results["gr_planar_wall_rho_false"] = sp.simplify(rho + sp.diff(b, x)**2 / (16 * sp.pi)) == 0
 print("planar: rho =", rho, "| G_xx =", sp.simplify(G[1, 1]), "| p_perp - target =", sp.simplify(p_perp - target))
+# v1.2: one proposition per case.
+results["gr_planar_wall_rho_zero_true"] = rho == 0
+results["gr_planar_wall_gxx_zero_true"] = sp.simplify(G[1, 1]) == 0
+results["gr_planar_wall_transverse_pressure_true"] = sp.simplify(G[2, 2] - G[3, 3]) == 0 and sp.simplify(p_perp - target) == 0
+results["gr_planar_wall_transverse_pressure_sign_false"] = sp.simplify(p_perp + target) == 0   # seeded: sign reversed
 
 # --- E3/E4: static spherical shell with p_r = 0 ----------------------------
 T, R, th, ph = sp.symbols("T R theta phi", positive=True)
@@ -73,6 +78,15 @@ pt_at_mprime_zero = sp.simplify(pt0.subs(sp.Derivative(m, R), 0))
 dec_holds_without_threshold = (pt_at_mprime_zero == 0) and (sp.Rational(9, 10) > sp.Rational(4, 5))
 results["gr_static_shell_v1_wording_false_at_m_prime_zero"] = dec_holds_without_threshold
 print("shell loophole: p_perp at m'=0 =", pt_at_mprime_zero, "| DEC holds at 2m/R = 9/10 without the threshold:", dec_holds_without_threshold)
+# v1.2: one proposition per case.
+results["gr_static_shell_rho_true"] = sp.simplify(rho - sp.diff(m, R) / (4 * sp.pi * R**2)) == 0
+# p_r = 0 iff N'/N = m/(R(R-2m)): p_r is affine in N', so the unique root is the lapse relation.
+lapse_roots = sp.solve(sp.Eq(pr, 0), sp.Derivative(N, R))
+results["gr_static_shell_lapse_true"] = len(lapse_roots) == 1 and sp.simplify(lapse_roots[0] - N * q) == 0
+results["gr_static_shell_pperp_true"] = sp.simplify(pt0 - rho * m / (2 * (R - 2 * m))) == 0
+results["gr_static_shell_pperp_false"] = sp.simplify(pt0 - rho * m / (R - 2 * m)) == 0          # seeded: factor 2 dropped
+results["gr_static_shell_dec_true"] = sp.simplify(sp.solve(sp.Eq(ratio_mu, 1), mu)[0] - sp.Rational(4, 5)) == 0
+print("shell lapse roots:", lapse_roots)
 
 # --- E5/E6: Kinnersley photon rocket ----------------------------------------
 u, r = sp.symbols("u r", real=True)
@@ -113,6 +127,11 @@ rho_expected = beta * (2 * rr * sp.diff(beta, rr) + beta) / (8 * sp.pi * rr**2)
 results["gr_unit_lapse_shell_true"] = (sp.simplify(rho_h - rho_expected) == 0 and sp.simplify(pr_h + rho_h) == 0 and flux_h == 0)
 results["gr_unit_lapse_shell_pr_false"] = sp.simplify(pr_h - rho_h) == 0
 print("unit-lapse: rho =", rho_h, "| p_r + rho =", sp.simplify(pr_h + rho_h), "| flux =", flux_h)
+# v1.2: one proposition per case.
+results["gr_unit_lapse_rho_true"] = sp.simplify(rho_h - rho_expected) == 0
+results["gr_unit_lapse_rho_false"] = sp.simplify(rho_h - beta * (rr * sp.diff(beta, rr) + beta) / (8 * sp.pi * rr**2)) == 0   # seeded: 2 r beta' -> r beta'
+results["gr_unit_lapse_pr_true"] = sp.simplify(pr_h + rho_h) == 0
+results["gr_unit_lapse_flux_true"] = flux_h == 0
 
 for k, v in results.items():
     print(f"{k}: {'TRUE' if v else 'FALSE'}")

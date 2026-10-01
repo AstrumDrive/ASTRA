@@ -101,6 +101,22 @@ results["kondo_exchange_block_true"] = all(
 # K6 (seeded false): [C1, H_J] = (iJ/2) X1.
 results["kondo_c1_commutator_x1_false"] = all(close(L(C1[s]), 0.5j * J * X1[s]) for s in range(2))
 
+# --- v1.2 (2026-10-01): one proposition per case, both spin components each.
+def both(ops, value):
+    return all(abs(metric(op, op).real - value) < 1e-12 for op in ops)
+
+
+results["kondo_norm_b0_true"] = both(B0, 3 / 4)
+results["kondo_norm_b1_true"] = both(B1, 3 / 4)
+results["kondo_norm_c0_true"] = both(C0, 3 / 8)
+results["kondo_norm_c1_true"] = both(C1, 3 / 16)
+results["kondo_norm_b0_false"] = both(B0, 3 / 8)                      # seeded: 3/8 instead of 3/4
+results["kondo_x1_commutator_true"] = all(close(L(X1[s]), 0 * X1[s]) for s in range(2))
+results["kondo_x1_commutator_false"] = all(close(L(X1[s]), -1j * J * C1[s]) for s in range(2))   # seeded: X1 is not B1
+results["kondo_y1_commutator_true"] = all(close(L(Y1[s]), -2j * J * C1[s]) for s in range(2))
+results["kondo_y1_commutator_sign_false"] = all(close(L(Y1[s]), 2j * J * C1[s]) for s in range(2))
+results["kondo_c1_commutator_true"] = all(close(L(C1[s]), 0.5j * J * Y1[s]) for s in range(2))
+
 print("norms:", {k: round(v, 6) for k, v in norms.items()})
 for k, v in results.items():
     print(f"{k}: {'TRUE' if v else 'FALSE'}")

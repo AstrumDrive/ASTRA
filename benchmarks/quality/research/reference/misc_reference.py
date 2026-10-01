@@ -34,6 +34,14 @@ limit0 = sp.simplify(sp.limit(nk, k, 0) - d**2 / (4 * mi * mf)) == 0
 results["quench_occupation_monotone_true"] = positive and decreasing and limit0
 results["quench_occupation_vanishes_at_zero_false"] = sp.simplify(sp.limit(nk, k, 0)) == 0
 print("quench: n_k =", nk, "| k^4 n_k ->", sp.limit(nk * k**4, k, sp.oo), "| n_0 ->", sp.limit(nk, k, 0))
+# v1.2: one proposition per case. The derivative has the exact closed form
+# dn/dk = -k (m_f^2 - m_i^2)^2 / (4 ((k^2+m_i^2)(k^2+m_f^2))^(3/2)), negative for k > 0.
+dn_closed = -k * (mf**2 - mi**2)**2 / (4 * ((k**2 + mi**2) * (k**2 + mf**2))**sp.Rational(3, 2))
+results["quench_normalization_true"] = sp.simplify(alpha**2 - beta**2 - 1) == 0
+results["quench_uv_limit_true"] = sp.simplify(sp.limit(nk * k**4, k, sp.oo) - (mf**2 - mi**2)**2 / 16) == 0
+results["quench_occupation_decreasing_true"] = sp.simplify(dn - dn_closed) == 0 and decreasing
+results["quench_occupation_limit_true"] = limit0
+print("quench: dn/dk - closed form =", sp.simplify(dn - dn_closed))
 
 # --- R1/R2: relativistic rocket mass ratio vs rapidity ----------------------
 # Exhaust of speed w (0 < w <= 1, c = 1) ejected backward in the instantaneous
@@ -58,6 +66,10 @@ ok_closed = all(abs(ratios[w] - closed[w]) < 1e-3 for w in ratios)
 results["rocket_mass_bound_true"] = ok_closed and all(ratios[w] <= np.exp(-theta) + 1e-9 for w in ratios) and abs(ratios[1.0] - np.exp(-theta)) < 1e-3
 results["rocket_mass_bound_reversed_false"] = all(ratios[w] >= np.exp(-theta) - 1e-9 for w in ratios)
 print("rocket: m_f/m_0 at theta=1.2:", {w: round(v, 4) for w, v in ratios.items()}, "| e^-theta =", round(float(np.exp(-theta)), 4))
+# v1.2: one proposition per case.
+results["rocket_bound_true"] = all(ratios[w] <= np.exp(-theta) + 1e-9 for w in ratios) and abs(ratios[1.0] - np.exp(-theta)) < 1e-3
+results["rocket_constant_w_true"] = ok_closed
+results["rocket_constant_w_false"] = all(abs(ratios[w] - np.exp(-theta * w)) < 1e-3 for w in ratios)   # seeded: exp(-theta w) instead of exp(-theta / w)
 
 # --- D1/D2: gradient of a harmonic function is subharmonic ------------------
 x, y, z = sp.symbols("x y z", real=True)
@@ -91,6 +103,9 @@ Q = 4 * sp.pi * (q3 * T3s + q8 * T8s)
 expected = {-2 * sp.pi * sp.I * (q3 + q8 / sp.sqrt(3)), 2 * sp.pi * sp.I * (q3 - q8 / sp.sqrt(3)), 4 * sp.pi * sp.I * q8 / sp.sqrt(3)}
 actual = list(Q.eigenvals().keys())
 results["su3_charge_spectrum_true"] = all(any(sp.simplify(a - e) == 0 for e in expected) for a in actual) and sp.simplify(sum(expected)) == 0
+# v1.2 seeded false: third eigenvalue with half the coefficient.
+expected_false = {-2 * sp.pi * sp.I * (q3 + q8 / sp.sqrt(3)), 2 * sp.pi * sp.I * (q3 - q8 / sp.sqrt(3)), 2 * sp.pi * sp.I * q8 / sp.sqrt(3)}
+results["su3_charge_spectrum_false"] = all(any(sp.simplify(a - e) == 0 for e in expected_false) for a in actual)
 print("su2 F_theta_phi =", F, "| su3 eigenvalues:", actual)
 
 for key, val in results.items():

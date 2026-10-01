@@ -1,0 +1,9 @@
+mobius N=4 W=2 phi=1/2: E0=-3.000000 S=3.5000 (S_max=3.5)
+mobius N=4 W=2 phi=0  : E0=-2.836822 S=0.5000
+cylinder N=4 W=2 phi=0: E0=-3.000000 S=3.5000
+mobius_nagaoka_saturated_true: TRUE
+mobius_nagaoka_wrong_flux_false: FALSE
+
+real	0m2.768s
+user	0m0.016s
+sys	0m0.015s

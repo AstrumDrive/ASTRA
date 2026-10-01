@@ -356,7 +356,12 @@ deliberación y ninguno por un veredicto equivocado:
   Kondo (cuatro normas por dos espines; el ciclo probó solo B_1), la pared
   plana (probó solo ρ = 0) y los dos de quench. En los cuatro el validador
   fue correcto en lo que probó y el re-anclaje se negó a certificar el
-  resto. Es el corpus el que debe pedir una proposición por caso (v1.2).
+  resto. Es el corpus el que debe pedir una proposición por caso. Hecho
+  la misma tarde: v1.2 (`benchmarks/quality/research/cycle/research_v1_2.json`,
+  generado por `build_research_v1_2.py`), 50 casos, 29 verdaderos y 21
+  falsos sembrados, cada uno con una sola proposición y su clave propia en
+  los scripts de referencia; la v1.1 queda archivada en `history/v1_1/`.
+  Sin correr aún.
 - `res_gr_static_shell_true`, el caso con el enunciado corregido a m' > 0,
   terminó en `REVIEW_REJECTED`: el revisor sostuvo que sustituir N'' por la
   derivada de la relación del lapso asume p_r = 0 en un entorno y no solo

@@ -1,0 +1,1385 @@
+[
+  {
+    "id": "res_kondo_norm_b0_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (B_{0,sigma}|B_{0,sigma}) = 3/4 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (B_{0,sigma}|B_{0,sigma}) = 3/4 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norm_b0_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_two_orbital_norms_true"
+    }
+  },
+  {
+    "id": "res_kondo_norm_b0_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (B_{0,sigma}|B_{0,sigma}) = 3/8 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (B_{0,sigma}|B_{0,sigma}) = 3/8 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norm_b0_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the true value is 3/4"
+    }
+  },
+  {
+    "id": "res_kondo_norm_b1_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (B_{1,sigma}|B_{1,sigma}) = 3/4 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (B_{1,sigma}|B_{1,sigma}) = 3/4 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norm_b1_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_two_orbital_norms_true"
+    }
+  },
+  {
+    "id": "res_kondo_norm_c0_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (C_{0,sigma}|C_{0,sigma}) = 3/8 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (C_{0,sigma}|C_{0,sigma}) = 3/8 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norm_c0_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_two_orbital_norms_true"
+    }
+  },
+  {
+    "id": "res_kondo_norm_c1_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (C_{1,sigma}|C_{1,sigma}) = 3/16 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (C_{1,sigma}|C_{1,sigma}) = 3/16 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norm_c1_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_two_orbital_norms_true"
+    }
+  },
+  {
+    "id": "res_kondo_c1_norm_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether (C_{1,sigma}|C_{1,sigma}) = 3/8 for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: (C_{1,sigma}|C_{1,sigma}) = 3/8 for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_c1_norm_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the true value is 3/16"
+    }
+  },
+  {
+    "id": "res_kondo_b1_commutator_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [B_{1,sigma}, H_J] = -i J C_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [B_{1,sigma}, H_J] = -i J C_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_b1_commutator_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_kondo_b1_commutator_sign_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [B_{1,sigma}, H_J] = +i J C_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [B_{1,sigma}, H_J] = +i J C_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_b1_commutator_sign_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the true identity has -i J"
+    }
+  },
+  {
+    "id": "res_kondo_x1_commutator_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [X_{1,sigma}, H_J] = 0 holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [X_{1,sigma}, H_J] = 0 exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_x1_commutator_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_exchange_block_true"
+    }
+  },
+  {
+    "id": "res_kondo_x1_commutator_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [X_{1,sigma}, H_J] = -i J C_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [X_{1,sigma}, H_J] = -i J C_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_x1_commutator_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "X_1 commutes with H_J; -i J C_1 is the commutator of B_1"
+    }
+  },
+  {
+    "id": "res_kondo_y1_commutator_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [Y_{1,sigma}, H_J] = -2 i J C_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [Y_{1,sigma}, H_J] = -2 i J C_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_y1_commutator_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_exchange_block_true"
+    }
+  },
+  {
+    "id": "res_kondo_y1_commutator_sign_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [Y_{1,sigma}, H_J] = +2 i J C_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [Y_{1,sigma}, H_J] = +2 i J C_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_y1_commutator_sign_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "sign reversed"
+    }
+  },
+  {
+    "id": "res_kondo_c1_commutator_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [C_{1,sigma}, H_J] = (i J / 2) Y_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [C_{1,sigma}, H_J] = (i J / 2) Y_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_c1_commutator_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_kondo_exchange_block_true"
+    }
+  },
+  {
+    "id": "res_kondo_c1_commutator_x1_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether [C_{1,sigma}, H_J] = (i J / 2) X_{1,sigma} holds exactly for sigma = up and for sigma = dn in the two-orbital Kondo model defined below.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}, with b, c over up, dn. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a nonzero real constant. Composite operators, with the operator product written in the order shown and the spinor index b running over up, dn: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}; C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k with j, k over x, y, z; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}, double-occupancy projector P_{2,0} = n_{0up} n_{0dn}, single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}; U_{1,sigma} = B_{1,sigma} P_{1,0}; X_{1,sigma} = U_{1,sigma} + F_{1,sigma}; Y_{1,sigma} = U_{1,sigma} - F_{1,sigma}. Infinite-temperature metric (A|B) = Tr{A, B^dagger} / 32, with {., .} the anticommutator. Commutator [X, Y] = XY - YX. Claim: [C_{1,sigma}, H_J] = (i J / 2) X_{1,sigma} exactly, for sigma = up and for sigma = dn. Decide it by building every operator as an explicit 32 x 32 matrix and comparing exactly.",
+    "success_criteria": [
+      "Construct the Jordan-Wigner fermions, the impurity spin and the composite operators as explicit 32 x 32 matrices.",
+      "Compare exactly (trace or entrywise) and report the maximum deviation."
+    ],
+    "failure_modes": [
+      "Omit the fermion factor or change the stated product order.",
+      "Check only one spin component."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex (04_tests/verify_two_orbital_algebra.py, 03_equations/KNOWN_EXACT_RESULTS.md)",
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_c1_commutator_x1_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the true right-hand side is (iJ/2) Y_1"
+    }
+  },
+  {
+    "id": "res_gr_planar_wall_rho_zero_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian energy density of the planar shift metric defined below vanishes identically for every smooth b(t, x).",
+    "intuition": "Coordinates (t, x, y, z). Metric ds^2 = -dt^2 + (dx - b(t,x) dt)^2 + dy^2 + dz^2, i.e. g_tt = -1 + b^2, g_tx = g_xt = -b, g_xx = g_yy = g_zz = 1, all other components zero, with b = b(t, x) an arbitrary smooth function, G = c = 1. Eulerian (normal) observer n^mu = (1, b, 0, 0). Energy density rho = G_{mu nu} n^mu n^nu / (8 pi); transverse pressures p_y = G_yy / (8 pi), p_z = G_zz / (8 pi); b_t = d b / dt, b_x = d b / dx. Claim: rho = 0 identically for every smooth b(t, x). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/planar_fast.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_planar_wall_rho_zero_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_planar_wall_true"
+    }
+  },
+  {
+    "id": "res_gr_planar_wall_rho_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian energy density of the planar shift metric defined below equals -(b_x)^2 / (16 pi) for every smooth b(t, x).",
+    "intuition": "Coordinates (t, x, y, z). Metric ds^2 = -dt^2 + (dx - b(t,x) dt)^2 + dy^2 + dz^2, i.e. g_tt = -1 + b^2, g_tx = g_xt = -b, g_xx = g_yy = g_zz = 1, all other components zero, with b = b(t, x) an arbitrary smooth function, G = c = 1. Eulerian (normal) observer n^mu = (1, b, 0, 0). Energy density rho = G_{mu nu} n^mu n^nu / (8 pi); transverse pressures p_y = G_yy / (8 pi), p_z = G_zz / (8 pi); b_t = d b / dt, b_x = d b / dx. Claim: rho = -(b_x)^2 / (16 pi) identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/planar_fast.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_planar_wall_rho_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "rho vanishes identically for a planar wall"
+    }
+  },
+  {
+    "id": "res_gr_planar_wall_gxx_zero_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the coordinate component G_xx of the Einstein tensor of the planar shift metric defined below vanishes identically for every smooth b(t, x).",
+    "intuition": "Coordinates (t, x, y, z). Metric ds^2 = -dt^2 + (dx - b(t,x) dt)^2 + dy^2 + dz^2, i.e. g_tt = -1 + b^2, g_tx = g_xt = -b, g_xx = g_yy = g_zz = 1, all other components zero, with b = b(t, x) an arbitrary smooth function, G = c = 1. Eulerian (normal) observer n^mu = (1, b, 0, 0). Energy density rho = G_{mu nu} n^mu n^nu / (8 pi); transverse pressures p_y = G_yy / (8 pi), p_z = G_zz / (8 pi); b_t = d b / dt, b_x = d b / dx. Claim: G_xx = 0 identically for every smooth b(t, x). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/planar_fast.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_planar_wall_gxx_zero_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_planar_wall_true"
+    }
+  },
+  {
+    "id": "res_gr_planar_wall_transverse_pressure_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the transverse pressures of the planar shift metric defined below satisfy p_y = p_z = -(1/(8 pi)) d/dx (b_t + b b_x) for every smooth b(t, x).",
+    "intuition": "Coordinates (t, x, y, z). Metric ds^2 = -dt^2 + (dx - b(t,x) dt)^2 + dy^2 + dz^2, i.e. g_tt = -1 + b^2, g_tx = g_xt = -b, g_xx = g_yy = g_zz = 1, all other components zero, with b = b(t, x) an arbitrary smooth function, G = c = 1. Eulerian (normal) observer n^mu = (1, b, 0, 0). Energy density rho = G_{mu nu} n^mu n^nu / (8 pi); transverse pressures p_y = G_yy / (8 pi), p_z = G_zz / (8 pi); b_t = d b / dt, b_x = d b / dx. Claim: p_y = p_z = -(1/(8 pi)) d/dx (b_t + b b_x) identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/planar_fast.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_planar_wall_transverse_pressure_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_planar_wall_true"
+    }
+  },
+  {
+    "id": "res_gr_planar_wall_transverse_pressure_sign_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the transverse pressures of the planar shift metric defined below satisfy p_y = p_z = +(1/(8 pi)) d/dx (b_t + b b_x) for every smooth b(t, x).",
+    "intuition": "Coordinates (t, x, y, z). Metric ds^2 = -dt^2 + (dx - b(t,x) dt)^2 + dy^2 + dz^2, i.e. g_tt = -1 + b^2, g_tx = g_xt = -b, g_xx = g_yy = g_zz = 1, all other components zero, with b = b(t, x) an arbitrary smooth function, G = c = 1. Eulerian (normal) observer n^mu = (1, b, 0, 0). Energy density rho = G_{mu nu} n^mu n^nu / (8 pi); transverse pressures p_y = G_yy / (8 pi), p_z = G_zz / (8 pi); b_t = d b / dt, b_x = d b / dx. Claim: p_y = p_z = +(1/(8 pi)) d/dx (b_t + b b_x) identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/planar_fast.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_planar_wall_transverse_pressure_sign_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "sign reversed"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_rho_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether rho = m'(R) / (4 pi R^2) for the static spherically symmetric metric defined below, for arbitrary smooth m(R) and N(R).",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: rho = m'(R) / (4 pi R^2) for arbitrary smooth m(R), N(R). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_rho_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_static_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_lapse_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the static spherically symmetric metric defined below, p_r = 0 holds if and only if N'/N = m / (R (R - 2m)).",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: p_r = 0 if and only if N'/N = m / (R (R - 2m)). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_lapse_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_static_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_pperp_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the static spherically symmetric metric defined below with vanishing radial pressure, p_perp = rho m / (2 (R - 2m)).",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: with vanishing radial pressure, p_perp = rho m / (2 (R - 2m)). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_pperp_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_static_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_pperp_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the static spherically symmetric metric defined below with vanishing radial pressure, p_perp = rho m / (R - 2m).",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: with vanishing radial pressure, p_perp = rho m / (R - 2m). Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_pperp_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the factor 2 in the denominator is missing"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_dec_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the static spherically symmetric metric defined below with vanishing radial pressure and m' > 0, the dominant energy condition p_perp <= rho holds if and only if 2m/R <= 4/5.",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: with vanishing radial pressure and m' > 0 (so rho > 0), p_perp <= rho if and only if 2m/R <= 4/5. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim.",
+      "Derive p_perp / rho in closed form under p_r = 0 and solve p_perp = rho for 2m/R exactly."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_dec_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_static_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_static_shell_dec_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the static spherically symmetric metric defined below with vanishing radial pressure and m' > 0, the dominant energy condition p_perp <= rho holds if and only if 2m/R <= 2/3.",
+    "intuition": "Static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2, i.e. g_TT = -N^2, g_RR = 1/(1 - 2m/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions and R > 2m, G = c = 1. Mixed components define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). 'Vanishing radial pressure' means p_r = 0 holds as an equation on the whole range of R considered, so it may be differentiated. Claim: with vanishing radial pressure and m' > 0 (so rho > 0), p_perp <= rho if and only if 2m/R <= 2/3. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim.",
+      "Derive p_perp / rho in closed form under p_r = 0 and solve p_perp = rho for 2m/R exactly."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_dec_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the exact threshold is 2m/R = 4/5"
+    }
+  },
+  {
+    "id": "res_gr_kinnersley_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Einstein tensor of the Kinnersley photon-rocket metric defined below has G_uu = 2 (3 m a cos theta - m') / r^2 and every other component zero, for arbitrary smooth m(u), a(u).",
+    "intuition": "Coordinates (u, r, theta, phi). Nonzero metric components: g_uu = -(1 - 2 m(u)/r - 2 a(u) r cos theta - a(u)^2 r^2 sin^2 theta), g_ur = g_ru = -1, g_u theta = g_theta u = a(u) r^2 sin theta, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta; all other components vanish; m(u), a(u) arbitrary smooth, G = c = 1; m' = dm/du. Claim: G_uu = 2 (3 m a cos theta - m') / r^2 and every other component of G_{mu nu} vanishes identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_acceleration_dec.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_kinnersley_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_gr_kinnersley_sign_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Einstein tensor of the Kinnersley photon-rocket metric defined below has G_uu = 2 (m' - 3 m a cos theta) / r^2 for arbitrary smooth m(u), a(u).",
+    "intuition": "Coordinates (u, r, theta, phi). Nonzero metric components: g_uu = -(1 - 2 m(u)/r - 2 a(u) r cos theta - a(u)^2 r^2 sin^2 theta), g_ur = g_ru = -1, g_u theta = g_theta u = a(u) r^2 sin theta, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta; all other components vanish; m(u), a(u) arbitrary smooth, G = c = 1; m' = dm/du. Claim: G_uu = 2 (m' - 3 m a cos theta) / r^2. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_acceleration_dec.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_kinnersley_sign_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "overall sign reversed"
+    }
+  },
+  {
+    "id": "res_gr_unit_lapse_rho_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian energy density of the unit-lapse metric defined below is rho = beta (2 r beta' + beta) / (8 pi r^2) for every smooth beta(r).",
+    "intuition": "Coordinates (t, r, theta, phi). Metric ds^2 = -dt^2 + (dr - beta(r) dt)^2 + r^2 dOmega^2, i.e. g_tt = -1 + beta^2, g_tr = g_rt = -beta, g_rr = 1, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta, with beta = beta(r) an arbitrary smooth function, beta' = d beta / dr, G = c = 1. Eulerian observer n^mu = (1, beta, 0, 0); unit radial vector orthogonal to n: e_r^mu = (0, 1, 0, 0). rho = G_{mu nu} n^mu n^nu / (8 pi), p_r = G_{mu nu} e_r^mu e_r^nu / (8 pi), flux = -G_{mu nu} n^mu e_r^nu / (8 pi). Claim: rho = beta (2 r beta' + beta) / (8 pi r^2) identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/hollow-core-energy-conditions-reproducibility/derivations/verify_obstruction.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_unit_lapse_rho_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_unit_lapse_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_unit_lapse_rho_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian energy density of the unit-lapse metric defined below is rho = beta (r beta' + beta) / (8 pi r^2) for every smooth beta(r).",
+    "intuition": "Coordinates (t, r, theta, phi). Metric ds^2 = -dt^2 + (dr - beta(r) dt)^2 + r^2 dOmega^2, i.e. g_tt = -1 + beta^2, g_tr = g_rt = -beta, g_rr = 1, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta, with beta = beta(r) an arbitrary smooth function, beta' = d beta / dr, G = c = 1. Eulerian observer n^mu = (1, beta, 0, 0); unit radial vector orthogonal to n: e_r^mu = (0, 1, 0, 0). rho = G_{mu nu} n^mu n^nu / (8 pi), p_r = G_{mu nu} e_r^mu e_r^nu / (8 pi), flux = -G_{mu nu} n^mu e_r^nu / (8 pi). Claim: rho = beta (r beta' + beta) / (8 pi r^2) identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/hollow-core-energy-conditions-reproducibility/derivations/verify_obstruction.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_unit_lapse_rho_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the true numerator has 2 r beta'"
+    }
+  },
+  {
+    "id": "res_gr_unit_lapse_pr_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian radial pressure of the unit-lapse metric defined below satisfies p_r = -rho identically for every smooth beta(r).",
+    "intuition": "Coordinates (t, r, theta, phi). Metric ds^2 = -dt^2 + (dr - beta(r) dt)^2 + r^2 dOmega^2, i.e. g_tt = -1 + beta^2, g_tr = g_rt = -beta, g_rr = 1, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta, with beta = beta(r) an arbitrary smooth function, beta' = d beta / dr, G = c = 1. Eulerian observer n^mu = (1, beta, 0, 0); unit radial vector orthogonal to n: e_r^mu = (0, 1, 0, 0). rho = G_{mu nu} n^mu n^nu / (8 pi), p_r = G_{mu nu} e_r^mu e_r^nu / (8 pi), flux = -G_{mu nu} n^mu e_r^nu / (8 pi). Claim: p_r + rho = 0 identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/hollow-core-energy-conditions-reproducibility/derivations/verify_obstruction.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_unit_lapse_pr_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_unit_lapse_shell_true"
+    }
+  },
+  {
+    "id": "res_gr_unit_lapse_shell_pr_false",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian radial pressure of the unit-lapse metric defined below satisfies p_r = rho identically for every smooth beta(r).",
+    "intuition": "Coordinates (t, r, theta, phi). Metric ds^2 = -dt^2 + (dr - beta(r) dt)^2 + r^2 dOmega^2, i.e. g_tt = -1 + beta^2, g_tr = g_rt = -beta, g_rr = 1, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta, with beta = beta(r) an arbitrary smooth function, beta' = d beta / dr, G = c = 1. Eulerian observer n^mu = (1, beta, 0, 0); unit radial vector orthogonal to n: e_r^mu = (0, 1, 0, 0). rho = G_{mu nu} n^mu n^nu / (8 pi), p_r = G_{mu nu} e_r^mu e_r^nu / (8 pi), flux = -G_{mu nu} n^mu e_r^nu / (8 pi). Claim: p_r = rho identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/hollow-core-energy-conditions-reproducibility/derivations/verify_obstruction.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_unit_lapse_shell_pr_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the identity is p_r = -rho"
+    }
+  },
+  {
+    "id": "res_gr_unit_lapse_flux_true",
+    "track": "cycle",
+    "domain": "general_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Eulerian energy flux of the unit-lapse metric defined below vanishes identically for every smooth beta(r).",
+    "intuition": "Coordinates (t, r, theta, phi). Metric ds^2 = -dt^2 + (dr - beta(r) dt)^2 + r^2 dOmega^2, i.e. g_tt = -1 + beta^2, g_tr = g_rt = -beta, g_rr = 1, g_theta theta = r^2, g_phi phi = r^2 sin^2 theta, with beta = beta(r) an arbitrary smooth function, beta' = d beta / dr, G = c = 1. Eulerian observer n^mu = (1, beta, 0, 0); unit radial vector orthogonal to n: e_r^mu = (0, 1, 0, 0). rho = G_{mu nu} n^mu n^nu / (8 pi), p_r = G_{mu nu} e_r^mu e_r^nu / (8 pi), flux = -G_{mu nu} n^mu e_r^nu / (8 pi). Claim: flux = 0 identically. Derive the Einstein tensor symbolically for the generic function(s) in the metric and decide.",
+    "success_criteria": [
+      "Compute the Einstein tensor symbolically for generic metric functions, not for a sample profile.",
+      "State the exact expression obtained and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Test only a special profile or a single point.",
+      "Change a metric component or the observer."
+    ],
+    "timeout": 900,
+    "metadata": {
+      "provenance": "Dev/warp/hollow-core-energy-conditions-reproducibility/derivations/verify_obstruction.py",
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_unit_lapse_flux_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_gr_unit_lapse_shell_true"
+    }
+  },
+  {
+    "id": "res_quench_normalization_true",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the Bogoliubov coefficients of the sudden mass quench defined below satisfy alpha_k^2 - beta_k^2 = 1 for every real k.",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Claim: alpha_k^2 - beta_k^2 = 1 for every real k. Verify exactly.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_normalization_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_quench_bogoliubov_uv_true"
+    }
+  },
+  {
+    "id": "res_quench_uv_limit_true",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the occupation n_k of the sudden mass quench defined below satisfies k^4 n_k -> (m_f^2 - m_i^2)^2 / 16 as k -> infinity.",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Claim: lim_{k -> infinity} k^4 n_k = (m_f^2 - m_i^2)^2 / 16. Compute the exact limit.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_uv_limit_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_quench_bogoliubov_uv_true"
+    }
+  },
+  {
+    "id": "res_quench_uv_coefficient_false",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the occupation n_k of the sudden mass quench defined below satisfies k^4 n_k -> (m_f^2 - m_i^2)^2 / 8 as k -> infinity.",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Claim: lim_{k -> infinity} k^4 n_k = (m_f^2 - m_i^2)^2 / 8. Compute the exact limit; if false, state the correct coefficient.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_uv_coefficient_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the exact coefficient is 1/16"
+    }
+  },
+  {
+    "id": "res_quench_occupation_decreasing_true",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the sudden mass quench defined below with m_f = m_i + d and d > 0, the occupation n_k is strictly decreasing in k on (0, infinity).",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Write m_f = m_i + d with d > 0. Claim: n_k is strictly decreasing in k on (0, infinity), i.e. d n_k / dk < 0 for every k > 0. Establish the sign of the derivative analytically for all admissible m_i, d.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_occupation_decreasing_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_quench_occupation_monotone_true"
+    }
+  },
+  {
+    "id": "res_quench_occupation_limit_true",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the sudden mass quench defined below with m_f = m_i + d and d > 0, the occupation n_k tends to d^2 / (4 m_i (m_i + d)) as k -> 0.",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Write m_f = m_i + d with d > 0. Claim: lim_{k -> 0} n_k = d^2 / (4 m_i (m_i + d)). Compute the exact limit.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_occupation_limit_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_quench_occupation_monotone_true"
+    }
+  },
+  {
+    "id": "res_quench_occupation_vanishes_at_zero_false",
+    "track": "cycle",
+    "domain": "quantum_field_theory",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether, for the sudden mass quench defined below with m_f = m_i + d and d > 0, the occupation n_k tends to zero as k -> 0.",
+    "intuition": "A free scalar field mode of momentum k has frequency omega_i = sqrt(k^2 + m_i^2) before and omega_f = sqrt(k^2 + m_f^2) after a sudden change of mass m_i -> m_f, with m_i > 0 and m_f > 0. Matching the mode function and its time derivative across the quench gives the real Bogoliubov coefficients alpha_k = (omega_f + omega_i) / (2 sqrt(omega_i omega_f)) and beta_k = (omega_f - omega_i) / (2 sqrt(omega_i omega_f)); the occupation is n_k = beta_k^2. Write m_f = m_i + d with d > 0. Claim: lim_{k -> 0} n_k = 0. Compute the exact limit; if false, state its value.",
+    "success_criteria": [
+      "Work symbolically with the exact expressions; numbers only as a check.",
+      "State the exact result and compare it with the claim."
+    ],
+    "failure_modes": [
+      "Expand omega to first order only.",
+      "Sample a few values of k and extrapolate."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/quenched-scalar-field-keldysh-wigner-wavelet/output/para_Gabo_2026-09-10/auditoria_fisica (A1, A6)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::quench_occupation_vanishes_at_zero_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the limit is d^2/(4 m_i (m_i + d)) > 0"
+    }
+  },
+  {
+    "id": "res_rocket_bound_true",
+    "track": "cycle",
+    "domain": "special_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether a rocket in special relativity that reaches rapidity theta by ejecting exhaust backward always satisfies m_f / m_0 <= exp(-theta), whatever the exhaust.",
+    "intuition": "Units c = 1. A rocket of instantaneous rest mass m ejects exhaust backward along its line of motion; in the rocket's instantaneous rest frame the ejected element carries momentum dP and energy dE >= dP (equality for null exhaust), so the rest mass changes by dm = -dE and the rapidity by d theta = dP / m. Exhaust of constant speed w (0 < w <= 1) has dE = dP / w. Integrate from rest mass m_0 at rapidity 0 to rest mass m_f at rapidity theta. Claim: m_f / m_0 <= exp(-theta) for every admissible exhaust law. Prove it from the differential relations, and exhibit the equality case.",
+    "success_criteria": [
+      "Derive -dm/m >= d theta and integrate it.",
+      "Name the exhaust that attains equality."
+    ],
+    "failure_modes": [
+      "Use the non-relativistic rocket equation.",
+      "Confuse rapidity with velocity."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_B)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::rocket_bound_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_rocket_mass_bound_true"
+    }
+  },
+  {
+    "id": "res_rocket_mass_bound_reversed_false",
+    "track": "cycle",
+    "domain": "special_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether a rocket in special relativity that reaches rapidity theta by ejecting exhaust backward always satisfies m_f / m_0 >= exp(-theta), whatever the exhaust.",
+    "intuition": "Units c = 1. A rocket of instantaneous rest mass m ejects exhaust backward along its line of motion; in the rocket's instantaneous rest frame the ejected element carries momentum dP and energy dE >= dP (equality for null exhaust), so the rest mass changes by dm = -dE and the rapidity by d theta = dP / m. Exhaust of constant speed w (0 < w <= 1) has dE = dP / w. Integrate from rest mass m_0 at rapidity 0 to rest mass m_f at rapidity theta. Claim: m_f / m_0 >= exp(-theta) for every admissible exhaust law. Decide it; one admissible exhaust law that violates it refutes it.",
+    "success_criteria": [
+      "Produce an explicit exhaust law and its mass ratio compared with exp(-theta)."
+    ],
+    "failure_modes": [
+      "Check only the photon rocket, where equality holds."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_B)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::rocket_mass_bound_reversed_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the inequality runs the other way; massive exhaust gives a strictly smaller ratio"
+    }
+  },
+  {
+    "id": "res_rocket_constant_w_true",
+    "track": "cycle",
+    "domain": "special_relativity",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether exhaust ejected at constant speed w (0 < w <= 1) gives m_f / m_0 = exp(-theta / w) for the relativistic rocket defined below.",
+    "intuition": "Units c = 1. A rocket of instantaneous rest mass m ejects exhaust backward along its line of motion; in the rocket's instantaneous rest frame the ejected element carries momentum dP and energy dE >= dP (equality for null exhaust), so the rest mass changes by dm = -dE and the rapidity by d theta = dP / m. Exhaust of constant speed w (0 < w <= 1) has dE = dP / w. Integrate from rest mass m_0 at rapidity 0 to rest mass m_f at rapidity theta. Claim: for exhaust of constant speed w, m_f / m_0 = exp(-theta / w). Integrate the differential relations and confirm numerically.",
+    "success_criteria": [
+      "Integrate dm/m = -d theta / w exactly.",
+      "Confirm the closed form against a direct numerical integration at two values of w."
+    ],
+    "failure_modes": [
+      "Use dE = dP for massive exhaust.",
+      "Confuse w with the rocket's own velocity."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_B)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::rocket_constant_w_true",
+      "corpus": "research_v1_2",
+      "split_from": "res_rocket_mass_bound_true"
+    }
+  },
+  {
+    "id": "res_rocket_constant_w_false",
+    "track": "cycle",
+    "domain": "special_relativity",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether exhaust ejected at constant speed w (0 < w <= 1) gives m_f / m_0 = exp(-theta w) for the relativistic rocket defined below.",
+    "intuition": "Units c = 1. A rocket of instantaneous rest mass m ejects exhaust backward along its line of motion; in the rocket's instantaneous rest frame the ejected element carries momentum dP and energy dE >= dP (equality for null exhaust), so the rest mass changes by dm = -dE and the rapidity by d theta = dP / m. Exhaust of constant speed w (0 < w <= 1) has dE = dP / w. Integrate from rest mass m_0 at rapidity 0 to rest mass m_f at rapidity theta. Claim: for exhaust of constant speed w, m_f / m_0 = exp(-theta w). Integrate the differential relations; if false, give the correct closed form.",
+    "success_criteria": [
+      "Integrate dm/m = -d theta / w exactly and compare the two closed forms at w = 1/2."
+    ],
+    "failure_modes": [
+      "Test only w = 1, where both forms agree."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_B)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::rocket_constant_w_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the exponent is -theta / w"
+    }
+  },
+  {
+    "id": "res_harmonic_gradient_subharmonic_true",
+    "track": "cycle",
+    "domain": "analysis",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether Laplacian(|grad alpha|^2) = 2 |Hess alpha|^2 holds for every harmonic alpha on an open set of R^3.",
+    "intuition": "Let alpha(x, y, z) be smooth on an open set of R^3 with alpha_xx + alpha_yy + alpha_zz = 0 (harmonic). Write |grad alpha|^2 = alpha_x^2 + alpha_y^2 + alpha_z^2 and |Hess alpha|^2 = sum_{i,j} (alpha_{ij})^2, the sum of the squares of all second partial derivatives. Claim: Laplacian(|grad alpha|^2) = 2 |Hess alpha|^2 for every harmonic alpha. Give a derivation valid for every harmonic alpha and check it on concrete harmonic functions.",
+    "success_criteria": [
+      "Derive the identity symbolically using only the Laplace equation.",
+      "Check it on at least two concrete harmonic functions."
+    ],
+    "failure_modes": [
+      "Verify only polynomial examples and stop.",
+      "Forget the term grad alpha . grad(Laplacian alpha)."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_D)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::harmonic_gradient_subharmonic_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_harmonic_gradient_factor_false",
+    "track": "cycle",
+    "domain": "analysis",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether Laplacian(|grad alpha|^2) = |Hess alpha|^2 holds for every harmonic alpha on an open set of R^3.",
+    "intuition": "Let alpha(x, y, z) be smooth on an open set of R^3 with alpha_xx + alpha_yy + alpha_zz = 0 (harmonic). Write |grad alpha|^2 = alpha_x^2 + alpha_y^2 + alpha_z^2 and |Hess alpha|^2 = sum_{i,j} (alpha_{ij})^2, the sum of the squares of all second partial derivatives. Claim: Laplacian(|grad alpha|^2) = |Hess alpha|^2 for every harmonic alpha. Decide it; if false, give the correct factor and a harmonic alpha that exhibits the discrepancy.",
+    "success_criteria": [
+      "Exhibit a harmonic function for which the two sides differ, with both sides computed exactly."
+    ],
+    "failure_modes": [
+      "Pick alpha linear, where both sides vanish."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/warp/high_speed_subluminal_warp/outputs/unified_theorem_checks_20260918_local.json (theorem_D)",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::harmonic_gradient_factor_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the correct factor is 2"
+    }
+  },
+  {
+    "id": "res_su2_wu_yang_curvature_true",
+    "track": "cycle",
+    "domain": "gauge_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the angular curvature component F of the SU(2) potential defined below equals (w^2 - 1) sin(theta) T3 for every real w.",
+    "intuition": "Anti-Hermitian generators as explicit 2 x 2 matrices: T1 = [[0, -i/2], [-i/2, 0]], T2 = [[0, -1/2], [1/2, 0]], T3 = [[-i/2, 0], [0, i/2]]. Gauge potential components A_theta = w T1, A_phi = w sin(theta) T2 + cos(theta) T3, with w a real constant. The angular curvature component is F = d A_phi / d theta + (A_theta A_phi - A_phi A_theta). Claim: F = (w^2 - 1) sin(theta) T3 for all theta and all real w. Verify by explicit matrix computation.",
+    "success_criteria": [
+      "Compute the derivative and the commutator as explicit matrices and compare entrywise."
+    ],
+    "failure_modes": [
+      "Use Hermitian generators sigma/2 without the factor -i.",
+      "Evaluate at a single theta."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/spectral-smarr-sun/validate_spectral_smarr.py::check_wuyang_curvature",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::su2_wu_yang_curvature_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_su2_wu_yang_curvature_sign_false",
+    "track": "cycle",
+    "domain": "gauge_theory",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the angular curvature component F of the SU(2) potential defined below equals (1 - w^2) sin(theta) T3 for every real w.",
+    "intuition": "Anti-Hermitian generators as explicit 2 x 2 matrices: T1 = [[0, -i/2], [-i/2, 0]], T2 = [[0, -1/2], [1/2, 0]], T3 = [[-i/2, 0], [0, i/2]]. Gauge potential components A_theta = w T1, A_phi = w sin(theta) T2 + cos(theta) T3, with w a real constant. The angular curvature component is F = d A_phi / d theta + (A_theta A_phi - A_phi A_theta). Claim: F = (1 - w^2) sin(theta) T3 for all theta and all real w. Decide by explicit matrix computation; if false, give the correct right-hand side.",
+    "success_criteria": [
+      "Compute F exactly and compare with both candidate signs."
+    ],
+    "failure_modes": [
+      "Test w = 1 or w = -1 only, where both sides vanish."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/spectral-smarr-sun/validate_spectral_smarr.py::check_wuyang_curvature",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::su2_wu_yang_curvature_sign_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "overall sign reversed"
+    }
+  },
+  {
+    "id": "res_su3_charge_spectrum_true",
+    "track": "cycle",
+    "domain": "gauge_theory",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the matrix Q defined below has eigenvalues -2 pi i (q3 + q8 / sqrt 3), 2 pi i (q3 - q8 / sqrt 3) and 4 pi i q8 / sqrt 3 for all real q3, q8.",
+    "intuition": "Explicit 3 x 3 matrices T3 = -i diag(1, -1, 0) / 2 and T8 = -i diag(1, 1, -2) / (2 sqrt 3), the anti-Hermitian Cartan generators of su(3). Q = 4 pi (q3 T3 + q8 T8) with q3, q8 real parameters. Claim: the eigenvalues of Q are exactly -2 pi i (q3 + q8 / sqrt 3), 2 pi i (q3 - q8 / sqrt 3) and 4 pi i q8 / sqrt 3. Verify symbolically for generic q3, q8.",
+    "success_criteria": [
+      "Compute the eigenvalues symbolically and match each stated expression."
+    ],
+    "failure_modes": [
+      "Compare numerically at one point only."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/spectral-smarr-sun/validate_spectral_smarr.py::check_su3_spectrum",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::su3_charge_spectrum_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_su3_charge_spectrum_false",
+    "track": "cycle",
+    "domain": "gauge_theory",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the matrix Q defined below has eigenvalues -2 pi i (q3 + q8 / sqrt 3), 2 pi i (q3 - q8 / sqrt 3) and 2 pi i q8 / sqrt 3 for all real q3, q8.",
+    "intuition": "Explicit 3 x 3 matrices T3 = -i diag(1, -1, 0) / 2 and T8 = -i diag(1, 1, -2) / (2 sqrt 3), the anti-Hermitian Cartan generators of su(3). Q = 4 pi (q3 T3 + q8 T8) with q3, q8 real parameters. Claim: the eigenvalues of Q are exactly -2 pi i (q3 + q8 / sqrt 3), 2 pi i (q3 - q8 / sqrt 3) and 2 pi i q8 / sqrt 3. Decide symbolically; if false, give the correct third eigenvalue.",
+    "success_criteria": [
+      "Compute the eigenvalues symbolically and compare each with the stated expressions."
+    ],
+    "failure_modes": [
+      "Check only tracelessness, which the false set violates but a wrong set could satisfy."
+    ],
+    "timeout": 300,
+    "metadata": {
+      "provenance": "Dev/physics/spectral-smarr-sun/validate_spectral_smarr.py::check_su3_spectrum",
+      "reference": "benchmarks/quality/research/reference/misc_reference.py::su3_charge_spectrum_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "the third eigenvalue is 4 pi i q8 / sqrt 3"
+    }
+  },
+  {
+    "id": "res_mobius_nagaoka_saturated_true",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "VALIDATED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the ground state of the one-hole infinite-U Hubbard model on the Mobius strip G(4, 2, 1) defined below, with flux phi = 1/2, has total spin S = 7/2.",
+    "intuition": "Lattice G(N, W, b) with N = 4, W = 2, b = 1: sites (n, m) with 0 <= n < 4 and 0 <= m < 2; nearest-neighbour bonds (n, m)-(n, m+1) across the strip and (n, m)-(n+1, m) along it; the longitudinal closure glues (N, m) to (0, W - 1 - m) (Mobius twist). Hamiltonian H = -t sum over bonds and spins of u_xy c^dagger_{x sigma} c_{y sigma} + h.c., t > 0, with exactly one hole (7 electrons on 8 sites) and infinite on-site repulsion (no double occupancy). The U(1) link variables u_xy are flat on every local square and carry total holonomy exp(2 pi i phi) around one longitudinal winding; a valid gauge puts the phase exp(2 pi i phi) on the four seam bonds (3, m)-(0, W - 1 - m) and 1 elsewhere. Claim: for phi = 1/2 the ground state has total spin S = 7/2. Decide by exact diagonalization of the 1024-dimensional one-hole space.",
+    "success_criteria": [
+      "Build the one-hole Hamiltonian with the stated flux gauge and the fermionic signs of the hole hopping.",
+      "Compute the ground-state energy of every S_z sector and the total spin of the global ground state."
+    ],
+    "failure_modes": [
+      "Omit the fermionic sign of the hole hopping.",
+      "Break flatness on the seam squares when placing the flux."
+    ],
+    "timeout": 600,
+    "metadata": {
+      "provenance": "Dev/physics/mobius_geometric_spin_transport/MOBIUS_NAGAOKA_THEOREM.md",
+      "reference": "benchmarks/quality/research/reference/mobius_reference.py::mobius_nagaoka_saturated_true",
+      "corpus": "research_v1_2"
+    }
+  },
+  {
+    "id": "res_mobius_nagaoka_wrong_flux_false",
+    "track": "cycle",
+    "domain": "condensed_matter",
+    "difficulty": "research",
+    "expected": "REFUTED",
+    "tags": [
+      "research",
+      "v1.2"
+    ],
+    "objective": "Determine whether the ground state of the one-hole infinite-U Hubbard model on the Mobius strip G(4, 2, 1) defined below, with zero flux, has total spin S = 7/2.",
+    "intuition": "Lattice G(N, W, b) with N = 4, W = 2, b = 1: sites (n, m) with 0 <= n < 4 and 0 <= m < 2; nearest-neighbour bonds (n, m)-(n, m+1) across the strip and (n, m)-(n+1, m) along it; the longitudinal closure glues (N, m) to (0, W - 1 - m) (Mobius twist). Hamiltonian H = -t sum over bonds and spins of u_xy c^dagger_{x sigma} c_{y sigma} + h.c., t > 0, with exactly one hole (7 electrons on 8 sites) and infinite on-site repulsion (no double occupancy). The U(1) link variables u_xy are flat on every local square and carry total holonomy exp(2 pi i phi) around one longitudinal winding; a valid gauge puts the phase exp(2 pi i phi) on the four seam bonds (3, m)-(0, W - 1 - m) and 1 elsewhere. Claim: for phi = 0 (all link variables equal to 1) the ground state has total spin S = 7/2. Decide by exact diagonalization of the 1024-dimensional one-hole space; if false, report the actual ground-state spin.",
+    "success_criteria": [
+      "Build the one-hole Hamiltonian with the stated flux gauge and the fermionic signs of the hole hopping.",
+      "Compute the ground-state energy of every S_z sector and the total spin of the global ground state."
+    ],
+    "failure_modes": [
+      "Omit the fermionic sign of the hole hopping.",
+      "Break flatness on the seam squares when placing the flux."
+    ],
+    "timeout": 600,
+    "metadata": {
+      "provenance": "Dev/physics/mobius_geometric_spin_transport/MOBIUS_NAGAOKA_THEOREM.md",
+      "reference": "benchmarks/quality/research/reference/mobius_reference.py::mobius_nagaoka_wrong_flux_false",
+      "corpus": "research_v1_2",
+      "seeded_error": "at phi = 0 exact diagonalization gives S = 1/2"
+    }
+  }
+]

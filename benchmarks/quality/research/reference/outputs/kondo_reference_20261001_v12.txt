@@ -1,0 +1,17 @@
+norms: {'B0': np.float64(0.75), 'B1': np.float64(0.75), 'C0': np.float64(0.375), 'C1': np.float64(0.1875)}
+kondo_norms_true: TRUE
+kondo_c1_norm_false: FALSE
+kondo_b1_commutator_true: TRUE
+kondo_b1_commutator_sign_false: FALSE
+kondo_exchange_block_true: TRUE
+kondo_c1_commutator_x1_false: FALSE
+kondo_norm_b0_true: TRUE
+kondo_norm_b1_true: TRUE
+kondo_norm_c0_true: TRUE
+kondo_norm_c1_true: TRUE
+kondo_norm_b0_false: FALSE
+kondo_x1_commutator_true: TRUE
+kondo_x1_commutator_false: FALSE
+kondo_y1_commutator_true: TRUE
+kondo_y1_commutator_sign_false: FALSE
+kondo_c1_commutator_true: TRUE
