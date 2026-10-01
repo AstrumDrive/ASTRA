@@ -1,0 +1,52 @@
+metric                                no-ensemble    no-ensemble
+Scientific strict accuracy                 0.5926         0.7407
+Scientific balanced accuracy               0.6017         0.7446
+False acceptance rate                         0.0            0.0
+Operational failure rate                   0.1481         0.1111
+Validator defect recall                      None           None
+Critical defect recall                       None           None
+Execution verdict accuracy                   None           None
+Cross-run/oracle agreement                   None           None
+Latency p50 / p95 (s)              360.328 / 1121.714 418.204 / 1056.47
+total wall (min)                            206.6          224.5
+median case (s)                               360            418
+recorded cost (usd-eq, n)                0.00 (0)       0.00 (0)
+
+case                                                 expected   no-ensemble  no-ensemble    s_a   s_b
+res_harmonic_gradient_factor_false                   REFUTED        REFUTED      REFUTED    166   140
+res_harmonic_gradient_subharmonic_true               VALIDATED    VALIDATED    VALIDATED    273   418
+res_kondo_b1_commutator_sign_false                   REFUTED        REFUTED      REFUTED    304   236
+res_kondo_b1_commutator_true                         VALIDATED NON_DECIDABLE    VALIDATED    216   439  <- only no-ensemble
+res_kondo_c1_commutator_x1_false                     REFUTED      API_ERROR      REFUTED    360   287  <- only no-ensemble
+res_kondo_c1_norm_false                              REFUTED      API_ERROR      REFUTED    488   371  <- only no-ensemble
+res_kondo_exchange_block_true                        VALIDATED NON_DECIDABLE    VALIDATED    327   268  <- only no-ensemble
+res_kondo_two_orbital_norms_true                     VALIDATED NON_DECIDABLE INCONCLUSIVE    366   214
+res_mobius_nagaoka_saturated_true                    VALIDATED    VALIDATED    VALIDATED    895  1083
+res_mobius_nagaoka_wrong_flux_false                  REFUTED        REFUTED REVIEW_REJECTED   1198   994  <- only no-ensemble
+res_su2_wu_yang_curvature_sign_false                 REFUTED        REFUTED      REFUTED    191   174
+res_su2_wu_yang_curvature_true                       VALIDATED    API_ERROR    VALIDATED    480   210  <- only no-ensemble
+res_su3_charge_spectrum_true                         VALIDATED    VALIDATED    VALIDATED    138   147
+res_gr_kinnersley_sign_false                         REFUTED        REFUTED      REFUTED    348   567
+res_gr_kinnersley_true                               VALIDATED    VALIDATED    VALIDATED    329   248
+res_gr_planar_wall_rho_false                         REFUTED        REFUTED      REFUTED    220   420
+res_gr_planar_wall_true                              VALIDATED INCONCLUSIVE INCONCLUSIVE    599   412
+res_gr_static_shell_dec_false                        REFUTED        REFUTED    API_ERROR    537  1743  <- only no-ensemble
+res_gr_static_shell_true                             VALIDATED      REFUTED REVIEW_REJECTED    367   695
+res_gr_unit_lapse_shell_pr_false                     REFUTED        REFUTED      REFUTED    290   597
+res_gr_unit_lapse_shell_true                         VALIDATED    API_ERROR    VALIDATED   1424   488  <- only no-ensemble
+res_quench_bogoliubov_uv_true                        VALIDATED INCONCLUSIVE INCONCLUSIVE    174   347
+res_quench_occupation_monotone_true                  VALIDATED INCONCLUSIVE INCONCLUSIVE    568   722
+res_quench_occupation_vanishes_at_zero_false         REFUTED        REFUTED      REFUTED    943   459
+res_quench_uv_coefficient_false                      REFUTED        REFUTED      REFUTED    288   238
+res_rocket_mass_bound_reversed_false                 REFUTED        REFUTED      REFUTED    395   873
+res_rocket_mass_bound_true                           VALIDATED    VALIDATED    VALIDATED    513   677
+
+both right 14 | only no-ensemble right 2 | only no-ensemble right 6 | n=27
+
+=== by script ===
+production 04:53 (v1 wording, before fix): {'n': 27, 'correct': 16, 'acc': 0.5926, 'false_accept': 0, 'false_refute': 1, 'observed': {'REFUTED': 12, 'VALIDATED': 5, 'NON_DECIDABLE': 3, 'API_ERROR': 4, 'INCONCLUSIVE': 3}}
+production 12:55 (v1.1, after fix)       : {'n': 27, 'correct': 20, 'acc': 0.7407, 'false_accept': 0, 'false_refute': 0, 'observed': {'REFUTED': 11, 'VALIDATED': 9, 'INCONCLUSIVE': 4, 'REVIEW_REJECTED': 2, 'API_ERROR': 1}}
+single-model 01:26                        : {'n': 27, 'correct': 12, 'acc': 0.4444, 'false_accept': 0, 'false_refute': 2, 'observed': {'REFUTED': 10, 'VALIDATED': 4, 'CODE_ERROR': 10, 'INCONCLUSIVE': 2, 'SUBSTITUTED': 1}}
+McNemar prod-before vs prod-after: only before 2, only after 6, p=0.289
+McNemar single vs prod-after     : only single 2, only after 10, p=0.039
+wall rerun: 224.5 min (09:10 -> 12:55)

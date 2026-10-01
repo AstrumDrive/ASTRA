@@ -14,7 +14,9 @@ la ventaja del ciclo está toda en fiabilidad operativa (repara validadores
 rotos y respeta la métrica dada), no alcanza significación con esta muestra
 (p = 0,34), y el mayor freno de los dos brazos resultó ser una tubería de
 ASTRA, no los modelos: el autor del validador nunca veía las definiciones
-del usuario. Arreglado el mismo día.
+del usuario. Arreglado el mismo día y medido de nuevo esa misma mañana
+(sección 5): producción pasa a 20 de 27, sin aceptaciones ni refutaciones
+falsas, y la diferencia con el modelo solo ya es significativa (p = 0,039).
 
 ## 1. El corpus: 27 claims con verdad medida
 
@@ -289,3 +291,89 @@ reparador. Tests en `tests/test_translation_input.py`.
 Siguiente medición, cuando haya cuota: los mismos 27 claims en v1.1 con el
 arreglo de la tubería, solo en producción, para medir cuánto de la brecha
 era tubería. Después, v1.2 con una proposición por caso.
+
+## 5. Repetición en producción con el arreglo (2026-10-01, 09:10 a 12:55)
+
+Nelson pidió la repetición la misma mañana. Mismo brazo `no-ensemble`,
+mismo `.env` salvo `ASTRA_CLI_TIMEOUT=480`, corpus v1.1 (las dos
+correcciones de enunciado de la sección 3.4), código con
+`build_translation_input` y el presupuesto de ciclo ampliado para los
+casos pesados. Reporte `workspace/quality_benchmark_runs/quality_20261001_125525.{json,md}`,
+copiado a `docs/evidence/research_arms_20261001/no-ensemble_rerun_quality_20261001_125525.md`;
+comparación y estadística en `compare_rerun.txt`; registro `rerun.status`.
+
+### 5.1 Titular
+
+| Métrica | Modelo solo (01:26) | Producción antes (04:53) | Producción con el arreglo (12:55) |
+|---|---:|---:|---:|
+| Aciertos estrictos | 12 / 27 (0,444) | 16 / 27 (0,593) | **20 / 27 (0,741)** |
+| Aceptaciones falsas | 0 / 13 | 0 / 13 | 0 / 13 |
+| Refutaciones falsas | 2 / 14 | 1 / 14 | **0 / 14** |
+| Fallos operativos | 10 / 27 | 4 / 27 | 3 / 27 |
+| No decidió | 3 | 6 | 4 |
+| Latencia p50 / p95 | 254 s / 429 s | 360 s / 1122 s | 418 s / 1056 s |
+| Pared total | 116,5 min | 206,7 min | 224,5 min |
+
+Pares discordantes producción antes contra después: 6 casos solo después,
+2 solo antes, McNemar p = 0,289. Modelo solo contra producción con el
+arreglo: 10 solo producción, 2 solo el modelo solo, McNemar p = 0,039. Con
+los mismos 27 claims, la diferencia que a las 04:53 no alcanzaba
+significación ahora la alcanza.
+
+### 5.2 Qué cambió de signo
+
+Seis casos pasaron de fallo a acierto, y los seis son los que la sección
+3.5 había señalado como víctimas de la tubería más el que agotó el
+presupuesto:
+
+- Kondo, cuatro casos (`b1_commutator_true`, `c1_commutator_x1_false`,
+  `c1_norm_false`, `exchange_block_true`): el autor construyó los
+  operadores de 32 por 32 a partir de las definiciones que ahora recibe,
+  el revisor aprobó en una ronda y el oráculo decidió. `c1_commutator_x1_false`
+  salió por el eje re-anclado: el validador probó la identidad verdadera
+  con Y_1 y el analista refutó la afirmación pedida con X_1, con 12
+  entradas no nulas por espín en el residuo.
+- Curvatura de Wu-Yang verdadera: con los generadores a la vista, 210 s y
+  una ronda de revisión, frente al rechazo doble de la noche.
+- Cáscara con lapso unidad: el validador escrito con la métrica a la vista
+  terminó en 488 s; el de la noche agotó los 900 s del oráculo.
+
+Dos casos fueron en sentido contrario, ambos por variabilidad de la
+deliberación y ninguno por un veredicto equivocado:
+
+- `mobius_nagaoka_wrong_flux_false`: el revisor rechazó tres validadores
+  seguidos por un certificado de soporte mal construido (contaba cambios
+  de signo entre pivotes de Bareiss en vez de pivotes negativos para la
+  inercia). Anoche el mismo caso se decidió en 1198 s. `REVIEW_REJECTED`.
+- `gr_static_shell_dec_false`: el validador exacto tardó 1025 s en el
+  oráculo y falló una pata numérica aunque las patas de umbral refutaron
+  el 2/3; con 58 s de presupuesto restante no hubo reintento. Anoche se
+  decidió en 537 s.
+
+### 5.3 Lo que queda
+
+- Los cuatro `INCONCLUSIVE` son claims con varias partes: las normas de
+  Kondo (cuatro normas por dos espines; el ciclo probó solo B_1), la pared
+  plana (probó solo ρ = 0) y los dos de quench. En los cuatro el validador
+  fue correcto en lo que probó y el re-anclaje se negó a certificar el
+  resto. Es el corpus el que debe pedir una proposición por caso (v1.2).
+- `res_gr_static_shell_true`, el caso con el enunciado corregido a m' > 0,
+  terminó en `REVIEW_REJECTED`: el revisor sostuvo que sustituir N'' por la
+  derivada de la relación del lapso asume p_r = 0 en un entorno y no solo
+  en el punto. El enunciado habla de presión radial nula como condición de
+  la configuración, así que la sustitución es legítima; es un rechazo por
+  exceso de rigor del revisor, y el caso sigue sin certificar en ninguna
+  de las dos corridas.
+- El coste sube poco: 224 min contra 207, p95 de 17,6 min.
+
+### 5.4 Lectura final
+
+Con las definiciones del usuario en manos del autor del validador, la
+brecha entre producción y un modelo solo sobre claims de investigación
+pasa de 4 a 8 casos y se vuelve significativa a n = 27, sin una sola
+aceptación falsa en los 81 ciclos de las tres corridas y sin ninguna
+refutación falsa en la repetición. La parte
+de la brecha que era tubería valía cuatro casos; la parte que es
+deliberación vale los otros cuatro (Möbius, SU(3), Kinnersley, cohete) y
+se mantiene entre corridas. Lo que falta no está en los modelos ni en la
+tubería sino en cómo se formulan los claims: una proposición por caso.

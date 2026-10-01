@@ -44,5 +44,8 @@ found two wording defects, both fixed in place and marked in
   indices; the production reviewer rejected a validator over it. The
   cross-product indices are now `j`, `k`.
 
-Results measured on the v1 wording stay valid for every other case; a
-re-run of the two revised GR cases is pending.
+Results measured on the v1 wording stay valid for every other case. The
+production arm was re-run on v1.1 the same day, after the validator-author
+fix (section 5 of the evidence document): 20 / 27, no false acceptance and
+no false refutation; the four remaining INCONCLUSIVE verdicts are all
+multi-part claims, which v1.2 will split into one proposition per case.
