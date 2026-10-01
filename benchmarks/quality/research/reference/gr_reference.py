@@ -64,6 +64,15 @@ mu = sp.symbols("mu", positive=True)  # mu = 2m/R
 ratio_mu = sp.simplify(ratio.subs(m, mu * R / 2))
 results["gr_static_shell_dec_false"] = sp.simplify(sp.solve(sp.Eq(ratio_mu, 1), mu)[0] - sp.Rational(2, 3)) == 0
 print("shell: rho =", rho, "| p_perp/rho =", ratio, "| DEC threshold mu =", sp.solve(sp.Eq(ratio_mu, 1), mu))
+# Loophole found by both benchmark arms on 2026-10-01: the threshold comes from
+# the ratio p_perp/rho, which assumes rho > 0. At a radius where m' = 0 both
+# rho and p_perp vanish, so the DEC holds for any 2m/R < 1 (e.g. 9/10 > 4/5).
+# The corpus claim therefore requires m' > 0 (v1.1); the v1 wording (m' >= 0)
+# was false and the arms' REFUTED verdicts on it were correct.
+pt_at_mprime_zero = sp.simplify(pt0.subs(sp.Derivative(m, R), 0))
+dec_holds_without_threshold = (pt_at_mprime_zero == 0) and (sp.Rational(9, 10) > sp.Rational(4, 5))
+results["gr_static_shell_v1_wording_false_at_m_prime_zero"] = dec_holds_without_threshold
+print("shell loophole: p_perp at m'=0 =", pt_at_mprime_zero, "| DEC holds at 2m/R = 9/10 without the threshold:", dec_holds_without_threshold)
 
 # --- E5/E6: Kinnersley photon rocket ----------------------------------------
 u, r = sp.symbols("u r", real=True)

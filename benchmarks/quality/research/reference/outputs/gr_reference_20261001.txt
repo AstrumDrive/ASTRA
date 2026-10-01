@@ -1,0 +1,14 @@
+planar: rho = 0 | G_xx = 0 | p_perp - target = 0
+shell: rho = Derivative(m(R), R)/(4*pi*R**2) | p_perp/rho = m(R)/(2*(R - 2*m(R))) | DEC threshold mu = [4/5]
+shell loophole: p_perp at m'=0 = 0 | DEC holds at 2m/R = 9/10 without the threshold: True
+kinnersley: G_uu = 2*(3*a(u)*m(u)*cos(theta) - Derivative(m(u), u))/r**2 | others zero: True
+unit-lapse: rho = (2*r*Derivative(beta(r), r) + beta(r))*beta(r)/(8*pi*r**2) | p_r + rho = 0 | flux = 0
+gr_planar_wall_true: TRUE
+gr_planar_wall_rho_false: FALSE
+gr_static_shell_true: TRUE
+gr_static_shell_dec_false: FALSE
+gr_static_shell_v1_wording_false_at_m_prime_zero: TRUE
+gr_kinnersley_true: TRUE
+gr_kinnersley_sign_false: FALSE
+gr_unit_lapse_shell_true: TRUE
+gr_unit_lapse_shell_pr_false: FALSE

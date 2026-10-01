@@ -10,7 +10,7 @@
       "kondo"
     ],
     "objective": "Determine whether, in the two-orbital Kondo control model defined below, the infinite-temperature norms are (B_0|B_0) = 3/4, (B_1|B_1) = 3/4, (C_0|C_0) = 3/8 and (C_1|C_1) = 3/16 for each spin component.",
-    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is the vector s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Composite operators, with the operator product written in the order shown: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}, and C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{abc} S^b s_0^c. Metric at infinite temperature: (A|B) = Tr{A, B^dagger} / 32, with {.,.} the anticommutator. Claim: (B_{0,sigma}|B_{0,sigma}) = (B_{1,sigma}|B_{1,sigma}) = 3/4, (C_{0,sigma}|C_{0,sigma}) = 3/8 and (C_{1,sigma}|C_{1,sigma}) = 3/16 for sigma = up and for sigma = dn. Build the 32 x 32 matrices exactly and compute the four traces.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is the vector s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Composite operators, with the operator product written in the order shown: B_{n,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{n b}, and C_{n,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{n b}, where (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn. Metric at infinite temperature: (A|B) = Tr{A, B^dagger} / 32, with {.,.} the anticommutator. Claim: (B_{0,sigma}|B_{0,sigma}) = (B_{1,sigma}|B_{1,sigma}) = 3/4, (C_{0,sigma}|C_{0,sigma}) = 3/8 and (C_{1,sigma}|C_{1,sigma}) = 3/16 for sigma = up and for sigma = dn. Build the 32 x 32 matrices exactly and compute the four traces.",
     "success_criteria": [
       "Construct the Jordan-Wigner fermions and the impurity spin as explicit 32 x 32 matrices.",
       "Compute each norm as an exact trace and compare with the stated rational value."
@@ -21,7 +21,8 @@
     ],
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/04_tests/verify_two_orbital_algebra.py",
-      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norms_true"
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_norms_true",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -36,7 +37,7 @@
       "kondo"
     ],
     "objective": "Determine whether, in the two-orbital Kondo control model defined below, the infinite-temperature norm (C_1|C_1) equals 3/8 for each spin component.",
-    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Composite operator, product order as written: C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, with (S x s_0)^a = epsilon_{abc} S^b s_0^c. Metric at infinite temperature: (A|B) = Tr{A, B^dagger} / 32. Claim: (C_{1,sigma}|C_{1,sigma}) = 3/8 for each sigma. Decide it by building the matrices exactly.",
+    "intuition": "Model: an impurity spin-1/2 with operators S = sigma/2 acting on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four modes 0up, 0dn, 1up, 1dn as Jordan-Wigner fermions on a 16-dimensional Fock space; total dimension 32). The orbital-0 spin density is s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Composite operator, product order as written: C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, with (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn. Metric at infinite temperature: (A|B) = Tr{A, B^dagger} / 32. Claim: (C_{1,sigma}|C_{1,sigma}) = 3/8 for each sigma. Decide it by building the matrices exactly.",
     "success_criteria": [
       "Compute the exact trace and state the actual value of the norm."
     ],
@@ -47,7 +48,8 @@
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/04_tests/verify_two_orbital_algebra.py",
       "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_c1_norm_false",
-      "seeded_error": "the true value is 3/16"
+      "seeded_error": "the true value is 3/16",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -62,7 +64,7 @@
       "kondo"
     ],
     "objective": "Determine whether [B_{1,sigma}, H_J] = -i J C_{1,sigma} holds as an exact operator identity for both spin components in the two-orbital Kondo control model defined below.",
-    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes, total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a real constant. Composite operators (product order as written): B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{abc} S^b s_0^c. Claim: [B_{1,sigma}, H_J] = -i J C_{1,sigma} exactly, for sigma = up and sigma = dn, where [X, Y] = XY - YX. Verify with exact matrices, for a nonzero J.",
+    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes, total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Exchange Hamiltonian H_J = J sum_a S^a s_0^a with J a real constant. Composite operators (product order as written): B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn. Claim: [B_{1,sigma}, H_J] = -i J C_{1,sigma} exactly, for sigma = up and sigma = dn, where [X, Y] = XY - YX. Verify with exact matrices, for a nonzero J.",
     "success_criteria": [
       "Build H_J, B_1 and C_1 as 32 x 32 matrices and compare the commutator with -i J C_1 entrywise.",
       "Report the maximum absolute deviation."
@@ -73,7 +75,8 @@
     ],
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/03_equations/KNOWN_EXACT_RESULTS.md",
-      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_b1_commutator_true"
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_b1_commutator_true",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -88,7 +91,7 @@
       "kondo"
     ],
     "objective": "Determine whether [B_{1,sigma}, H_J] = +i J C_{1,sigma} holds as an exact operator identity for both spin components in the two-orbital Kondo control model defined below.",
-    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes, total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Exchange Hamiltonian H_J = J sum_a S^a s_0^a. Composite operators (product order as written): B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{abc} S^b s_0^c. Claim: [B_{1,sigma}, H_J] = +i J C_{1,sigma} exactly for both sigma, with [X, Y] = XY - YX. Decide with exact matrices for a nonzero J.",
+    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes, total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. Exchange Hamiltonian H_J = J sum_a S^a s_0^a. Composite operators (product order as written): B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn. Claim: [B_{1,sigma}, H_J] = +i J C_{1,sigma} exactly for both sigma, with [X, Y] = XY - YX. Decide with exact matrices for a nonzero J.",
     "success_criteria": [
       "Compute the commutator exactly and compare with +i J C_1 and with -i J C_1."
     ],
@@ -99,7 +102,8 @@
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/03_equations/KNOWN_EXACT_RESULTS.md",
       "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_b1_commutator_sign_false",
-      "seeded_error": "the true identity has -i J"
+      "seeded_error": "the true identity has -i J",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -114,7 +118,7 @@
       "kondo"
     ],
     "objective": "Determine whether, in the two-orbital Kondo control model defined below, the exchange-only block closes as [X_1, H_J] = 0, [Y_1, H_J] = -2 i J C_1 and [C_1, H_J] = (i J / 2) Y_1, exactly, for both spin components.",
-    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes 0up, 0dn, 1up, 1dn; total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. H_J = J sum_a S^a s_0^a. Number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}; double-occupancy projector P_{2,0} = n_{0up} n_{0dn}; single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}. Composite operators, product order as written: B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b} with (S x s_0)^a = epsilon_{abc} S^b s_0^c; U_{1,sigma} = B_{1,sigma} P_{1,0}; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; X_1 = U_1 + F_1; Y_1 = U_1 - F_1. Claim: [X_{1,sigma}, H_J] = 0, [Y_{1,sigma}, H_J] = -2 i J C_{1,sigma} and [C_{1,sigma}, H_J] = (i J / 2) Y_{1,sigma} for sigma = up and dn, with [A, B] = AB - BA. Verify all three with exact matrices.",
+    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes 0up, 0dn, 1up, 1dn; total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. H_J = J sum_a S^a s_0^a. Number operators n_{0,sigma} = f_{0,sigma}^dagger f_{0,sigma}; double-occupancy projector P_{2,0} = n_{0up} n_{0dn}; single-occupancy projector P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}. Composite operators, product order as written: B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b} with (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn; U_{1,sigma} = B_{1,sigma} P_{1,0}; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; X_1 = U_1 + F_1; Y_1 = U_1 - F_1. Claim: [X_{1,sigma}, H_J] = 0, [Y_{1,sigma}, H_J] = -2 i J C_{1,sigma} and [C_{1,sigma}, H_J] = (i J / 2) Y_{1,sigma} for sigma = up and dn, with [A, B] = AB - BA. Verify all three with exact matrices.",
     "success_criteria": [
       "Build every operator as an explicit 32 x 32 matrix.",
       "Report the maximum deviation of each of the three identities."
@@ -125,7 +129,8 @@
     ],
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/03_equations/KNOWN_EXACT_RESULTS.md",
-      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_exchange_block_true"
+      "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_exchange_block_true",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -140,7 +145,7 @@
       "kondo"
     ],
     "objective": "Determine whether [C_1, H_J] = (i J / 2) X_1 holds exactly for both spin components in the two-orbital Kondo control model defined below.",
-    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes; total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. H_J = J sum_a S^a s_0^a. P_{2,0} = n_{0up} n_{0dn}; P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}. Composite operators, product order as written: B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{abc} S^b s_0^c; U_{1,sigma} = B_{1,sigma} P_{1,0}; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; X_1 = U_1 + F_1; Y_1 = U_1 - F_1. Claim: [C_{1,sigma}, H_J] = (i J / 2) X_{1,sigma} exactly for both sigma. Decide with exact matrices and, if false, identify the correct right-hand side.",
+    "intuition": "Model: impurity spin-1/2 operators S = sigma/2 on a two-dimensional factor, tensored with two orbitals n = 0, 1 of spin-1/2 fermions f_{n,sigma} (four Jordan-Wigner modes; total dimension 32). s_0^a = (1/2) sum_{b,c} f_{0b}^dagger (sigma^a)_{bc} f_{0c}. H_J = J sum_a S^a s_0^a. P_{2,0} = n_{0up} n_{0dn}; P_{1,0} = n_{0up} + n_{0dn} - 2 P_{2,0}. Composite operators, product order as written: B_{1,sigma} = sum_{a,b} S^a (sigma^a)_{sigma b} f_{1 b}; C_{1,sigma} = sum_{a,b} (S x s_0)^a (sigma^a)_{sigma b} f_{1 b}, (S x s_0)^a = epsilon_{ajk} S^j s_0^k, with j and k running over x, y, z while the spinor index b runs over up and dn; U_{1,sigma} = B_{1,sigma} P_{1,0}; F_{1,sigma} = sum_{a,b} s_0^a (sigma^a)_{sigma b} f_{1 b}; X_1 = U_1 + F_1; Y_1 = U_1 - F_1. Claim: [C_{1,sigma}, H_J] = (i J / 2) X_{1,sigma} exactly for both sigma. Decide with exact matrices and, if false, identify the correct right-hand side.",
     "success_criteria": [
       "Compute [C_1, H_J] exactly and compare with (iJ/2) X_1 and with (iJ/2) Y_1."
     ],
@@ -151,7 +156,8 @@
     "metadata": {
       "provenance": "Dev/physics/kondo_eom_minimal_hierarchy_codex/03_equations/KNOWN_EXACT_RESULTS.md",
       "reference": "benchmarks/quality/research/reference/kondo_reference.py::kondo_c1_commutator_x1_false",
-      "seeded_error": "the true right-hand side is (iJ/2) Y_1"
+      "seeded_error": "the true right-hand side is (iJ/2) Y_1",
+      "revised": "v1.1 (2026-10-01): cross-product indices renamed j, k; the production reviewer read b as both a vector and a spinor index"
     },
     "timeout": 300
   },
@@ -217,8 +223,8 @@
       "research",
       "gr"
     ],
-    "objective": "Determine whether, for the static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2 with vanishing radial pressure, G = c = 1, the Einstein equations give rho = m'(R) / (4 pi R^2), N'/N = m / (R (R - 2m)), p_perp = rho m / (2 (R - 2m)), and the dominant energy condition p_perp <= rho holds exactly when 2m/R <= 4/5.",
-    "intuition": "Metric: g_TT = -N(R)^2, g_RR = 1/(1 - 2 m(R)/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions. Define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi) (mixed components). Claim, in four parts: (1) rho = m'(R) / (4 pi R^2); (2) p_r = 0 if and only if N'/N = m / (R (R - 2m)); (3) under p_r = 0, p_perp = rho m / (2 (R - 2m)); (4) under p_r = 0 and m' >= 0, the DEC inequality p_perp <= rho is equivalent to 2m/R <= 4/5. Derive all four symbolically from the metric.",
+    "objective": "Determine whether, for the static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2 with vanishing radial pressure, G = c = 1, the Einstein equations give rho = m'(R) / (4 pi R^2), N'/N = m / (R (R - 2m)), p_perp = rho m / (2 (R - 2m)), and, wherever m' > 0, the dominant energy condition p_perp <= rho holds exactly when 2m/R <= 4/5.",
+    "intuition": "Metric: g_TT = -N(R)^2, g_RR = 1/(1 - 2 m(R)/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R) and N(R) arbitrary smooth functions. Define rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi) (mixed components). Claim, in four parts: (1) rho = m'(R) / (4 pi R^2); (2) p_r = 0 if and only if N'/N = m / (R (R - 2m)); (3) under p_r = 0, p_perp = rho m / (2 (R - 2m)); (4) under p_r = 0 and m' > 0 (so rho > 0), the DEC inequality p_perp <= rho is equivalent to 2m/R <= 4/5. Where m' = 0 both rho and p_perp vanish and the inequality holds trivially for any 2m/R < 1, so the equivalence is asserted only where rho > 0. Derive all four symbolically from the metric.",
     "success_criteria": [
       "Compute the mixed Einstein tensor symbolically for generic m(R) and N(R).",
       "Impose p_r = 0 and derive the transverse pressure and the DEC threshold exactly."
@@ -229,7 +235,8 @@
     ],
     "metadata": {
       "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
-      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_true"
+      "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_true",
+      "revised": "v1.1 (2026-10-01): the v1 wording asserted the DEC equivalence under m' >= 0; at a radius with m' = 0 the DEC holds for any 2m/R, a loophole both arms refuted correctly; the claim now requires m' > 0"
     },
     "timeout": 900
   },
@@ -243,8 +250,8 @@
       "research",
       "gr"
     ],
-    "objective": "Determine whether, for the static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2 with vanishing radial pressure and m' >= 0, G = c = 1, the dominant energy condition p_perp <= rho holds exactly when 2m/R <= 2/3.",
-    "intuition": "Metric: g_TT = -N(R)^2, g_RR = 1/(1 - 2 m(R)/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R), N(R) smooth. rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). Impose p_r = 0 (which fixes N'/N). Claim: with m' >= 0, p_perp <= rho if and only if 2m/R <= 2/3. Derive the exact threshold symbolically and decide.",
+    "objective": "Determine whether, for the static spherically symmetric metric ds^2 = -N(R)^2 dT^2 + dR^2 / (1 - 2 m(R)/R) + R^2 dOmega^2 with vanishing radial pressure and m' > 0, G = c = 1, the dominant energy condition p_perp <= rho holds exactly when 2m/R <= 2/3.",
+    "intuition": "Metric: g_TT = -N(R)^2, g_RR = 1/(1 - 2 m(R)/R), g_theta theta = R^2, g_phi phi = R^2 sin^2 theta, with m(R), N(R) smooth. rho = -G^T_T / (8 pi), p_r = G^R_R / (8 pi), p_perp = G^theta_theta / (8 pi). Impose p_r = 0 (which fixes N'/N). Claim: with m' > 0, p_perp <= rho if and only if 2m/R <= 2/3. Derive the exact threshold symbolically and decide.",
     "success_criteria": [
       "Derive p_perp / rho under p_r = 0 as a closed form in m and R and solve p_perp = rho for 2m/R exactly."
     ],
@@ -255,7 +262,8 @@
     "metadata": {
       "provenance": "Dev/warp/energy_identities_ledger/outputs/shell_analytic.py",
       "reference": "benchmarks/quality/research/reference/gr_reference.py::gr_static_shell_dec_false",
-      "seeded_error": "the exact threshold is 2m/R = 4/5"
+      "seeded_error": "the exact threshold is 2m/R = 4/5",
+      "revised": "v1.1 (2026-10-01): m' > 0 to match the corrected true sibling"
     },
     "timeout": 900
   },

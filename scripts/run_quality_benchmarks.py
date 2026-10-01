@@ -254,6 +254,14 @@ def _reanchored_status(result: dict[str, Any]) -> str:
 def _error_status(result: dict[str, Any]) -> str:
     message = str(result.get("error") or "")
     upper = message.upper()
+    # Two deliberation outcomes used to be filed under API_ERROR although no
+    # model call failed: the independent reviewer rejecting every revision,
+    # and the cycle budget running out before a phase. Name them, so the
+    # report says what the cycle did (2026-10-01 research-claims run).
+    if "REVIEWER DID NOT APPROVE" in upper:
+        return "REVIEW_REJECTED"
+    if "BUDGET EXHAUSTED" in upper:
+        return "BUDGET_EXHAUSTED"
     if "TIMEOUT" in upper:
         return "TIMEOUT"
     if "API_ERROR" in upper or result.get("phase") in {

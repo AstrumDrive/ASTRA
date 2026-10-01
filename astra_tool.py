@@ -849,6 +849,45 @@ _MAX_MODE_ENV = {
 }
 
 
+# Characters of the user's own claim text handed verbatim to the validator
+# author. The reviewer and the bounded repairer read the first 5000
+# characters of the same text (core/llm_client.py), so the block is capped to
+# keep the conjecture inside their window.
+AUTHOR_INTUITION_CHARS = 3500
+
+
+def build_translation_input(
+    shared_goal: str, intuition: str, extra_inputs: str, conjecture: str
+) -> str:
+    """Text the validator author (and its reviewer/repairer) work from.
+
+    Until 2026-10-01 the author only saw the short objective and the
+    proposer's conjecture. Definitions the user wrote in ``intuition``
+    (operator conventions, metric components, generator matrices) reached the
+    proposer and the analyst but never the author, which then wrote
+    validators declaring those definitions MISSING: 3 of 27 research claims
+    in the single-model arm and 4 of 27 in production
+    (docs/evidence/RESEARCH_CLAIMS_COMPARISON_20260930.md). The user's text is
+    now quoted verbatim, after the objective and before the user's answers to
+    MISSING declarations, capped at AUTHOR_INTUITION_CHARS.
+    """
+    goal = (shared_goal or "").strip()
+    claim = (intuition or "").strip()
+    parts = [f"SHARED FINAL OBJECTIVE:\n{goal}"]
+    if claim and claim != goal:
+        if len(claim) > AUTHOR_INTUITION_CHARS:
+            claim = claim[:AUTHOR_INTUITION_CHARS].rstrip() + "\n[... truncated for the author; the full text reached the proposer and the analyst]"
+        parts.append(
+            "USER'S CLAIM AND DEFINITIONS (verbatim; authoritative for every "
+            "convention, operator, metric component or constant it defines):\n"
+            f"{claim}"
+        )
+    if extra_inputs:
+        parts.append(extra_inputs)
+    parts.append(f"CONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}")
+    return "\n\n".join(parts)
+
+
 def _max_mode_requested(req) -> bool:
     v = req.get("max_mode")
     if isinstance(v, bool):
@@ -2058,11 +2097,8 @@ async def _do_cycle_impl(req: dict) -> dict:
     # Inputs and policy go BEFORE the conjecture: the bounded repairer reads
     # only the first 5000 characters of this text, and it must not re-declare
     # MISSING on the very retry the user's answer was for.
-    translation_input = (
-        "SHARED FINAL OBJECTIVE:\n"
-        f"{shared_goal}\n\n"
-        + (extra_inputs + "\n\n" if extra_inputs else "")
-        + f"CONSENSUS CONJECTURE TO VALIDATE:\n{conjecture}"
+    translation_input = build_translation_input(
+        shared_goal, intuition, extra_inputs, conjecture
     )
     _progress("translate", timings=timings)
     t0 = time.monotonic()

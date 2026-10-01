@@ -52,6 +52,11 @@ class QualityCase:
                 "KNOWN FAILURE MODES TO AVOID:\n"
                 f"{failures or '- Do not accept a non-falsifiable validator.'}"
             )
+        # The synchronous cycle budget defaults to 1500 s inside astra_tool.
+        # A case whose oracle may legitimately run for `timeout` seconds needs
+        # room left for review, repair and analysis after that: on 2026-10-01
+        # a 900 s symbolic run exhausted the default budget before the
+        # independent review could run (research_v1, unit-lapse shell).
         return {
             "action": "cycle",
             "objective": self.objective or self.intuition,
@@ -59,6 +64,7 @@ class QualityCase:
             "axiomatic_base": self.axiomatic_base,
             "oracle": oracle,
             "exec_timeout": self.timeout,
+            "cycle_timeout_seconds": max(1500, int(self.timeout) + 900),
         }
 
 

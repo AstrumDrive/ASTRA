@@ -1,0 +1,55 @@
+metric                               single-model    no-ensemble
+Scientific strict accuracy                 0.4444         0.5926
+Scientific balanced accuracy               0.4506         0.6017
+False acceptance rate                         0.0            0.0
+Operational failure rate                   0.3704         0.1481
+Validator defect recall                      None           None
+Critical defect recall                       None           None
+Execution verdict accuracy                   None           None
+Cross-run/oracle agreement                   None           None
+Latency p50 / p95 (s)              253.984 / 429.024 360.328 / 1121.714
+total wall (min)                            116.5          206.6
+median case (s)                               254            360
+recorded cost (usd-eq, n)                0.00 (0)       0.00 (0)
+
+case                                                 expected  single-model  no-ensemble    s_a   s_b
+res_harmonic_gradient_factor_false                   REFUTED        REFUTED      REFUTED    127   166
+res_harmonic_gradient_subharmonic_true               VALIDATED    VALIDATED    VALIDATED    174   273
+res_kondo_b1_commutator_sign_false                   REFUTED        REFUTED      REFUTED    180   304
+res_kondo_b1_commutator_true                         VALIDATED   CODE_ERROR NON_DECIDABLE    268   216
+res_kondo_c1_commutator_x1_false                     REFUTED     CODE_ERROR    API_ERROR    186   360
+res_kondo_c1_norm_false                              REFUTED     CODE_ERROR    API_ERROR    376   488
+res_kondo_exchange_block_true                        VALIDATED   CODE_ERROR NON_DECIDABLE    246   327
+res_kondo_two_orbital_norms_true                     VALIDATED      REFUTED NON_DECIDABLE    236   366
+res_mobius_nagaoka_saturated_true                    VALIDATED   CODE_ERROR    VALIDATED    503   895  <- only no-ensemble
+res_mobius_nagaoka_wrong_flux_false                  REFUTED     CODE_ERROR      REFUTED    440  1198  <- only no-ensemble
+res_su2_wu_yang_curvature_sign_false                 REFUTED        REFUTED      REFUTED    173   191
+res_su2_wu_yang_curvature_true                       VALIDATED    VALIDATED    API_ERROR    118   480  <- only single-model
+res_su3_charge_spectrum_true                         VALIDATED   CODE_ERROR    VALIDATED    196   138  <- only no-ensemble
+res_gr_kinnersley_sign_false                         REFUTED     CODE_ERROR      REFUTED    404   348  <- only no-ensemble
+res_gr_kinnersley_true                               VALIDATED   CODE_ERROR    VALIDATED    282   329  <- only no-ensemble
+res_gr_planar_wall_rho_false                         REFUTED        REFUTED      REFUTED    254   220
+res_gr_planar_wall_true                              VALIDATED    VALIDATED INCONCLUSIVE    278   599  <- only single-model
+res_gr_static_shell_dec_false                        REFUTED        REFUTED      REFUTED    271   537
+res_gr_static_shell_true                             VALIDATED      REFUTED      REFUTED    315   367
+res_gr_unit_lapse_shell_pr_false                     REFUTED        REFUTED      REFUTED    294   290
+res_gr_unit_lapse_shell_true                         VALIDATED    VALIDATED    API_ERROR    219  1424  <- only single-model
+res_quench_bogoliubov_uv_true                        VALIDATED INCONCLUSIVE INCONCLUSIVE    145   174
+res_quench_occupation_monotone_true                  VALIDATED INCONCLUSIVE INCONCLUSIVE    389   568
+res_quench_occupation_vanishes_at_zero_false         REFUTED        REFUTED      REFUTED    150   943
+res_quench_uv_coefficient_false                      REFUTED        REFUTED      REFUTED    122   288
+res_rocket_mass_bound_reversed_false                 REFUTED     CODE_ERROR      REFUTED    288   395  <- only no-ensemble
+res_rocket_mass_bound_true                           VALIDATED  SUBSTITUTED    VALIDATED    359   513  <- only no-ensemble
+
+both right 9 | only single-model right 3 | only no-ensemble right 7 | n=27
+
+=== by script: headline, all 27 ===
+single-model: {'n': 27, 'correct': 12, 'acc': 0.4444, 'false_accept': '0/13', 'false_refute': '2/14', 'operational': 10, 'nondecisive': 3, 'observed': {'REFUTED': 10, 'VALIDATED': 4, 'CODE_ERROR': 10, 'INCONCLUSIVE': 2, 'SUBSTITUTED': 1}}
+no-ensemble : {'n': 27, 'correct': 16, 'acc': 0.5926, 'false_accept': '0/13', 'false_refute': '1/14', 'operational': 7, 'nondecisive': 3, 'observed': {'REFUTED': 12, 'VALIDATED': 5, 'NON_DECIDABLE': 3, 'API_ERROR': 4, 'INCONCLUSIVE': 3}}
+=== by script: excluding the defective-wording case (n=26) ===
+single-model: {'n': 26, 'correct': 12, 'acc': 0.4615, 'false_accept': '0/13', 'false_refute': '1/13', 'operational': 10, 'nondecisive': 3, 'observed': {'REFUTED': 9, 'VALIDATED': 4, 'CODE_ERROR': 10, 'INCONCLUSIVE': 2, 'SUBSTITUTED': 1}}
+no-ensemble : {'n': 26, 'correct': 16, 'acc': 0.6154, 'false_accept': '0/13', 'false_refute': '0/13', 'operational': 7, 'nondecisive': 3, 'observed': {'REFUTED': 11, 'VALIDATED': 5, 'NON_DECIDABLE': 3, 'API_ERROR': 4, 'INCONCLUSIVE': 3}}
+McNemar exact (two-sided), all 27: only single 3, only production 7, p=0.344
+McNemar exact (two-sided), n=26   : only single 3, only production 7, p=0.344
+wall single-model: 116.5 min (23:30 -> 01:26)
+wall no-ensemble: 206.7 min (01:26 -> 04:53)

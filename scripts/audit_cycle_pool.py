@@ -41,6 +41,8 @@ def load_pool() -> list[dict]:
             continue
         day = dt.datetime.fromtimestamp(created) if created else None
         benchmark = bool(re.match(r"^(Test the claim|Claim:|Decide whether|Determine whether)", intuition)) or (
+            "BENCHMARK SUCCESS CRITERIA" in intuition  # marker that QualityCase.cycle_request appends
+        ) or (
             day is not None and day.strftime("%Y-%m-%d") == "2026-08-17" and 2 <= day.hour <= 6
         )
         timings = {k: v for k, v in (d.get("timings") or r.get("timings") or {}).items() if isinstance(v, (int, float))}

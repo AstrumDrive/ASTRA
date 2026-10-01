@@ -23,5 +23,26 @@ Run (both arms, local oracle, re-anchored scoring):
 ```
 
 Heavy cases carry their own oracle `timeout` (900 s for the symbolic Einstein
-tensors, 600 s for the diagonalization). Natario-bound claims were left out on
-purpose: the paper is under review.
+tensors, 600 s for the diagonalization); the runner widens the cycle budget to
+`timeout + 900` s for them. Natario-bound claims were left out on purpose: the
+paper is under review.
+
+## v1.1 (2026-10-01)
+
+The first measurement (`docs/evidence/RESEARCH_CLAIMS_COMPARISON_20260930.md`)
+found two wording defects, both fixed in place and marked in
+`metadata.revised`:
+
+- `res_gr_static_shell_true` asserted the DEC equivalence under `m' >= 0`.
+  At a radius with `m' = 0` both rho and p_perp vanish, so the DEC holds for
+  any `2m/R < 1` and the equivalence fails; both arms refuted the v1 wording
+  correctly. The claim now requires `m' > 0`
+  (`reference/gr_reference.py` prints the loophole as
+  `gr_static_shell_v1_wording_false_at_m_prime_zero: TRUE`), and the seeded
+  sibling follows.
+- The six Kondo cases reused `b`, `c` as both cross-product and spinor
+  indices; the production reviewer rejected a validator over it. The
+  cross-product indices are now `j`, `k`.
+
+Results measured on the v1 wording stay valid for every other case; a
+re-run of the two revised GR cases is pending.

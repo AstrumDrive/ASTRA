@@ -10,6 +10,8 @@ from typing import Any, Iterable
 OPERATIONAL_STATUSES = {
     "API_ERROR", "BUSY", "CODE_ERROR", "ERROR", "PARTIAL", "TIMEOUT",
     "NO_VERDICT", "TOOL_ERROR",
+    # Named since 2026-10-01; both were filed under API_ERROR before.
+    "REVIEW_REJECTED", "BUDGET_EXHAUSTED",
 }
 
 
