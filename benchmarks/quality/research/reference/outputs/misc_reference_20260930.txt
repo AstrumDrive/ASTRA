@@ -1,0 +1,19 @@
+quench: n_k = (sqrt(k**2 + m_i**2) - sqrt(k**2 + (d + m_i)**2))**2/(4*sqrt(k**2 + m_i**2)*sqrt(k**2 + (d + m_i)**2)) | k^4 n_k -> (-d**2/2 - d*m_i)**2/4 | n_0 -> d**2/(4*m_i*(d + m_i))
+rocket: m_f/m_0 at theta=1.2: {0.5: 0.0907, 0.8: 0.2231, 1.0: 0.3012} | e^-theta = 0.3012
+harmonic: Delta|grad a|^2 - 2|Hess a|^2 == 0 on 4 harmonic tests: True
+su2 F_theta_phi = Matrix([[I*(1 - w**2)*sin(theta)/2, 0], [0, I*(w**2 - 1)*sin(theta)/2]]) | su3 eigenvalues: [2*I*pi*(-3*q3 - sqrt(3)*q8)/3, 2*I*pi*(3*q3 - sqrt(3)*q8)/3, 4*sqrt(3)*I*pi*q8/3]
+quench_bogoliubov_uv_true: TRUE
+quench_uv_coefficient_false: FALSE
+quench_occupation_monotone_true: TRUE
+quench_occupation_vanishes_at_zero_false: FALSE
+rocket_mass_bound_true: TRUE
+rocket_mass_bound_reversed_false: FALSE
+harmonic_gradient_subharmonic_true: TRUE
+harmonic_gradient_factor_false: FALSE
+su2_wu_yang_curvature_true: TRUE
+su2_wu_yang_curvature_sign_false: FALSE
+su3_charge_spectrum_true: TRUE
+
+real	0m5.999s
+user	0m0.030s
+sys	0m0.015s
