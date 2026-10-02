@@ -430,12 +430,45 @@ async def _do_cluster_capacity() -> dict:
     return await cluster_rpc({"action": "capacity"}, timeout=60)
 
 
-def _job_summary(jobdir: str, tail_chars: int = 0):
+def _read_job_state(path: str):
+    # Read and close at once: while job.json is open, Windows denies the
+    # runner's os.replace onto it (core/atomic_write.py).
     try:
-        with open(os.path.join(jobdir, "job.json"), encoding="utf-8") as f:
-            meta = json.load(f)
+        with open(path, encoding="utf-8") as f:
+            data = json.loads(f.read())
     except Exception:
         return None
+    return data if isinstance(data, dict) else None
+
+
+def _newer_unpublished_state(jobdir: str, meta: dict):
+    """The runner's state left in job.json.tmp when its rename was denied.
+
+    Only called once the runner is dead: a live runner renames the .tmp
+    every few seconds, and holding it open would deny that rename too. A
+    .tmp that does not parse (a write cut short) or is not newer than
+    job.json by its heartbeat ``ts`` is ignored.
+    """
+    staged = _read_job_state(os.path.join(jobdir, "job.json.tmp"))
+    if staged is None:
+        return None
+    try:
+        if float(staged.get("ts") or 0) <= float(meta.get("ts") or 0):
+            return None
+    except (TypeError, ValueError):
+        return None
+    staged["state_source"] = "job.json.tmp"
+    return staged
+
+
+def _job_summary(jobdir: str, tail_chars: int = 0):
+    meta = _read_job_state(os.path.join(jobdir, "job.json"))
+    if meta is None:
+        return None
+    if meta.get("status") == "running" and not _pid_alive_win(meta.get("pid", -1)):
+        # A runner whose final save exhausted its retries leaves job.json at
+        # 'running' and the finished state in job.json.tmp.
+        meta = _newer_unpublished_state(jobdir, meta) or meta
     now = time.time()
     meta["heartbeat_age_s"] = round(max(0.0, now - meta.get("ts", 0)), 1)
     if meta.get("status") == "running":

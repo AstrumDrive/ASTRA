@@ -9,6 +9,22 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.2 (2026-10-02)
+
+A `grep` poll had a job's `job.json` open when the persistent-cycle runner
+renamed its heartbeat over it; Windows denied the `os.replace`, the runner
+died, and `astra_job` reported the job as `killed` while the cycle went on
+to finish VALIDATED with its result only in `stdout.log`.
+
+- The cycle, job and campaign-step runners retry the rename (10 attempts,
+  50-200 ms apart). A heartbeat that still fails is logged to `runner.err`
+  and the runner carries on; the final save retries for about 10 s
+  (`core/atomic_write.py`). The cycle checkpoint retries its rename too.
+- When a dead runner's final save could not be published, `astra_job`
+  reports the newer state it left in `job.json.tmp`, marked
+  `state_source: job.json.tmp`. It never opens the `.tmp` while the runner
+  is alive.
+
 ## 1.1.1 (2026-10-02)
 
 A cycle launched from Codex with `timeout=900` spent three review rounds on

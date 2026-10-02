@@ -19,6 +19,11 @@ PermissionError on the first renames onto job.json, and check that:
 * ``astra_cycle_job_runner.main``, driving a stand-in for the nested
   astra_tool cycle, still writes the final result to job.json after its first
   state write was lost entirely.
+
+If the final save itself exhausts its retries, job.json stays at 'running'
+and the finished state survives only in job.json.tmp.  The reader side,
+``astra_tool._job_summary`` (astra_job), then reports that newer state once
+the runner is dead, and never opens the .tmp while the runner lives.
 """
 from __future__ import annotations
 
@@ -32,6 +37,7 @@ import pytest
 import astra_campaign_step_job_runner
 import astra_cycle_job_runner
 import astra_job_runner
+import astra_tool
 from core import atomic_write
 
 REAL_REPLACE = os.replace
@@ -207,3 +213,124 @@ def test_cycle_runner_writes_the_final_result_after_lost_heartbeats(
     assert result["action_seen"] == "cycle"
     assert not (jobdir / "job.json.tmp").exists()
     assert "not written" in capsys.readouterr().err
+
+
+# -- reader side: astra_tool._job_summary ----------------------------------
+
+
+def _write_job(jobdir: Path, published: dict, staged=None) -> None:
+    (jobdir / "job.json").write_text(json.dumps(published), encoding="utf-8")
+    if staged is not None:
+        text = staged if isinstance(staged, str) else json.dumps(staged)
+        (jobdir / "job.json.tmp").write_text(text, encoding="utf-8")
+
+
+RUNNING = {"id": "c", "status": "running", "pid": 4242, "started_ts": 50.0, "ts": 100.0}
+FINISHED = {
+    "id": "c",
+    "status": "done",
+    "pid": 4242,
+    "ts": 200.0,
+    "duration_s": 30.0,
+    "exit_code": 0,
+    "scientific_status": "VALIDATED",
+}
+
+
+def test_job_summary_reports_the_unpublished_final_state_of_a_dead_runner(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(astra_tool, "_pid_alive_win", lambda pid: False)
+    _write_job(tmp_path, RUNNING, FINISHED)
+
+    summary = astra_tool._job_summary(str(tmp_path))
+
+    assert summary["status"] == "done"
+    assert summary["scientific_status"] == "VALIDATED"
+    assert summary["state_source"] == "job.json.tmp"
+    assert summary["elapsed_s"] == 30.0
+
+
+@pytest.mark.parametrize(
+    "staged",
+    [
+        dict(FINISHED, ts=100.0),  # not newer than job.json
+        dict(FINISHED, ts=90.0),   # older
+        dict(FINISHED, ts="?"),    # unreadable heartbeat
+        '{"status": "do',          # write cut short
+        "[1, 2]",                  # not a job record
+    ],
+    ids=["same_ts", "older", "bad_ts", "truncated", "not_a_dict"],
+)
+def test_job_summary_ignores_a_tmp_that_is_not_a_newer_state(staged, tmp_path, monkeypatch):
+    monkeypatch.setattr(astra_tool, "_pid_alive_win", lambda pid: False)
+    _write_job(tmp_path, RUNNING, staged)
+
+    summary = astra_tool._job_summary(str(tmp_path))
+
+    assert summary["status"] == "killed"
+    assert "state_source" not in summary
+
+
+def test_job_summary_never_opens_the_tmp_while_the_runner_lives(tmp_path, monkeypatch):
+    monkeypatch.setattr(astra_tool, "_pid_alive_win", lambda pid: True)
+    opened = []
+    real_read = astra_tool._read_job_state
+
+    def spy(path):
+        opened.append(os.path.basename(path))
+        return real_read(path)
+
+    monkeypatch.setattr(astra_tool, "_read_job_state", spy)
+    _write_job(tmp_path, RUNNING, FINISHED)
+
+    summary = astra_tool._job_summary(str(tmp_path))
+
+    assert summary["status"] == "running" and summary["alive"] is True
+    assert opened == ["job.json"]
+
+
+class DenyFinalState:
+    """Stand-in for os.replace that denies every rename of a finished state onto job.json."""
+
+    def __init__(self):
+        self.denied = 0
+
+    def __call__(self, source, target):
+        if os.path.basename(os.fspath(target)) == "job.json":
+            with open(source, encoding="utf-8") as stream:
+                status = json.load(stream).get("status")
+            if status in ("done", "failed"):
+                self.denied += 1
+                raise PermissionError(13, "Access is denied", os.fspath(target))
+        return REAL_REPLACE(source, target)
+
+
+def test_astra_job_reports_a_finished_cycle_whose_final_save_was_lost(
+    tmp_path, monkeypatch
+):
+    fake_tool = tmp_path / "fake_astra_tool.py"
+    fake_tool.write_text(FAKE_NESTED_CYCLE, encoding="utf-8")
+    jobdir = tmp_path / "cycle_test_0002"
+    jobdir.mkdir()
+    _write_job(jobdir, {"id": jobdir.name, "kind": "deliberative_cycle",
+                        "status": "queued", "max_seconds": 300})
+    (jobdir / "request.json").write_text(json.dumps({"intuition": "x"}), encoding="utf-8")
+    monkeypatch.setattr(astra_cycle_job_runner, "ASTRA_TOOL", fake_tool)
+    monkeypatch.setattr(astra_cycle_job_runner, "HEARTBEAT_SECONDS", 0.05)
+    monkeypatch.setattr(atomic_write, "backoff_delay", lambda attempt: 0.001)
+    deny = DenyFinalState()
+    monkeypatch.setattr(os, "replace", deny)
+
+    assert astra_cycle_job_runner.main(str(jobdir)) == 0
+    monkeypatch.setattr(os, "replace", REAL_REPLACE)
+
+    assert deny.denied == atomic_write.FINAL_ATTEMPTS
+    assert _read(jobdir / "job.json")["status"] == "running"  # the lost save
+    # The runner ran in-process, so its recorded pid is this live test process;
+    # in production it is the detached runner, dead by now.
+    monkeypatch.setattr(astra_tool, "_pid_alive_win", lambda pid: False)
+    summary = astra_tool._job_summary(str(jobdir))
+    assert summary["status"] == "done"
+    assert summary["scientific_status"] == "VALIDATED"
+    assert summary["state_source"] == "job.json.tmp"
