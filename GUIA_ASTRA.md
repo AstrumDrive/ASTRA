@@ -51,6 +51,9 @@ los modelos; los validadores independientes pueden aprovechar varios cores.
 La máquina local ofrece Python, SymPy, Z3, NumPy/SciPy, mpmath, QuTiP, Pint y
 otros paquetes de `requirements.txt`. ASTRUM mantiene SageMath, Maxima, Cadabra,
 Lean, entornos GPU, el entorno científico `sci` y los paquetes propios `pkgs`.
+La GPU (RTX 3080) está operativa desde el 2026-10-01 con CuPy en `oracle` y
+`pkgs` y con PyTorch en `oracle`; `sci` sigue siendo solo CPU. Medidas y reglas
+en la sección "GPU" de `C:\Users\Nelson\Dev\REMOTE_CLUSTER_GUIDE.md`.
 
 Los motores remotos se descubren con `astra_engines`, no con `which`. Para un
 validador que necesite los paquetes propios:

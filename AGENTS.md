@@ -41,6 +41,13 @@ Instrucción completa para pegar a otro agente:
 `docs/onboarding/ASTRA_MACOS_INSTALL_EN.md` y el comando del clúster
 `~/astra-worker/astra_engine.sh list`.
 
+GPU: desde el 2026-10-01 CuPy funciona en `oracle` y `pkgs` (antes
+`cupy.linalg` fallaba por `libcusolver`; el arreglo es un `.pth` que precarga
+los wheels `nvidia-*`). Un validador que use `cupy` o `torch` declara
+`gpu_slots` al enviarlo por `astra_cluster_submit`. Medidas y la regla de
+validar contra CPU los códigos con truncación por energía, en la sección "GPU"
+de `C:\Users\Nelson\Dev\REMOTE_CLUSTER_GUIDE.md`.
+
 ## Motores locales para pre-pruebas: sí existen (Debian WSL)
 
 Para corridas cortas locales, ASTRA enruta Sage, Maxima y Cadabra por

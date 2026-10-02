@@ -31,7 +31,12 @@ Remote machine observed during setup:
 - Worker script: `~/astra-worker/astra_remote_worker.py`
 - Worker temp workspace: `~/astra-worker/workspace`
 - GPU: NVIDIA RTX 3080, usable from the worker venv through CuPy, PyTorch,
-  and JAX CUDA packages.
+  and JAX CUDA packages. Until 2026-10-01 `cupy.linalg` failed in this venv
+  (`libcusolver.so.11` not found: the `nvidia-*-cu12` wheels keep their
+  libraries outside the loader path). Fixed that day with
+  `zz_nvidia_preload.pth`/`.py` in the venv's `site-packages` (also in the
+  `pkgs` env); verified `cupy.linalg.eigh`, cuRAND and cuFFT. Details and
+  timings: `C:\Users\Nelson\Dev\REMOTE_CLUSTER_GUIDE.md`, section "GPU".
 
 ## Local ASTRA Configuration
 
