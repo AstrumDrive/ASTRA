@@ -27,11 +27,24 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def _save(meta: dict, jobdir: Path) -> None:
+from core.atomic_write import (  # noqa: E402 - after sys.path fixup above
+    DEFAULT_ATTEMPTS,
+    FINAL_ATTEMPTS,
+    save_json_best_effort,
+)
+
+
+def _save(meta: dict, jobdir: Path, *, final: bool = False) -> bool:
+    # A reader holding job.json open makes os.replace fail on Windows; the
+    # write is retried and never fatal (core/atomic_write.py).
     meta["ts"] = time.time()
-    temporary = jobdir / "job.json.tmp"
-    temporary.write_text(json.dumps(meta, default=str), encoding="utf-8")
-    os.replace(str(temporary), str(jobdir / "job.json"))
+    return save_json_best_effort(
+        jobdir / "job.json",
+        meta,
+        label="final job state" if final else "job heartbeat",
+        attempts=FINAL_ATTEMPTS if final else DEFAULT_ATTEMPTS,
+        default=str,
+    )
 
 
 def main(jobdir_text: str) -> int:
@@ -78,7 +91,7 @@ def main(jobdir_text: str) -> int:
         goal_coverage=step.get("goal_coverage"),
         decision_action=decisions[0].get("action") if decisions else None,
     )
-    _save(meta, jobdir)
+    _save(meta, jobdir, final=True)
     return 1 if error else 0
 
 

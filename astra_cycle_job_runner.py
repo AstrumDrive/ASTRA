@@ -9,20 +9,30 @@ import subprocess
 import sys
 import time
 
+from core.atomic_write import DEFAULT_ATTEMPTS, FINAL_ATTEMPTS, save_json_best_effort
+
 
 ROOT = Path(__file__).resolve().parent
 ASTRA_TOOL = ROOT / "astra_tool.py"
+HEARTBEAT_SECONDS = 5
 
 # Este runner corre DETACHED (sin consola): sin este flag, el python de
 # astra_tool y el taskkill abren ventanas de consola visibles y vacias.
 _NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
-def _save(meta: dict, jobdir: Path) -> None:
+def _save(meta: dict, jobdir: Path, *, final: bool = False) -> bool:
+    # On Windows os.replace fails while a reader holds job.json open
+    # (astra_job, a grep poll); on 2026-10-02 that killed this runner and the
+    # cycle's VALIDATED result never reached job.json.  The write is retried
+    # and never fatal: meta stays in memory and the next save carries it.
     meta["ts"] = time.time()
-    temporary = jobdir / "job.json.tmp"
-    temporary.write_text(json.dumps(meta), encoding="utf-8")
-    os.replace(str(temporary), str(jobdir / "job.json"))
+    return save_json_best_effort(
+        jobdir / "job.json",
+        meta,
+        label="final job state" if final else "job heartbeat",
+        attempts=FINAL_ATTEMPTS if final else DEFAULT_ATTEMPTS,
+    )
 
 
 def _kill_tree(pid: int) -> None:
@@ -116,7 +126,7 @@ def main(jobdir_text: str) -> int:
                 timed_out = True
                 _kill_tree(process.pid)
                 break
-            time.sleep(5)
+            time.sleep(HEARTBEAT_SECONDS)
         try:
             return_code = process.wait(timeout=15)
         except subprocess.TimeoutExpired:
@@ -150,7 +160,7 @@ def main(jobdir_text: str) -> int:
         oracle_verdict=result.get("oracle_verdict"),
         operational_error=operational_error,
     )
-    _save(meta, jobdir)
+    _save(meta, jobdir, final=True)
     return 1 if timed_out or return_code != 0 else 0
 
 

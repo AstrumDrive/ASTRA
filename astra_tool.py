@@ -52,6 +52,7 @@ from core.architecture_contract import (
 )
 from core.request_structurer import structure_requested
 from core.input_request import input_policy
+from core.atomic_write import replace_with_retry
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -1384,7 +1385,9 @@ async def _do_cycle_impl(req: dict) -> dict:
             temporary = checkpoint_path + ".tmp"
             with open(temporary, "w", encoding="utf-8") as stream:
                 json.dump(checkpoint_state, stream, ensure_ascii=False, indent=2)
-            os.replace(temporary, checkpoint_path)
+            # The progress window and astra_telemetry read this file while
+            # the cycle runs; on Windows a held-open target denies the rename.
+            replace_with_retry(temporary, checkpoint_path)
         except Exception:
             pass
         return checkpoint_path

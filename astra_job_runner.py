@@ -28,13 +28,20 @@ sys.path.insert(0, ROOT)
 from core.preflight import load_project_env
 load_project_env()
 
+from core.atomic_write import DEFAULT_ATTEMPTS, FINAL_ATTEMPTS, save_json_best_effort
 
-def _save(meta: dict, jobdir: str) -> None:
+
+def _save(meta: dict, jobdir: str, *, final: bool = False) -> bool:
+    # En Windows os.replace falla si otro proceso tiene job.json abierto
+    # (astra_job, un grep): se reintenta y nunca tumba el runner; meta sigue
+    # en memoria y el siguiente latido lo reescribe (core/atomic_write.py).
     meta["ts"] = time.time()                 # heartbeat
-    tmp = os.path.join(jobdir, "job.json.tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(meta, f)
-    os.replace(tmp, os.path.join(jobdir, "job.json"))
+    return save_json_best_effort(
+        os.path.join(jobdir, "job.json"),
+        meta,
+        label="final job state" if final else "job heartbeat",
+        attempts=FINAL_ATTEMPTS if final else DEFAULT_ATTEMPTS,
+    )
 
 
 def _verdict(stdout: str) -> str:
@@ -135,7 +142,7 @@ def main(jobdir: str) -> None:
     meta.update(status="done" if res.get("exit_code") == 0 else "failed",
                 finished_ts=time.time(), exit_code=res.get("exit_code"),
                 verdict=res["verdict"], duration_s=res["duration_s"])
-    _save(meta, jobdir)
+    _save(meta, jobdir, final=True)
 
 
 if __name__ == "__main__":
