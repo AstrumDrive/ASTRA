@@ -480,3 +480,44 @@ checkpoints:
    estas dos reglas, una proposición por ciclo y las definiciones en la
    intuición, y revisar el analista para que una refutación exacta con un
    coeficiente en coma flotante no se convierta en `CODE_ERROR`.
+
+## 7. La regla del analista sobre el coeficiente en coma flotante (2026-10-01, noche)
+
+Nelson pidió revisar por qué `res_kondo_y1_commutator_sign_false` cerró en
+error con una refutación correcta dentro. Lectura de los checkpoints del día:
+en 128 ciclos con ejecución desde la noche anterior, 9 tuvieron un validador
+que salió con código 0 y `VERDICT: FAIL` y un analista que devolvió
+`CODE_ERROR`. Cinco son defensibles (validadores que no construyeron los
+operadores o cambiaron la métrica). Cuatro no: el propio
+`original_claim_reasoning` del analista concluía que P quedaba refutada (la
+norma 3/16 frente al 3/8 pedido, el contraejemplo del cohete, ρ = 0 frente a
+la densidad falsa, el residuo 2|J| del signo de Y₁) mientras `status` decía
+`CODE_ERROR`. El prompt lo permitía: "downgrade flawed, circular, incomplete,
+or non-falsifiable validators to CODE_ERROR even when they exit cleanly",
+escrito para los PASS, se aplicó a un FAIL por un coeficiente de Levi-Civita
+impreso como float con residuo 2,0 frente a 0. Después, el estado
+`CODE_ERROR` abrió la ronda de reparación, el reparador acotado respondió
+"no defect found, the FAIL verdict stands", y el ciclo murió como
+`TOOL_ERROR`. Tres de los cuatro casos se salvaron por el reintento; el
+cuarto no.
+
+Arreglo (commit `e4cf607`, suite 607):
+
+- `agents/analyst.py`: `CODE_ERROR` sobre un FAIL exige nombrar el defecto
+  en la pata decisiva; un residuo muy por encima de la tolerancia numérica
+  refuta una identidad exacta aunque se imprima como float; `status` y
+  `original_claim_verdict` salen de la misma evidencia.
+- `core/llm_client.py::analyze_results`: cuando los dos ejes se contradicen
+  en una corrida limpia, una sola re-pregunta ("nombra el defecto o decide");
+  la segunda respuesta reemplaza a la primera solo si es válida; nunca se
+  re-pregunta tras un crash. Queda registrada en `consistency_retry`.
+- `astra_tool.py`: un `CANNOT_PATCH` del reparador ya no mata el ciclo;
+  conserva el análisis, los dos ejes y un `repair_note`.
+- Tests: `ContradictoryCodeErrorTests` (3) en `tests/test_verdict_reanchoring.py`.
+
+Canario en producción sobre el mismo caso (22:30, reporte
+`quality_20261001_223822`, copiado a `docs/evidence/research_arms_20261001/`):
+`REFUTED` en 497 s, revisor aprobado tras una ronda, tres checks en FAIL con
+residuo exacto 2|J| y el analista coherente a la primera, sin necesitar la
+re-pregunta. Con este caso decidido, el corpus v1.2 quedaría en 48 de 50; la
+tabla de la sección 6 conserva la cifra medida en la corrida completa, 47.
