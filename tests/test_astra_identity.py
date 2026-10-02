@@ -60,3 +60,33 @@ class AstraIdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IdentityLabelTests(unittest.TestCase):
+    """2026-10-02: the cycle window said only 'ASTRA 1.0'; the label now names
+    the line, the commit and (in the banner) the profile."""
+
+    def test_label_names_version_line_and_revision(self):
+        import re
+        label = ident.identity_label()
+        self.assertTrue(label.startswith("ASTRA 1.0 production @"), label)
+        rev = label.split("@", 1)[1]
+        self.assertTrue(rev == "unknown" or re.match(r"^[0-9a-f]{7,}", rev), rev)
+
+    def test_banner_carries_line_commit_and_profile(self):
+        import io
+        from contextlib import redirect_stderr
+        from unittest import mock
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {"ASTRA_ARCHITECTURE_PROFILE": "'no-ensemble'"}):
+            with redirect_stderr(buf):
+                ident.banner("identity check", force=True)
+        out = buf.getvalue()
+        self.assertIn("line   : production", out)
+        self.assertIn("commit : " + ident.checkout_revision(), out)
+        self.assertIn("profile: no-ensemble", out)
+        self.assertTrue(out.isascii(), "banner must stay ASCII for cp1252 consoles")
+
+    def test_window_title_and_follower_label_use_the_identity(self):
+        from core import progress_window as pw
+        self.assertEqual(pw.WINDOW_TITLE, ident.identity_label() + " cycle")

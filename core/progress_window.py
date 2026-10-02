@@ -32,7 +32,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLLOWER = ROOT / "scripts" / "astra_progress.py"
-WINDOW_TITLE = "ASTRA 1.0 cycle"
+try:
+    from core.astra_identity import identity_label
+    WINDOW_TITLE = f"{identity_label()} cycle"      # e.g. "ASTRA 1.0 production @3be95bb 2026-10-02 cycle"
+except Exception:                                   # never block a cycle on the label
+    WINDOW_TITLE = "ASTRA 1.0 cycle"
 _OFF = {"0", "off", "false", "no"}
 _CREATE_NO_WINDOW = 0x08000000
 

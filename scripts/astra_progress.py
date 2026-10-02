@@ -28,6 +28,12 @@ if ROOT not in sys.path:
 
 from core import cycle_telemetry as ct  # noqa: E402
 
+try:
+    from core.astra_identity import identity_label  # noqa: E402
+    LABEL = f"{identity_label()} cycle"
+except Exception:
+    LABEL = "ASTRA 1.0 cycle"
+
 PROGRESS_DIR = os.path.join(ROOT, "workspace", "progress")
 CKPT_DIR = os.path.join(ROOT, "workspace", "cycle_checkpoints")
 
@@ -233,13 +239,13 @@ def follow_view(pid: int, medians: dict, progress_dir: str = None,
     alive = _pid_alive(pid)
     if not heartbeat:
         waited = "" if alive else " (process not running)"
-        return (f"ASTRA 1.0 cycle pid {pid}: waiting for its first heartbeat{waited}...", not alive)
+        return (f"{LABEL} pid {pid}: waiting for its first heartbeat{waited}...", not alive)
     ckpt_path = heartbeat.get("checkpoint")
     if expected_checkpoint and ckpt_path and (
         os.path.basename(str(ckpt_path)) != os.path.basename(str(expected_checkpoint))
     ):
         return (
-            f"ASTRA 1.0 cycle pid {pid}: this cycle ({os.path.basename(str(expected_checkpoint))}) "
+            f"{LABEL} pid {pid}: this cycle ({os.path.basename(str(expected_checkpoint))}) "
             f"has ended; the same process now runs another one "
             f"({os.path.basename(str(ckpt_path))}).",
             True,
@@ -257,13 +263,15 @@ def follow_view(pid: int, medians: dict, progress_dir: str = None,
                 cache["ckpt"] = ckpt
     est = estimate_progress(heartbeat, ckpt, medians, now, alive)
     request = ckpt.get("request") or {}
+    arch = ckpt.get("architecture") or {}
     objective = ckpt.get("shared_goal") or "-"
     direction = request.get("original") or ckpt.get("intuition") or "-"
     result = (ckpt.get("result") or {}) if isinstance(ckpt.get("result"), dict) else {}
     state = ("FINISHED" if heartbeat.get("stage") in TERMINAL_STAGES
              else ("KILLED" if est["terminal"] else "running"))
     lines = [
-        f"ASTRA 1.0 cycle  pid {pid}  started {time.strftime('%H:%M:%S', time.localtime(ckpt.get('created_ts') or heartbeat.get('ts') or now))}  [{state}]",
+        f"{LABEL}  pid {pid}  started {time.strftime('%H:%M:%S', time.localtime(ckpt.get('created_ts') or heartbeat.get('ts') or now))}  [{state}]"
+        + (f"  profile {arch.get('profile')} ({arch.get('architecture_id')})" if isinstance(arch, dict) and arch.get("profile") else ""),
         f"Objective : {_one_line(objective, 96)}",
         f"Direction : {_one_line(direction, 96)}",
     ]
@@ -327,7 +335,7 @@ def _set_title(text: str) -> None:
 
 def follow(pid: int, linger: int, progress_dir: str = None, checkpoint_dir: str = None,
            refresh: float = 2.0, checkpoint: str = None) -> int:
-    _set_title(f"ASTRA 1.0 cycle {pid}")
+    _set_title(f"{LABEL} {pid}")
     try:
         # A cp1252 console must not die on a Greek letter in the objective.
         sys.stdout.reconfigure(errors="replace")
@@ -345,11 +353,11 @@ def follow(pid: int, linger: int, progress_dir: str = None, checkpoint_dir: str 
                 text, terminal = follow_view(pid, medians, progress_dir, checkpoint_dir,
                                              expected_checkpoint=checkpoint, cache=cache)
             except Exception as exc:              # the window must never die on a view error
-                text, terminal = (f"ASTRA 1.0 cycle pid {pid}: view error ({exc!r}); retrying...", False)
+                text, terminal = (f"{LABEL} pid {pid}: view error ({exc!r}); retrying...", False)
             if not titled:
                 objective = _one_line((cache.get("ckpt") or {}).get("shared_goal") or "", 70)
                 if objective:
-                    _set_title(f"ASTRA 1.0 cycle {pid}: {objective}")
+                    _set_title(f"{LABEL} {pid}: {objective}")
                     titled = True
             os.system("cls" if os.name == "nt" else "clear")
             print(text)
