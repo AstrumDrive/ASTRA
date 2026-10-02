@@ -9,6 +9,24 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.3 (2026-10-02)
+
+Five persistent-cycle runners were terminated together, with no traceback
+(cause not determined), while their cycles went on to finish; three of them
+supported the user's claim. Only the runner copies a cycle's result into
+`job.json`, so `astra_job` reported all five as `killed`.
+
+- When a cycle's runner is dead, `astra_job` reads the result line the
+  cycle printed to `stdout.log`. The job reads `done`, with
+  `state_source: stdout.log`, `exit_code: null` (not observable) and the
+  full result. The runner's own unpublished state in `job.json.tmp` still
+  takes precedence. Nothing is written to the job directory.
+- A cycle that outlives its runner reads `running` with
+  `runner_alive: false` instead of `killed`, for at most `max_seconds`
+  plus 120 s (beyond that a live process id is taken as reused).
+- The runner and `astra_job` compute the summary fields with the same code
+  (`core/cycle_job_result.py`).
+
 ## 1.1.2 (2026-10-02)
 
 A `grep` poll had a job's `job.json` open when the persistent-cycle runner

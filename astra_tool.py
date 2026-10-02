@@ -53,6 +53,7 @@ from core.architecture_contract import (
 from core.request_structurer import structure_requested
 from core.input_request import input_policy
 from core.atomic_write import replace_with_retry
+from core.cycle_job_result import final_fields, last_json_object
 
 _ACTIVE_CYCLE_CHECKPOINT = None
 
@@ -461,21 +462,84 @@ def _newer_unpublished_state(jobdir: str, meta: dict):
     return staged
 
 
+def _recovered_cycle_state(jobdir: str, meta: dict):
+    """A dead runner's cycle result, read from the cycle's own stdout.log.
+
+    astra_tool prints its result as the one JSON line of stdout.log and
+    returns; the runner copies it to result.json and job.json. A runner
+    terminated before that (five at once on 2026-10-02, no traceback) leaves
+    job.json at 'running' while its cycle finishes on its own. The exit code
+    is not observable then and stays None.
+    """
+    if meta.get("kind") != "deliberative_cycle":
+        return None
+    stdout_path = os.path.join(jobdir, "stdout.log")
+    result = last_json_object(stdout_path)
+    if result is None:
+        return None
+    try:
+        finished = os.path.getmtime(stdout_path)
+    except OSError:
+        return None
+    started = meta.get("started_ts") or meta.get("created_ts") or finished
+    recovered = dict(meta)
+    recovered.update(
+        status="done",
+        finished_ts=finished,
+        duration_s=round(finished - started, 2),
+        exit_code=None,
+        state_source="stdout.log",
+        **final_fields(result),
+    )
+    return recovered
+
+
+# astra_tool returns before its own max_seconds budget, so a nested pid still
+# answering well past it belongs to another process that reused the number.
+_ORPHAN_GRACE_S = 120
+
+
+def _orphaned_cycle_alive(meta: dict, now: float) -> bool:
+    """Whether the cycle of a dead runner is still working."""
+    if meta.get("kind") != "deliberative_cycle" or not meta.get("nested_pid"):
+        return False
+    started = meta.get("started_ts") or meta.get("created_ts") or now
+    try:
+        budget = float(meta.get("max_seconds") or 7200)
+    except (TypeError, ValueError):
+        budget = 7200.0
+    if now - started > budget + _ORPHAN_GRACE_S:
+        return False
+    return _pid_alive_win(meta["nested_pid"])
+
+
 def _job_summary(jobdir: str, tail_chars: int = 0):
     meta = _read_job_state(os.path.join(jobdir, "job.json"))
     if meta is None:
         return None
-    if meta.get("status") == "running" and not _pid_alive_win(meta.get("pid", -1)):
-        # A runner whose final save exhausted its retries leaves job.json at
-        # 'running' and the finished state in job.json.tmp.
-        meta = _newer_unpublished_state(jobdir, meta) or meta
+    runner_alive = None
+    if meta.get("status") == "running":
+        runner_alive = _pid_alive_win(meta.get("pid", -1))
+        if not runner_alive:
+            # The runner is gone without its final save. A denied rename
+            # leaves its own final state in job.json.tmp; failing that, a
+            # cycle that finished on its own left its result in stdout.log.
+            meta = _newer_unpublished_state(jobdir, meta) or meta
+            if meta.get("status") == "running":
+                meta = _recovered_cycle_state(jobdir, meta) or meta
     now = time.time()
     meta["heartbeat_age_s"] = round(max(0.0, now - meta.get("ts", 0)), 1)
     if meta.get("status") == "running":
         meta["elapsed_s"] = round(now - meta.get("started_ts", meta.get("created_ts", now)), 1)
-        meta["alive"] = _pid_alive_win(meta.get("pid", -1))
-        if not meta["alive"]:
-            meta["status"] = "killed"    # murio sin llegar a escribir resultado
+        meta["alive"] = bool(runner_alive)
+        if not runner_alive:
+            if _orphaned_cycle_alive(meta, now):
+                # No heartbeat any more, but the cycle works on; its result
+                # will be recovered from stdout.log when it prints it.
+                meta["alive"] = True
+                meta["runner_alive"] = False
+            else:
+                meta["status"] = "killed"    # murio sin llegar a escribir resultado
     else:
         meta["elapsed_s"] = meta.get("duration_s")
     if tail_chars:
@@ -503,15 +567,24 @@ def _do_job(req: dict) -> dict:
                     jobs.append({k: m.get(k) for k in
                                  ("id", "kind", "status", "oracle", "verdict",
                                   "scientific_status", "phase", "elapsed_s",
-                                  "heartbeat_age_s")})
+                                  "heartbeat_age_s", "state_source",
+                                  "runner_alive")})
         return {"jobs": jobs}
     jobdir = os.path.join(root, job_id)
     if not os.path.isdir(jobdir):
         return {"error": f"job desconocido: {job_id}"}
     meta = _job_summary(jobdir, tail_chars=2000)
+    if meta is None:
+        return meta
     try:
         with open(os.path.join(jobdir, "result.json"), encoding="utf-8") as f:
             meta["result"] = json.load(f)
+    except Exception:
+        if meta.get("state_source") == "stdout.log":
+            # The runner died before writing result.json; the summary
+            # recovered the cycle's result from stdout.log.
+            meta["result"] = last_json_object(os.path.join(jobdir, "stdout.log"))
+    try:
         s = meta["result"].get("stdout")
         if isinstance(s, str) and len(s) > 4000:
             meta["result"]["stdout"] = s[-4000:]   # el completo queda en stdout.log

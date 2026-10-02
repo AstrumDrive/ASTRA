@@ -415,7 +415,10 @@ async def astra_job(job_id: str = "") -> str:
     seconds, a LIVE stdout tail (local python jobs stream their output), and the
     final result (verdict, exit_code, duration_s) once finished. Empty job_id
     lists the 10 most recent jobs. Poll every 1-5 min on long runs; a running
-    job with a fresh heartbeat is healthy even if stdout is quiet.
+    job with a fresh heartbeat is healthy even if stdout is quiet. A cycle
+    with runner_alive=false is still working although its heartbeat stopped:
+    keep polling. state_source (job.json.tmp or stdout.log) says where the
+    final state of a job whose runner died was recovered from.
     """
     res = await asyncio.to_thread(_call_astra, {"action": "job", "job_id": job_id}, timeout=60)
     return json.dumps(res, indent=2, ensure_ascii=False)

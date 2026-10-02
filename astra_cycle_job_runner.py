@@ -10,6 +10,7 @@ import sys
 import time
 
 from core.atomic_write import DEFAULT_ATTEMPTS, FINAL_ATTEMPTS, save_json_best_effort
+from core.cycle_job_result import NO_RESULT_ERROR, final_fields, last_json_object
 
 
 ROOT = Path(__file__).resolve().parent
@@ -50,16 +51,7 @@ def _kill_tree(pid: int) -> None:
 
 
 def _last_json(path: Path) -> dict:
-    last = None
-    with path.open("r", encoding="utf-8", errors="replace") as stream:
-        for line in stream:
-            try:
-                candidate = json.loads(line.strip())
-            except (json.JSONDecodeError, TypeError):
-                continue
-            if isinstance(candidate, dict):
-                last = candidate
-    return last or {"error": "persistent cycle produced no JSON result"}
+    return last_json_object(path) or {"error": NO_RESULT_ERROR}
 
 
 def _phase_progress(pid: int) -> dict:
@@ -146,19 +138,12 @@ def main(jobdir_text: str) -> int:
         encoding="utf-8",
     )
 
-    operational_error = bool(result.get("error"))
     meta.update(
         status="failed" if timed_out or return_code != 0 else "done",
         finished_ts=time.time(),
         duration_s=round(time.time() - started, 2),
         exit_code=return_code,
-        scientific_status=(
-            result.get("scientific_status") or result.get("status")
-        ),
-        atomic_status=result.get("atomic_status") or result.get("status"),
-        goal_coverage=(result.get("goal_coverage") or {}).get("status"),
-        oracle_verdict=result.get("oracle_verdict"),
-        operational_error=operational_error,
+        **final_fields(result),
     )
     _save(meta, jobdir, final=True)
     return 1 if timed_out or return_code != 0 else 0
