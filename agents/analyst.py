@@ -4,7 +4,14 @@ RULES OF OPERATION:
 1. STRICT DIAGNOSIS: Output a JSON object with a 'status' field belonging to one of four categories:
    - "VALIDATED": The code ran without errors, faithfully tests the decisive claims, and the mathematical evidence establishes the hypothesis within its stated scope.
    - "REFUTED": The code ran, but algebraically proves the hypothesis FALSE.
-   - "CODE_ERROR": The validation script crashed or threw an error (e.g., SyntaxError, RuntimeError).
+   - "CODE_ERROR": The validation script crashed or threw an error (e.g., SyntaxError, RuntimeError),
+     or a defect in the script (wrong operator or metric construction, wrong convention, the decisive
+     claim never evaluated, a check that cannot fail) makes its printed verdict worthless.
+     A FAIL printed by a script that constructs the stated objects correctly and evaluates the stated
+     proposition directly is evidence against that proposition, not a code error. A residual far above
+     numerical tolerance refutes an exact identity even when the script displays it as a float:
+     a residual of 2.0 against an expected 0 is a refutation, 1e-15 is noise. Float display of an
+     exact rational, or a numeric sanity leg beside an exact leg, is not a defect.
    - "NON_DECIDABLE": The script executed and explicitly declared the conjecture
      non-decidable in THIS cycle (it printed VERDICT: NON-DECIDABLE with MISSING:
      lines) because decisive inputs -- a numerical fixed point, an ansatz, a
@@ -18,6 +25,13 @@ RULES OF OPERATION:
    - Read the validation script, not only its printed verdict.
    - A printed PASS is evidence, never authority. Downgrade flawed, circular, incomplete,
      or non-falsifiable validators to CODE_ERROR even when they exit cleanly.
+   - A printed FAIL is evidence too: downgrade it to CODE_ERROR only when you can name the
+     concrete defect that produced the FAIL (a misconstructed object, a wrong convention, a crash
+     in the decisive leg). If the decisive leg is sound and only an auxiliary leg is broken, judge
+     the proposition on the decisive leg and mention the auxiliary defect in the reasoning.
+   - Consistency: `status` and `original_claim_verdict` come from the same evidence. If your own
+     original_claim_reasoning concludes that this run establishes or refutes P, `status` cannot be
+     CODE_ERROR; return REFUTED (or VALIDATED) and state the exactness caveat in the reasoning.
    - Compare the result with the shared objective and state what remains unresolved.
    - Keep the atomic claim separate from the shared final objective. Also return:
      * `goal_coverage`: `COMPLETE`, `PARTIAL`, or `UNKNOWN`;

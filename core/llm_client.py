@@ -769,6 +769,51 @@ class ASTRAIntelligence:
                 + str(parsed.get("reasoning") or "")
             ).strip()
 
+        if (
+            parsed is not None
+            and status == "CODE_ERROR"
+            and str(parsed.get("original_claim_verdict") or "").upper() in {"REFUTED", "SUPPORTED"}
+            and not _crashed
+            and (_explicit_fail or _clean_pass)
+        ):
+            # 2026-10-01 research corpus: four clean validators that refuted
+            # a seeded false claim (nonzero exact residual, VERDICT: FAIL) came
+            # back as CODE_ERROR while the analyst's own re-anchored reasoning
+            # said "P is refuted", once over a Levi-Civita coefficient printed
+            # as a float. The two axes contradict each other; the status then
+            # drove a repair round that found no defect and the cycle died.
+            # Ask once for a consistent answer: name the defect or decide.
+            verdict = str(parsed.get("original_claim_verdict")).upper()
+            retry = await self._call_api(
+                system_prompt,
+                user_prompt
+                + "\n\nCONSISTENCY CHECK: your previous reply set status=CODE_ERROR "
+                "although the script exited 0 with an explicit VERDICT line and your "
+                f"own original_claim_reasoning concluded that P is {verdict} by this "
+                "run. Either name the concrete defect in the DECISIVE leg that makes "
+                "the printed verdict worthless (then keep CODE_ERROR and set "
+                "original_claim_verdict to INCONCLUSIVE), or return the status the "
+                "evidence supports (REFUTED or VALIDATED) and put any exactness or "
+                "float-display caveat in the reasoning. A nonzero residual far above "
+                "numerical tolerance refutes an exact identity. Return ONLY the JSON "
+                "object described by your rules.",
+            )
+            if isinstance(retry, str) and not retry.startswith("API_ERROR:"):
+                reparsed = _extract_json_object(_fix_json_backslashes(retry))
+                restatus = str((reparsed or {}).get("status") or "").upper()
+                if reparsed is not None and restatus in {"CODE_ERROR", "REFUTED", "VALIDATED", "NON_DECIDABLE"}:
+                    raw_missing = reparsed.get("missing_inputs")
+                    reparsed["missing_inputs"] = [
+                        str(item).strip() for item in (raw_missing if isinstance(raw_missing, list) else [])
+                        if str(item).strip()
+                    ][:20]
+                    reparsed = _normalize_original_claim_verdict(reparsed, shared_goal or original_claim)
+                    reparsed["consistency_retry"] = {"first_status": status, "first_original_claim_verdict": verdict}
+                    parsed, status, response = reparsed, restatus, retry
+                    if status == "NON_DECIDABLE" and not _declared:
+                        status = "CODE_ERROR"
+                        parsed["status"] = status
+
         # A crashed run never establishes a theorem -- except that a declared
         # non-decidable validator exits 3 by protocol: keep the analyst's parsed
         # status so core/non_decidable.py can apply its rules (a VALIDATED there

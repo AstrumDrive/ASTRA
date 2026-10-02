@@ -212,6 +212,84 @@ class UnparseableAnalystTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner._reanchored_status(result), "INCONCLUSIVE")
 
 
+class ContradictoryCodeErrorTests(unittest.IsolatedAsyncioTestCase):
+    """2026-10-01 research corpus: the analyst filed clean refutations as
+    CODE_ERROR while its own re-anchored reasoning said P was refuted. The
+    client asks once for a consistent answer and never re-asks on a crash."""
+
+    CLEAN_FAIL = {
+        "exit_code": 0,
+        "stdout": "[exact] nonzero residual entries = 12, max|R/J| = 2.00000000000000\nCHECK exact_entrywise: FAIL\nVERDICT: FAIL",
+        "stderr": "",
+        "validation_code": "print('VERDICT: FAIL')",
+        "code_review": {"status": "APPROVED"},
+    }
+    FIRST = {"status": "CODE_ERROR", "reasoning": "",
+             "original_claim_verdict": "REFUTED",
+             "original_claim_reasoning": "P is the identity; the script tested it directly, but a float Levi-Civita coefficient means the result is not exact."}
+
+    async def test_consistent_second_reply_replaces_the_code_error(self):
+        analyst = ASTRAIntelligence(provider="codex_cli")
+        calls = []
+
+        async def fake_call(_system, user):
+            calls.append(user)
+            if len(calls) == 1:
+                return json.dumps(self.FIRST)
+            return json.dumps({"status": "REFUTED", "reasoning": "exact residual 2|J| != 0; float display only",
+                               "original_claim_verdict": "REFUTED", "original_claim_reasoning": "P is refuted."})
+
+        analyst._call_api = fake_call
+        result = await analyst.analyze_results("[Y1,H_J] = +2iJ C1", self.CLEAN_FAIL, shared_goal="Determine whether [Y1,H_J] = +2iJ C1.")
+        self.assertEqual(len(calls), 2)
+        self.assertIn("CONSISTENCY CHECK", calls[1])
+        self.assertEqual(result["status"], "REFUTED")
+        self.assertEqual(result["original_claim_verdict"], "REFUTED")
+        self.assertEqual(result["consistency_retry"]["first_status"], "CODE_ERROR")
+
+    async def test_a_confirmed_code_error_is_kept(self):
+        analyst = ASTRAIntelligence(provider="codex_cli")
+        calls = []
+
+        async def fake_call(_system, user):
+            calls.append(user)
+            if len(calls) == 1:
+                return json.dumps(self.FIRST)
+            return json.dumps({"status": "CODE_ERROR", "reasoning": "the decisive leg used the wrong mode order",
+                               "original_claim_verdict": "INCONCLUSIVE", "original_claim_reasoning": "not decided."})
+
+        analyst._call_api = fake_call
+        result = await analyst.analyze_results("claim", self.CLEAN_FAIL, shared_goal="Determine whether claim.")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["status"], "CODE_ERROR")
+        self.assertEqual(result["original_claim_verdict"], "INCONCLUSIVE")
+
+    async def test_no_second_call_on_a_crash_or_without_a_contradiction(self):
+        analyst = ASTRAIntelligence(provider="codex_cli")
+        calls = []
+
+        async def fake_call(_system, user):
+            calls.append(user)
+            return json.dumps(self.FIRST)
+
+        analyst._call_api = fake_call
+        crashed = dict(self.CLEAN_FAIL, exit_code=1, stderr="Traceback ... KeyError: 0")
+        result = await analyst.analyze_results("claim", crashed, shared_goal="Determine whether claim.")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result["status"], "CODE_ERROR")
+        calls.clear()
+        consistent = dict(self.FIRST, original_claim_verdict="INCONCLUSIVE")
+
+        async def fake_call2(_system, user):
+            calls.append(user)
+            return json.dumps(consistent)
+
+        analyst._call_api = fake_call2
+        result = await analyst.analyze_results("claim", self.CLEAN_FAIL, shared_goal="Determine whether claim.")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result["status"], "CODE_ERROR")
+
+
 class BenchmarkScoringTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -2308,6 +2308,21 @@ async def _do_cycle_impl(req: dict) -> dict:
                             analysis, nd_declaration, nd_declarations, retry_available=False
                         )
                         break
+                    if patch_error and not patch_error.startswith("API_ERROR:"):
+                        # The bounded repairer read the validator and found
+                        # nothing to fix (CANNOT_PATCH, "the FAIL verdict
+                        # stands"). Dying here with a TOOL_ERROR threw away a
+                        # complete analysis; 2026-10-01 it buried a correct
+                        # refutation of a seeded false claim. Keep the
+                        # analyst's verdict and both axes, and record why no
+                        # repair happened, so the caller reads the evidence.
+                        analysis = dict(analysis)
+                        analysis["repair_note"] = patch_error
+                        analysis["reasoning"] = (
+                            str(analysis.get("reasoning") or "").strip()
+                            + " | No repair applied: " + patch_error
+                        ).strip(" |")
+                        break
                     if patch_error:
                         out = _fail(
                             patch_error,
