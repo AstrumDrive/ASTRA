@@ -10,6 +10,9 @@ import unittest
 from unittest.mock import patch
 
 import core.astra_identity as ident
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class AstraIdentityTests(unittest.TestCase):
@@ -23,7 +26,7 @@ class AstraIdentityTests(unittest.TestCase):
     def test_version_inferred_from_this_checkout(self):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("ASTRA_VERSION", None)
-            self.assertEqual(ident.astra_version(), "1.0")
+            self.assertEqual(ident.astra_version(), (ROOT / "VERSION").read_text(encoding="utf-8").strip())
 
     def test_banner_prints_once_per_process(self):
         buf = io.StringIO()
@@ -41,7 +44,7 @@ class AstraIdentityTests(unittest.TestCase):
                 patch("core.astra_identity.set_console_title"):
             ident.banner("quality benchmark")
         out = buf.getvalue()
-        self.assertIn("ASTRA 1.0", out)
+        self.assertIn("ASTRA 1.0", out)  # ASTRA_VERSION=1.0 is patched in for this test
         self.assertIn("quality benchmark", out)
         self.assertIn(str(os.getpid()), out)
         self.assertIn("ABORTS", out)  # the close-the-window guidance
@@ -69,7 +72,7 @@ class IdentityLabelTests(unittest.TestCase):
     def test_label_names_version_line_and_revision(self):
         import re
         label = ident.identity_label()
-        self.assertTrue(label.startswith("ASTRA 1.0 production @"), label)
+        self.assertTrue(label.startswith(f"ASTRA {ident.astra_version()} production @"), label)
         rev = label.split("@", 1)[1]
         self.assertTrue(rev == "unknown" or re.match(r"^[0-9a-f]{7,}", rev), rev)
 

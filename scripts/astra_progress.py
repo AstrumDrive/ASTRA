@@ -32,7 +32,7 @@ try:
     from core.astra_identity import identity_label  # noqa: E402
     LABEL = f"{identity_label()} cycle"
 except Exception:
-    LABEL = "ASTRA 1.0 cycle"
+    LABEL = "ASTRA cycle"
 
 PROGRESS_DIR = os.path.join(ROOT, "workspace", "progress")
 CKPT_DIR = os.path.join(ROOT, "workspace", "cycle_checkpoints")

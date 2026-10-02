@@ -33,7 +33,15 @@ def astra_version() -> str:
     if any(p == "ASTRA-2.0" for p in here.parts):
         return "2.0"
     # A production clone may live under any directory name (a collaborator's
-    # ~/Dev/astra, a CI checkout); it is still ASTRA 1.0.
+    # ~/Dev/astra, a CI checkout); its version is the VERSION file at the
+    # checkout root (semantic versioning, see CHANGELOG.md). A clone that
+    # predates that file is the original 1.0.
+    try:
+        text = (here.parents[1] / "VERSION").read_text(encoding="utf-8").strip()
+        if text:
+            return text.splitlines()[0].strip()
+    except Exception:
+        pass
     return "1.0"
 
 

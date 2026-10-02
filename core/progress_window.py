@@ -1,6 +1,6 @@
 """One console window per deliberative cycle, showing what it is working on.
 
-Requested 2026-09-09: every ASTRA 1.0 cycle, from whichever agent invoked it,
+Requested 2026-09-09: every production ASTRA cycle, from whichever agent invoked it,
 should open its own window naming the instruction it works on, the phase it
 is in, a progress bar and an ETA. The window is a plain console running
 ``scripts/astra_progress.py --follow <pid> --checkpoint <path>`` (stdlib
@@ -34,9 +34,9 @@ ROOT = Path(__file__).resolve().parent.parent
 FOLLOWER = ROOT / "scripts" / "astra_progress.py"
 try:
     from core.astra_identity import identity_label
-    WINDOW_TITLE = f"{identity_label()} cycle"      # e.g. "ASTRA 1.0 production @3be95bb 2026-10-02 cycle"
+    WINDOW_TITLE = f"{identity_label()} cycle"      # e.g. "ASTRA 1.1.0 production @3be95bb 2026-10-02 cycle"
 except Exception:                                   # never block a cycle on the label
-    WINDOW_TITLE = "ASTRA 1.0 cycle"
+    WINDOW_TITLE = "ASTRA cycle"
 _OFF = {"0", "off", "false", "no"}
 _CREATE_NO_WINDOW = 0x08000000
 
