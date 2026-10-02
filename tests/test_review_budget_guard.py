@@ -161,3 +161,16 @@ class TheGuardArithmetic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PhaseMinimumTests(unittest.TestCase):
+    """2026-10-02: a review round launched with 78 s and an analyst with 76 s
+    both died as API_ERROR; those phases now need a realistic minimum."""
+
+    def test_review_repair_and_analyst_have_their_own_minimum(self):
+        from astra_tool import phase_min_useful_seconds, PHASE_MIN_USEFUL_BY_PHASE
+        self.assertEqual(phase_min_useful_seconds("REVIEWER"), PHASE_MIN_USEFUL_BY_PHASE["REVIEWER"])
+        self.assertGreaterEqual(phase_min_useful_seconds("REVIEWER"), 120)
+        self.assertGreaterEqual(phase_min_useful_seconds("ANALYST"), 90)
+        self.assertEqual(phase_min_useful_seconds("CONJECTURE"), PHASE_MIN_USEFUL_SECONDS)
+        self.assertEqual(phase_min_useful_seconds("reviewer"), phase_min_useful_seconds("REVIEWER"))

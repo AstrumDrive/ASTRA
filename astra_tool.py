@@ -763,6 +763,17 @@ _ANALYST_RANK = {"REFUTED": 4, "NON_DECIDABLE": 3.5, "CODE_ERROR": 3, "WEAK_PASS
 # Both are env-overridable so they can be tuned from live runs without a code
 # change; they are validated by the next runs, not asserted to be final.
 PHASE_MIN_USEFUL_SECONDS = 45
+# A model call shorter than these is not worth starting: it will be killed
+# mid-thought and the budget is better spent returning a PARTIAL with the
+# last real source. Measured 2026-10-02 (research corpus + a Codex cycle
+# with timeout=900): review rounds take 100-400 s and the analyst 25-240 s;
+# a third review round launched with 78 s and an analyst with 76 s both
+# died as API_ERROR. The global 45 s stays the default for the other phases.
+PHASE_MIN_USEFUL_BY_PHASE = {"REVIEWER": 120, "TRANSLATOR_REPAIR": 90, "ANALYST": 90}
+
+
+def phase_min_useful_seconds(phase: str) -> int:
+    return int(PHASE_MIN_USEFUL_BY_PHASE.get(str(phase or "").upper(), PHASE_MIN_USEFUL_SECONDS))
 
 
 def _reserve_seconds(phase: str, default: int) -> int:
@@ -799,7 +810,7 @@ def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> in
     # [full_reserve, full_reserve+min_useful)) would refuse a review that, run
     # as a terminal round, would have fit and could have APPROVED, while a
     # cycle with LESS budget runs it. Closes that non-monotonic band.
-    if usable is not None and (usable - full_reserve) < PHASE_MIN_USEFUL_SECONDS:
+    if usable is not None and (usable - full_reserve) < phase_min_useful_seconds("REVIEWER"):
         return _phase_downstream_reserve("TRANSLATOR_REPAIR")
     return full_reserve
 
@@ -1434,7 +1445,7 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     def _phase_starved(phase, reserve=None):
         """True when what is left cannot fund a call worth making."""
-        return _phase_timeout(phase, reserve) < PHASE_MIN_USEFUL_SECONDS
+        return _phase_timeout(phase, reserve) < phase_min_useful_seconds(phase)
 
     def _starved_error(what, phase, reserve=None):
         snap = budget.snapshot()
@@ -1444,7 +1455,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         return (
             f"Cycle budget exhausted before {what}: the phase would get "
             f"{_phase_timeout(phase, reserve)}s of time budget, below the "
-            f"{PHASE_MIN_USEFUL_SECONDS}s a call needs to be worth making "
+            f"{phase_min_useful_seconds(phase)}s a {str(phase).lower()} call needs to be worth making "
             f"({snap.get('remaining_seconds')}s remain of "
             f"{snap.get('total_seconds')}s, minus what is reserved for the "
             "phases still ahead)."

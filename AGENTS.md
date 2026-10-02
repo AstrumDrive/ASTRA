@@ -135,6 +135,11 @@ Forma recomendada de la llamada:
   ("exact 32 x 32 matrices", "symbolic Einstein tensor for generic b(t,x)").
 - `exec_timeout`: solo si el cálculo es pesado (tensores simbólicos,
   diagonalizaciones): 600-900 s; el ciclo amplía su presupuesto solo.
+- `timeout`: déjalo en su defecto (1500 s). Un ciclo de producción gasta
+  100-400 s por ronda de revisión y puede dar tres; con 900 s el ciclo
+  muere en PARTIAL antes de ejecutar nada (visto el 2026-10-02). Si hace
+  falta más, `astra_cycle_submit` y `astra_job`, no un `timeout` mayor que
+  el muro del cliente (1800 s en Codex).
 - Leer SIEMPRE `original_claim_verdict` junto a `status`: `status` habla de la
   conjetura que se probó; `original_claim_verdict` (SUPPORTED, REFUTED,
   INCONCLUSIVE, SUBSTITUTED) habla de P. Un `VALIDATED` con

@@ -9,6 +9,21 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.1 (2026-10-02)
+
+A cycle launched from Codex with `timeout=900` spent three review rounds on
+a normalization the user's text had stated and died before the oracle ran.
+
+- The independent reviewer treats the "USER'S CLAIM AND DEFINITIONS" and
+  FROZEN INPUTS blocks as part of the specification: a validator may rely on
+  anything stated there without the conjecture restating it.
+- A review round, a bounded repair or an analysis is not started when the
+  remaining budget would give it less than a realistic call (120 s, 90 s,
+  90 s); the cycle returns PARTIAL with its last real source instead of
+  launching a call that the budget kills.
+- The MCP docstring and AGENTS.md tell agents to keep `timeout` at its
+  default and to use `astra_cycle_submit` for long audits.
+
 ## 1.1.0 (2026-10-02)
 
 Measured on 50 research claims from live projects: 47 decided correctly, no

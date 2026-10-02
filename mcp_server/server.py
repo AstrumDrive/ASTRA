@@ -235,7 +235,10 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
         timeout: seconds for the synchronous WHOLE cycle (default 1500; the
             client wall is tool_timeout_sec=1800 in Codex). ASTRA reserves time
             to return a PARTIAL result and checkpoint instead of being killed.
-            For complex audits use astra_cycle_submit, then poll astra_job.
+            Do NOT lower it: a production cycle spends 100-400 s per review
+            round and up to three rounds, so 900 s ends as PARTIAL before the
+            oracle runs. Keep the default; for heavy or long audits use
+            astra_cycle_submit, then poll astra_job.
         exec_timeout: seconds for the EXECUTION phase only (0 = .env default,
             usually 180). Raise it for legitimately heavy computation (sweeps,
             GPU runs on ASTRUM) and keep timeout > exec_timeout + 400.

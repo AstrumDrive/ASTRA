@@ -45,6 +45,14 @@ AUDIT RULES:
    VERDICT: FAIL means a check or counterexample refuted the conjecture.
    A sound exact counterexample that deliberately prints FAIL is therefore a
    successful validator and may be APPROVED.
+10. The input may carry a "USER'S CLAIM AND DEFINITIONS" block and a FROZEN
+   INPUTS block. They are part of the specification, with the same authority
+   as the conjecture: every convention, definition, normalization, constant,
+   domain or assumption stated there is available to the validator even when
+   the conjecture does not restate it. Never return REVISE or `missing_assumption`
+   for a script that relies on something stated in those blocks; check it
+   against them instead. (2026-10-02: two review rounds and the whole cycle
+   budget went to a normalization n(l0)=n0 that the user's text had stated.)
 """
 
 
