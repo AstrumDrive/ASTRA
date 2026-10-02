@@ -106,3 +106,44 @@ Use the remote check script after touching executor/oracle code:
 ```powershell
 .\remote\check_remote_oracle.ps1
 ```
+
+## Dos reglas para pedir un ciclo desde un agente (medidas el 2026-10-01)
+
+Valen para `astra_cycle` llamado desde Claude Code, Codex o Antigravity. Sobre
+claims de investigación real, pasar de ignorarlas a cumplirlas llevó la tasa
+de acierto de 20/27 a 47/50 sin un veredicto falso
+(`docs/evidence/RESEARCH_CLAIMS_COMPARISON_20260930.md`, secciones 5 y 6).
+
+1. **Una proposición por ciclo.** Un ciclo decide UNA afirmación decidible.
+   Si el claim tiene varias partes ("rho vale X, p_r = -rho y el flujo es
+   cero"), son tres ciclos. Un claim con varias partes produce un validador
+   que prueba una y un analista que, con razón, devuelve INCONCLUSIVE para
+   el resto.
+2. **Las definiciones van dentro de `intuition`.** Todo lo que el validador
+   necesita para construir los objetos tiene que estar escrito en el texto:
+   convenciones (orden de modos de Jordan-Wigner, orden de los productos de
+   operadores, signatura y componentes de la métrica, observador, unidades,
+   generadores como matrices explícitas, rangos de los parámetros). Nada de
+   "ver el repo" o "como en el paper": el autor del validador solo ve el
+   texto del ciclo. Desde el 2026-10-01 ese texto llega íntegro al autor
+   (`build_translation_input`), pero solo si está ahí.
+
+Forma recomendada de la llamada:
+
+- `objective`: una frase, "Determine whether P", con P la proposición.
+- `intuition`: las definiciones completas, luego "Claim: P" y cómo decidirlo
+  ("exact 32 x 32 matrices", "symbolic Einstein tensor for generic b(t,x)").
+- `exec_timeout`: solo si el cálculo es pesado (tensores simbólicos,
+  diagonalizaciones): 600-900 s; el ciclo amplía su presupuesto solo.
+- Leer SIEMPRE `original_claim_verdict` junto a `status`: `status` habla de la
+  conjetura que se probó; `original_claim_verdict` (SUPPORTED, REFUTED,
+  INCONCLUSIVE, SUBSTITUTED) habla de P. Un `VALIDATED` con
+  `original_claim_verdict = REFUTED` significa que P es falsa.
+
+Ejemplo bueno: objective "Determine whether [B_1,H_J] = -i J C_1 for both spin
+components in the model defined below"; intuition con el modelo (impureza
+S = sigma/2, cuatro modos JW en orden 0up 0dn 1up 1dn, H_J = J sum_a S^a
+s_0^a, B y C con el orden de producto escrito, métrica de temperatura
+infinita) y "Claim: ... Decide by building every operator as an explicit
+32 x 32 matrix". Ejemplo malo: "verifica las identidades del bloque de
+intercambio de Kondo" (varias proposiciones, cero definiciones).
