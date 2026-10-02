@@ -9,6 +9,24 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.4 (2026-10-02)
+
+Every job runner opened an empty Windows Terminal window, titled with the
+venv's `python.exe`, for the whole length of its job. The runners started
+with `DETACHED_PROCESS` through the venv's `python.exe`, a launcher whose
+child is the real interpreter; a detached launcher has no console, so its
+child got a new, visible one. Closing that window killed the runner without
+a traceback while its cycle went on. This is what stopped five runners at
+once at 15:18 on 2026-10-02.
+
+- The runners of `astra_submit`, `astra_cycle_submit` and the MCP campaign
+  step, and the research-trajectory benchmark launcher, start with
+  `CREATE_NO_WINDOW` and their own process group (breakaway from the
+  caller's job is still tried first). They own a console without a window,
+  so there is nothing on screen to close.
+- The campaign-step change lives in `mcp_server/server.py` and takes effect
+  when an MCP client restarts its server; the other launches change at once.
+
 ## 1.1.3 (2026-10-02)
 
 Five persistent-cycle runners were terminated together, with no traceback

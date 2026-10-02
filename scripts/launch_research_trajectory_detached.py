@@ -2,9 +2,11 @@
 """Launch the research-trajectory runner outside the caller's Windows job.
 
 Long ASTRA cells can exceed desktop tool lifetimes.  On Windows this launcher
-uses DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP, and BREAKAWAY_FROM_JOB so the
+uses CREATE_NO_WINDOW, CREATE_NEW_PROCESS_GROUP, and BREAKAWAY_FROM_JOB so the
 benchmark continues independently while its normal checkpoint remains the
-source of truth.
+source of truth.  Not DETACHED_PROCESS: sys.executable is usually a venv
+launcher, and a detached launcher's child (the real interpreter) gets its own
+visible console window, whose closing kills the run.
 """
 from __future__ import annotations
 
@@ -43,7 +45,7 @@ def main() -> int:
     creationflags = 0
     if os.name == "nt":
         creationflags = (
-            subprocess.DETACHED_PROCESS
+            subprocess.CREATE_NO_WINDOW
             | subprocess.CREATE_NEW_PROCESS_GROUP
             | 0x01000000  # CREATE_BREAKAWAY_FROM_JOB
         )
@@ -67,7 +69,7 @@ def main() -> int:
         # Some parent jobs forbid BREAKAWAY_FROM_JOB. Detached execution is
         # still preferable to tying the benchmark to the launching shell.
         fallback_flags = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         )
         process = subprocess.Popen(
             command,

@@ -46,8 +46,8 @@ from dataclasses import dataclass
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEFAULT_WS = os.path.join(_PROJECT_ROOT, "workspace")
 
-# CREATE_NO_WINDOW: cuando el padre NO tiene consola (runner de ciclo lanzado
-# con DETACHED_PROCESS, o el server MCP lanzado por el host de escritorio),
+# CREATE_NO_WINDOW: cuando el padre NO tiene consola (p.ej. el server MCP
+# lanzado por el host de escritorio; los runners hasta ASTRA 1.1.3),
 # cada hijo de consola (powershell, codex, claude, agy, taskkill) abria una
 # VENTANA visible y vacia que vivia lo que durase la fase (30-420 s) — las
 # "ventanas PowerShell sin nada" reportadas en produccion. Con este flag el

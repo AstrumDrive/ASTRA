@@ -37,6 +37,13 @@ ASTRA_TOOL = os.path.join(ASTRA_ROOT, "astra_tool.py")
 # La consola del hijo queda OCULTA (sigue existiendo: los pipes no se ven
 # afectados y los nietos nativos conservan stdout).
 _NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+# Detached job runner: CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP, never
+# DETACHED_PROCESS. sys.executable is a venv launcher whose child is the real
+# interpreter; a detached launcher's child got its own visible, empty Windows
+# Terminal window, and closing it killed the runner (2026-10-02). Same flags
+# as astra_tool._RUNNER_CREATIONFLAGS.
+_RUNNER_CREATIONFLAGS = 0x08000000 | 0x00000200
+_BREAKAWAY_FROM_JOB = 0x01000000
 
 # ASTRA_PROFILE selects the capability bundle this server exposes -- the
 # "profile" of docs/architecture/ASTRA_UNIFIED_MCP_RFC.md §6, replacing what
@@ -757,10 +764,10 @@ def _submit_campaign_step_job(
         json.dump(meta, f)
 
     runner = os.path.join(ASTRA_ROOT, "astra_campaign_step_job_runner.py")
-    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP (+ BREAKAWAY_FROM_JOB first,
-    # falling back without it): same Windows-only convention _do_submit_cycle
-    # already uses; not a new platform gap.
-    flags = 0x00000008 | 0x00000200
+    # _RUNNER_CREATIONFLAGS (+ BREAKAWAY_FROM_JOB first, falling back without
+    # it): same Windows-only convention _do_submit_cycle already uses; not a
+    # new platform gap.
+    flags = _RUNNER_CREATIONFLAGS
     runner_err = open(os.path.join(jobdir, "runner.err"), "w")
     kwargs = dict(
         stdin=subprocess.DEVNULL,
@@ -773,7 +780,7 @@ def _submit_campaign_step_job(
         try:
             process = subprocess.Popen(
                 [sys.executable, runner, jobdir],
-                creationflags=flags | 0x01000000,
+                creationflags=flags | _BREAKAWAY_FROM_JOB,
                 **kwargs,
             )
         except OSError:

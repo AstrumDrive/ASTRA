@@ -1,7 +1,7 @@
 """
 astra_job_runner.py — worker DESACOPLADO para trabajos largos de ASTRA.
 
-Lanzado por astra_tool (accion 'submit') con DETACHED_PROCESS: sobrevive al
+Lanzado por astra_tool (accion 'submit') con consola sin ventana: sobrevive al
 astra_tool que lo pario, al server MCP y al cliente (Codex/Claude/Gemini).
 Deja TODO en workspace/jobs/<job_id>/:
   job.json    — estado + heartbeat (ts se refresca cada ~5 s mientras corre)

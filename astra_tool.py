@@ -231,6 +231,19 @@ def _jobs_root() -> str:
     return os.path.join(_workspace_root(), "jobs")
 
 
+# Creation flags of the detached job runners (_do_submit, _do_submit_cycle):
+# CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP, with CREATE_BREAKAWAY_FROM_JOB
+# tried first. Not DETACHED_PROCESS: sys.executable is the venv's python.exe,
+# a launcher whose child is the real interpreter. A detached launcher has no
+# console, so its child got a new visible one, an empty Windows Terminal
+# window per runner; closing it killed the runner without a traceback while
+# its cycle went on (five runners at once on 2026-10-02, 15:18). With
+# CREATE_NO_WINDOW the launcher gets a console without a window, which the
+# real runner inherits.
+_RUNNER_CREATIONFLAGS = 0x08000000 | 0x00000200
+_BREAKAWAY_FROM_JOB = 0x01000000
+
+
 def _do_submit(req: dict) -> dict:
     """Lanza un trabajo LARGO como proceso DESACOPLADO (astra_job_runner.py) y
     retorna al instante con el job_id. El job sobrevive a este proceso, al
@@ -256,16 +269,16 @@ def _do_submit(req: dict) -> dict:
     with open(os.path.join(jobdir, "job.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f)
     runner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "astra_job_runner.py")
-    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: el runner vive por su cuenta.
-    # Se intenta ademas BREAKAWAY_FROM_JOB por si el cliente MCP usa Job Objects
-    # con kill-on-close; si el SO lo rechaza, se reintenta sin el.
-    flags = 0x00000008 | 0x00000200
+    # Consola sin ventana + grupo propio (_RUNNER_CREATIONFLAGS): el runner vive
+    # por su cuenta. Se intenta ademas BREAKAWAY_FROM_JOB por si el cliente MCP
+    # usa Job Objects con kill-on-close; si el SO lo rechaza, se reintenta sin el.
+    flags = _RUNNER_CREATIONFLAGS
     kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
               stderr=open(os.path.join(jobdir, "runner.err"), "w"),
               cwd=os.path.dirname(runner), close_fds=True)
     try:
         p = subprocess.Popen([sys.executable, runner, jobdir],
-                             creationflags=flags | 0x01000000, **kw)
+                             creationflags=flags | _BREAKAWAY_FROM_JOB, **kw)
     except OSError:
         p = subprocess.Popen([sys.executable, runner, jobdir],
                              creationflags=flags, **kw)
@@ -314,7 +327,7 @@ def _do_submit_cycle(req: dict) -> dict:
         os.path.dirname(os.path.abspath(__file__)),
         "astra_cycle_job_runner.py",
     )
-    flags = 0x00000008 | 0x00000200
+    flags = _RUNNER_CREATIONFLAGS
     runner_err = open(os.path.join(jobdir, "runner.err"), "w")
     kwargs = {
         "stdin": subprocess.DEVNULL,
@@ -327,7 +340,7 @@ def _do_submit_cycle(req: dict) -> dict:
         try:
             process = subprocess.Popen(
                 [sys.executable, runner, jobdir],
-                creationflags=flags | 0x01000000,
+                creationflags=flags | _BREAKAWAY_FROM_JOB,
                 **kwargs,
             )
         except OSError:
