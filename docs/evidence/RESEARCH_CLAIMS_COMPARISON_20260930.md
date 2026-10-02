@@ -371,7 +371,7 @@ deliberación y ninguno por un veredicto equivocado:
   de las dos corridas.
 - El coste sube poco: 224 min contra 207, p95 de 17,6 min.
 
-### 5.4 Lectura final
+### 5.4 Lectura al cierre de la v1.1
 
 Con las definiciones del usuario en manos del autor del validador, la
 brecha entre producción y un modelo solo sobre claims de investigación
@@ -382,3 +382,101 @@ de la brecha que era tubería valía cuatro casos; la parte que es
 deliberación vale los otros cuatro (Möbius, SU(3), Kinnersley, cohete) y
 se mantiene entre corridas. Lo que falta no está en los modelos ni en la
 tubería sino en cómo se formulan los claims: una proposición por caso.
+
+## 6. Corpus v1.2, una proposición por caso, en producción (2026-10-01, 14:20 a 22:15)
+
+Nelson pidió armar la v1.2 y correrla la misma tarde. Corpus
+`benchmarks/quality/research/cycle/research_v1_2.json`: 50 casos, 29
+verdaderos y 21 falsos sembrados, generado por `build_research_v1_2.py` y
+verificado con `--check` contra las salidas de referencia
+`reference/outputs/*_20261001_v12.txt` (una clave por proposición). Mismo
+brazo `no-ensemble`, mismo código que la sección 5, oráculo local,
+`--cycle-timeout 3000`.
+
+### 6.1 Dos tandas por la cuota de Codex
+
+La primera tanda (14:20 a 17:48, reporte `quality_20261001_174826`) corrió
+28 ciclos reales y a las 17:45 agotó la cuota de la cuenta de Codex del
+perfil de ASTRA en toda la escalera (Luna y Astra); la CLI anunció la
+reapertura a las 19:13. Los 22 casos restantes murieron en la conjetura en
+unos 20 s cada uno sin gastar nada más, y el reporte los registra como
+`API_ERROR`. Nelson cambió la cuenta del perfil `~/.codex-astra` a la de
+Astrum, y la segunda tanda (18:24 a 22:15, reporte `quality_20261001_221551`)
+corrió con `--only` los 22 bloqueados más los 3 fallos no debidos a cuota de
+la primera tanda, 25 casos. El resultado de la v1.2 es la unión: los 25 de
+la primera tanda que no se repitieron, más los 25 de la segunda
+(`docs/evidence/research_arms_20261001/v12_merged.txt`, con la lista de ids
+en `v12_pending_ids.txt`).
+
+Hecho operativo nuevo y medido: unas 27 corridas de producción agotan una
+ventana de 5 h de una cuenta Plus de Codex. Las corridas largas van en
+tandas de 25 o con más de una cuenta.
+
+### 6.2 Resultado
+
+| Métrica | v1.1 con el arreglo (27 casos) | **v1.2 (50 casos)** |
+|---|---:|---:|
+| Aciertos estrictos | 20 / 27 (0,741) | **47 / 50 (0,940)** |
+| Aceptaciones falsas | 0 / 13 | **0 / 21** |
+| Refutaciones falsas | 0 / 14 | **0 / 29** |
+| Fallos operativos | 3 | 3 |
+| No decidió | 4 | **0** |
+| Latencia p50 / p95 | 418 s / 1056 s | 352 s / 1082 s |
+
+| Familia | Casos | Aciertos | Fallo |
+|---|---:|---:|---|
+| Kondo, normas y conmutadores | 14 | 13 | `kondo_y1_commutator_sign_false`, API_ERROR |
+| Pared plana | 5 | 5 | |
+| Cáscara estática con p_r = 0 | 6 | 6 | |
+| Kinnersley | 2 | 2 | |
+| Cáscara con lapso unidad | 5 | 5 | |
+| Quench de masa | 6 | 5 | `quench_occupation_limit_true`, CODE_ERROR |
+| Cohete relativista | 4 | 4 | |
+| Gradiente armónico | 2 | 2 | |
+| SU(2) y SU(3) | 4 | 4 | |
+| Möbius | 2 | 1 | `mobius_nagaoka_saturated_true`, TIMEOUT |
+
+Los cuatro `INCONCLUSIVE` de la v1.1 desaparecen: las 23 proposiciones
+separadas se decidieron todas, incluidas las cuatro normas de Kondo, las
+tres identidades de la pared plana, las cuatro de la cáscara estática
+(también la DEC con m' > 0, que en la v1.1 el revisor había rechazado), las
+tres del lapso unidad, las cuatro de quench y las dos del cohete. Los 21
+falsos sembrados, 8 de ellos nuevos, se refutaron todos.
+
+### 6.3 Los tres fallos
+
+Ninguno es un veredicto equivocado; los tres son operativos y leídos en los
+checkpoints:
+
+- `kondo_y1_commutator_sign_false`: el validador refutó bien (residuo
+  exacto 2|J| ≠ 0, `VERDICT: FAIL`), pero el analista lo devolvió como
+  `CODE_ERROR` porque el coeficiente de Levi-Civita iba en coma flotante y
+  "no establece el resultado exacto"; el reparador acotado respondió que no
+  había defecto y el ciclo cerró en error. Exceso de rigor del analista
+  sobre una refutación correcta. Este caso falló también en las dos tandas
+  anteriores por causas distintas (analista a 480 s; `CODE_ERROR`).
+- `mobius_nagaoka_saturated_true`: `mpmath` no convergió en un leg del
+  validador, el reparador lo arregló, y con 1163 s gastados el revisor fue
+  cortado a 105 s por el presupuesto. Anoche este caso salió VALIDATED en
+  895 s y esta mañana `REVIEW_REJECTED`: es el más variable del corpus.
+- `quench_occupation_limit_true`: el validador cayó en un
+  `NotImplementedError` de `nseries` en un leg auxiliar, dos veces, aunque
+  el analista anota que la expresión es continua en k = 0 y vale lo pedido.
+  Con `status = CODE_ERROR` la puntuación no lee el eje re-anclado, a
+  propósito.
+
+### 6.4 Lectura
+
+1. Con una proposición por caso y las definiciones a la vista del autor,
+   el ciclo de producción decide 47 de 50 claims de investigación sin un
+   solo veredicto falso, y ya no deja nada sin decidir. La brecha restante
+   es operativa y pequeña: un analista demasiado estricto, un presupuesto
+   que se agota en el caso más pesado, un leg auxiliar que rompe el script.
+2. La serie completa del día, sobre el mismo material: modelo solo 12/27,
+   producción 16/27, producción con el arreglo de la tubería 20/27, y
+   producción sobre el corpus de una proposición por caso 47/50. Dos de las
+   tres mejoras no tocaron los modelos: una tubería y la forma de enunciar.
+3. Lo que sigue no es medir más sino usar ASTRA sobre claims nuevos con
+   estas dos reglas, una proposición por ciclo y las definiciones en la
+   intuición, y revisar el analista para que una refutación exacta con un
+   coeficiente en coma flotante no se convierta en `CODE_ERROR`.

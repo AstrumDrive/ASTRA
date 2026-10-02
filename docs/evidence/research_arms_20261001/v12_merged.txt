@@ -1,0 +1,24 @@
+rest run: 25 records, 22 correct | observed {'API_ERROR': 1, 'TIMEOUT': 1, 'REFUTED': 9, 'VALIDATED': 13, 'CODE_ERROR': 1}
+merged v1.2 (first run minus the 25 re-run ids, plus the continuation): 50 cases, 47 correct
+false acceptances 0/21 [] | false refutations 0/29 []
+observed: {'REFUTED': 20, 'VALIDATED': 27, 'API_ERROR': 1, 'TIMEOUT': 1, 'CODE_ERROR': 1}
+
+family           n  ok  failures
+gr_kinnersley    2   2  
+gr_planar        5   5  
+gr_static        6   6  
+gr_unit          5   5  
+harmonic         2   2  
+kondo           14  13  kondo_y1_commutator_sign_false=API_ERROR
+mobius           2   1  mobius_nagaoka_saturated_true=TIMEOUT
+quench           6   5  quench_occupation_limit_true=CODE_ERROR
+rocket           4   4  
+su2              2   2  
+su3              2   2  
+
+latency p50 352 s, p95 1082 s; sum of cycle time 362.4 min (first run 14:20-17:48 incl. 22 quota stubs; continuation 18:24-22:15)
+
+--- non-correct cases (merged) ---
+  res_kondo_y1_commutator_sign_false                   REFUTED   API_ERROR           374s run=rest  'Bounded model patch was not applicable: No defect found, so no repair is needed and the FAIL verdict'
+  res_mobius_nagaoka_saturated_true                    VALIDATED TIMEOUT            1165s run=rest  "API_ERROR: 'gpt-6-luna': timeout tras 105s (arbol de procesos matado); salida parcial: nspace is pur"
+  res_quench_occupation_limit_true                     VALIDATED CODE_ERROR         1082s run=rest  ''

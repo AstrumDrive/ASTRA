@@ -53,8 +53,15 @@ Run (production arm, local oracle, re-anchored scoring):
 
 Heavy cases carry their own oracle `timeout` (900 s for the symbolic Einstein
 tensors, 600 s for the diagonalization); the runner widens the cycle budget to
-`timeout + 900` s for them. At the v1.1 pace of about 8 min per production
-cycle, the full corpus is roughly 6.5 h of wall clock.
+`timeout + 900` s for them. The full corpus is about 6 h of production wall
+clock, and about 27 production cycles exhaust a 5-hour window of one Codex
+Plus account, so run it in two batches of 25 (`--only`) or with two accounts.
+
+Measured 2026-10-01 (section 6 of the evidence document, reports in
+`docs/evidence/research_arms_20261001/v12_*`): **47 / 50 correct, 0 false
+acceptances of 21, 0 false refutations of 29, nothing left undecided**; the
+three failures are operational (an over-strict analyst on a correct
+refutation, a budget-bound Mobius cycle, an auxiliary `nseries` crash).
 
 ## History
 
