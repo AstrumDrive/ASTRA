@@ -3,7 +3,7 @@ ASTRA MCP server — expone ASTRA como herramientas para CUALQUIER agente
 (Claude Code, Codex, Gemini CLI, Claude Desktop) via Model Context Protocol.
 
 Corre en Python 3.12 (el SDK de MCP necesita >=3.10). Habla con el core de ASTRA
-(venv 3.9) por subprocess a traves de astra_tool.py -> versiones desacopladas.
+(venv/ de Python 3.12, un proceso por llamada) por subprocess a traves de astra_tool.py -> versiones desacopladas.
 
 La idea: tu agente favorito se vuelve tu enlace a ASTRA. El agente RAZONA
 (conjetura, navega) y llama a estas tools para VERIFICAR con computo real en

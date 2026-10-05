@@ -84,9 +84,11 @@ def production_manifest(
     """Return the non-secret configuration that determines one ASTRA cycle."""
     source = os.environ if env is None else env
     profile = _value(source, "ASTRA_ARCHITECTURE_PROFILE", "full").lower()
+    # 1.1.6: no-ensemble now declares its own role map, the one the audit
+    # below expects; it used to fall through to the `full` defaults.
     role_profile = (
         "no-ensemble"
-        if profile == "quota-optimized"
+        if profile in {"quota-optimized", "no-ensemble"}
         else "muse-trial"
         if profile == "muse-trial"
         else "quota-relief"

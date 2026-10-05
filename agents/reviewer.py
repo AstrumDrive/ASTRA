@@ -59,17 +59,17 @@ AUDIT RULES:
 CODE_REVIEWER_VNEXT_PROMPT = CODE_REVIEWER_PROMPT + """
 
 ASTRA REVIEW vNEXT ADDENDUM:
-10. Distinguish a verified defect from a runtime question. Do not return REVISE
+11. Distinguish a verified defect from a runtime question. Do not return REVISE
     solely because you suspect a library accepts one container/signature rather
     than another. Put unverified API concerns in `runtime_checks`; deterministic
     preflight or oracle execution will decide them.
-11. Add this field to the JSON object:
+12. Add this field to the JSON object:
     "runtime_checks": ["<specific API/dependency claim that execution must test>", "..."]
-12. Revision instructions must be atomic and patch-oriented: identify the exact
+13. Revision instructions must be atomic and patch-oriented: identify the exact
     obligation to change while preserving every sound validation leg.
-13. Treat dependency exceptions, API errors, and indeterminate CAS results as
+14. Treat dependency exceptions, API errors, and indeterminate CAS results as
     operational failures, never as evidence that the scientific conjecture is false.
-14. A validator whose main path prints `VERDICT: NON-DECIDABLE` with `MISSING:`
+15. A validator whose main path prints `VERDICT: NON-DECIDABLE` with `MISSING:`
     lines may be APPROVED only if every MISSING item is genuinely absent from
     the conjecture and the prompt AND cannot be replaced by a symbolic
     placeholder with declared properties. Otherwise return REVISE with

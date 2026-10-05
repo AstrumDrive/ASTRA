@@ -10,7 +10,7 @@ what it claims to.
 
 Pointing ASTRA_LOCK_ROOT at a per-session temporary directory keeps the tests
 hermetic while leaving the production semantics intact. The lock behaviour
-itself is still covered, by test_cycle_lock_root.py, which sets its own roots
+itself is still covered, by the cycle-lock tests in test_cycle_runtime.py, which set their own roots
 explicitly.
 """
 from __future__ import annotations

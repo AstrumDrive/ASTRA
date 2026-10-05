@@ -142,7 +142,9 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # SIMPLES de PowerShell y se escapan las dobles con backslash -> codex recibe
     # model_reasoning_effort="high" (validado con un impresor de argv). Poner
     # ASTRA_CODEX_REASONING='' respeta el default interno de codex (no pasa -c).
-    effort = (os.environ.get("ASTRA_CODEX_REASONING", "high") or "").strip().strip("'\"")
+    # 1.1.6: the default matches the architecture contract (xhigh), so an
+    # unset variable no longer runs Codex below the audited effort.
+    effort = (os.environ.get("ASTRA_CODEX_REASONING", "xhigh") or "").strip().strip("'\"")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
     # 2026-08-09: el server MCP puede arrancar con un PATH sin el dir de codex
     # (instalador nativo en AppData\Local\Programs\OpenAI\Codex\bin) -> el pipeline
@@ -189,7 +191,7 @@ def _codex_builder(
     if model:
         argv += ["-m", model]
     effort = (
-        os.environ.get("ASTRA_CODEX_REASONING", "high") or ""
+        os.environ.get("ASTRA_CODEX_REASONING", "xhigh") or ""
     ).strip().strip("'\"")
     if effort:
         argv += ["-c", f'model_reasoning_effort="{effort}"']

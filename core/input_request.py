@@ -85,9 +85,8 @@ def inputs_block(req: dict, inputs_limit: int | None = None) -> str:
     """Prompt block for the conjecture engine, the structurer and the author.
 
     The policy comes FIRST: whoever truncates the block downstream (the
-    reviewer's 5000-character conjecture window, the structurer's 6000) must
-    lose values before losing the one sentence that says placeholders were
-    approved. ``inputs_limit`` caps the values for those auditors. Empty when
+    1500-character auditor block, the structurer's 6000) must lose values
+    before losing the one sentence that says placeholders were approved. ``inputs_limit`` caps the values for those auditors. Empty when
     the request supplies nothing and keeps the strict policy, so prompts are
     byte-for-byte what they were.
     """

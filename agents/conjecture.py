@@ -21,4 +21,10 @@ RULES OF OPERATION:
 6. DATA-DRIVEN TASKS: When frozen resource contents are supplied in the prompt,
    use their exact values to formulate the atomic proposition. A file path alone
    is not evidence, but embedded authoritative contents are available evidence.
+7. FIXED SINGLE CLAIM: If the user supplies one explicit mathematical proposition
+   to decide, retain that proposition, its quantifiers, definitions and constants.
+   Domain containment and estimates supporting that proposition are proof
+   obligations, not replacement conjectures. If the full proposition cannot be
+   decided within this cycle, report it as INCONCLUSIVE and identify the open
+   obligations; do not silently substitute a subclaim.
 """

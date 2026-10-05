@@ -462,7 +462,7 @@ class ASTRAIntelligence:
             self.provider.upper(),
         )
         user_prompt = (
-            f"CONJECTURE AND SHARED OBJECTIVE:\n{conjecture[:5000]}\n\n"
+            f"CONJECTURE AND SHARED OBJECTIVE:\n{conjecture}\n\n"
             f"ATOMIC REPAIR INSTRUCTIONS:\n{repair_instructions[:3500]}\n\n"
             "CURRENT VALIDATION SCRIPT:\n"
             f"```text\n{previous_code[:24000]}\n```"
@@ -513,8 +513,8 @@ class ASTRAIntelligence:
         )
 
         user_prompt = (
-            f"SHARED FINAL OBJECTIVE:\n{shared_goal[:2000]}\n\n"
-            f"CONSENSUS CONJECTURE:\n{conjecture[:5000]}\n\n"
+            f"SHARED FINAL OBJECTIVE:\n{shared_goal}\n\n"
+            f"CONSENSUS CONJECTURE:\n{conjecture}\n\n"
             f"PROPOSED VALIDATION SCRIPT:\n```text\n{code[:14000]}\n```"
         )
         if static_context:

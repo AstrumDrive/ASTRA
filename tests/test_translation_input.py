@@ -43,11 +43,11 @@ class TranslationInputTests(unittest.TestCase):
         self.assertNotIn("USER'S CLAIM AND DEFINITIONS", text)
         self.assertEqual(text.count("same text"), 1)
 
-    def test_long_intuition_is_capped_but_conjecture_stays_within_reviewer_window(self):
-        long_claim = "x" * (astra_tool.AUTHOR_INTUITION_CHARS + 2000)
+    def test_long_intuition_preserves_definitions_and_claim_at_the_end(self):
+        long_claim = "x" * 6000 + "\nD_s=explicit disk; r=1/100000; Claim: bound both source components."
         text = build("goal", long_claim, "", "THE CONJECTURE")
-        self.assertIn("[... truncated for the author", text)
-        self.assertLess(text.index("CONSENSUS CONJECTURE TO VALIDATE"), 5000)
+        self.assertIn(long_claim, text)
+        self.assertNotIn("truncated", text)
         self.assertIn("THE CONJECTURE", text)
 
     def test_empty_intuition_keeps_legacy_shape(self):

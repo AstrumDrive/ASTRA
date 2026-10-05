@@ -9,6 +9,40 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.6 (2026-10-05)
+
+A source audit (warp, felt-acceleration revision) found that the validator
+author, the reviewer and the repairer were not reading the same
+specification: the user's claim was cut at 3,500 characters for the author,
+the reviewer saw only the conjecture, and both auditors cut their context at
+2,000/5,000 characters. A review of the code for the technical reference
+found five smaller defects. The first rerun of that source audit with the
+fix closed VALIDATED with the claim supported and full coverage.
+
+- Full claim context: the author receives the user's claim block uncapped;
+  the reviewer and the bounded repairer receive exactly the author's input
+  (objective, claim block, conjecture), prefixed by the inputs policy, with
+  no truncation. Tests: `tests/test_full_claim_context.py`; negative control
+  `scripts/check_claim_context_negative_control.py` reintroduces the cuts in
+  memory and the tests must fail. The control now isolates its lock root
+  and workspace like the suite: run beside a production cycle it used to
+  hit the machine-wide cycle slot and return BUSY.
+- Conjecture rule 7, fixed single claim: a proposition the user states is
+  kept with its quantifiers, definitions and constants; supporting estimates
+  are proof obligations; if it cannot be decided in one cycle the answer is
+  INCONCLUSIVE with the open obligations, never a silent subclaim.
+- The analysis phase is no longer started below its 90 s minimum (defined in
+  1.1.1, never checked): the cycle returns PARTIAL with the execution
+  evidence in its checkpoint, at the first analysis and in retries.
+- `production_manifest` gives the `no-ensemble` profile its own role map,
+  the one the contract audit expects (it fell back to `full`).
+- Codex reasoning effort defaults to `xhigh` on Windows and POSIX when
+  `ASTRA_CODEX_REASONING` is unset, matching the contract.
+- The reviewer's vNext rules are numbered 11-15 (two rules were numbered
+  10); stale comments about a 5,000-character window and a "venv 3.9" core
+  are corrected.
+- Tests: `tests/test_release_1_1_6.py`; suite 650 passed, 2 skipped.
+
 ## 1.1.5 (2026-10-05)
 
 The name keeps its expansion, Autonomous Symbolic Theorem Reasoning

@@ -1,5 +1,5 @@
 """
-astra_tool.py — API por subprocess del core de ASTRA (corre en el venv 3.9).
+astra_tool.py — API por subprocess del core de ASTRA (corre en el venv/ de Python 3.12).
 
 Recibe una peticion JSON por stdin y devuelve JSON por stdout. Existe para que
 procesos EXTERNOS (p.ej. el servidor MCP en Python 3.12) usen el core de ASTRA
@@ -980,13 +980,6 @@ _MAX_MODE_ENV = {
 }
 
 
-# Characters of the user's own claim text handed verbatim to the validator
-# author. The reviewer and the bounded repairer read the first 5000
-# characters of the same text (core/llm_client.py), so the block is capped to
-# keep the conjecture inside their window.
-AUTHOR_INTUITION_CHARS = 3500
-
-
 def build_translation_input(
     shared_goal: str, intuition: str, extra_inputs: str, conjecture: str
 ) -> str:
@@ -999,15 +992,13 @@ def build_translation_input(
     validators declaring those definitions MISSING: 3 of 27 research claims
     in the single-model arm and 4 of 27 in production
     (docs/evidence/RESEARCH_CLAIMS_COMPARISON_20260930.md). The user's text is
-    now quoted verbatim, after the objective and before the user's answers to
-    MISSING declarations, capped at AUTHOR_INTUITION_CHARS.
+    now quoted in full, after the objective and before the user's answers to
+    MISSING declarations. The reviewer and repairer receive this same context.
     """
     goal = (shared_goal or "").strip()
     claim = (intuition or "").strip()
     parts = [f"SHARED FINAL OBJECTIVE:\n{goal}"]
     if claim and claim != goal:
-        if len(claim) > AUTHOR_INTUITION_CHARS:
-            claim = claim[:AUTHOR_INTUITION_CHARS].rstrip() + "\n[... truncated for the author; the full text reached the proposer and the analyst]"
         parts.append(
             "USER'S CLAIM AND DEFINITIONS (verbatim; authoritative for every "
             "convention, operator, metric component or constant it defines):\n"
@@ -1353,7 +1344,8 @@ async def _do_cycle_impl(req: dict) -> dict:
         request_record["inputs_truncated"] = True
     # The independent reviewer and the analyst must see the same inputs and
     # policy as the author, or they reject the placeholders the user approved.
-    # Policy first, values capped: the reviewer reads conjecture[:5000].
+    # Policy first, values capped at 1500 so the auditors' prompts stay short;
+    # since 1.1.6 the reviewer and the repairer read the author's full input.
     auditor_block = inputs_block(req, inputs_limit=1500)
     review_conjecture_prefix = (auditor_block + "\n\n") if auditor_block else ""
     # resume_checkpoint: reuse the conjecture of the cycle that asked for the
@@ -1890,7 +1882,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     _prepare_agent(reviewer, "REVIEWER", review_reserve)
                     review = await reviewer.review_validation_code(
                         shared_goal=shared_goal,
-                        conjecture=conjecture_text,
+                        conjecture=review_conjecture_prefix + translation_input,
                         code=current_code,
                         static_context=smoke,
                     )
@@ -1899,7 +1891,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 _prepare_agent(reviewer, "REVIEWER", review_reserve)
                 review = await reviewer.review_validation_code(
                     shared_goal=shared_goal,
-                    conjecture=conjecture_text,
+                    conjecture=review_conjecture_prefix + translation_input,
                     code=current_code,
                 )
                 review["source"] = "model_reviewer"
@@ -2340,6 +2332,13 @@ async def _do_cycle_impl(req: dict) -> dict:
         execution=exec_result,
     )
     _progress("analyze", timings=timings)
+    if _phase_starved("ANALYST"):
+        # 1.1.6: the ANALYST minimum (90 s) was defined in 1.1.1 but never
+        # checked; an analysis started with less is killed mid-reply and the
+        # cycle reports a model error. Return PARTIAL with the execution
+        # evidence (already in the checkpoint) instead.
+        return _fail(_starved_error("the analysis", "ANALYST"), "analyst",
+                     conjecture_text=conjecture)
     t0 = time.monotonic()
     analysis = await _run_analysis(review_conjecture_prefix + conjecture, exec_result)
     _mark("analyze", t0)
@@ -2515,6 +2514,10 @@ async def _do_cycle_impl(req: dict) -> dict:
         exec_result["code_review"] = code_review
         exec_result["verdict"] = _verdict(exec_result.get("stdout", ""))
         exec_result["guard"] = assess_verdict(code, exec_result)
+        if _phase_starved("ANALYST"):
+            _save_cycle_checkpoint("execution_complete", execution=exec_result)
+            return _fail(_starved_error("the retry analysis", "ANALYST"), "analyst",
+                         conjecture_text=conjecture)
         t0 = time.monotonic()
         analysis = await _run_analysis(review_conjecture_prefix + conjecture, exec_result)
         _mark("analyze", t0)
