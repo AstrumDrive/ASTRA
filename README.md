@@ -2,6 +2,10 @@
 
 **Autonomous Symbolic Theorem Reasoning Architecture**
 
+*Recursive inference in cycles.* Inside every cycle, a failed review, a
+crashed validator or a missing input is fed back as the input of the next
+step; in autonomous mode, each verdict seeds the hypothesis of the next cycle.
+
 Created by **Nelson Bolívar** and maintained by **Astrum Drive**.
 
 ASTRA is a goal-driven, multi-model epistemological research engine. It turns

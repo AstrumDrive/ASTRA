@@ -142,6 +142,8 @@ def banner(action: str = "running", *, force: bool = False) -> None:
     msg = (
         f"\n{line}\n"
         f"  ASTRA {v} -- scientific validation engine\n"
+        f"  Autonomous Symbolic Theorem Reasoning Architecture\n"
+        f"  recursive inference in cycles\n"
         f"  line   : {astra_line()}\n"
         f"  commit : {checkout_revision()}\n"
         + (f"  profile: {profile}\n" if profile else "")

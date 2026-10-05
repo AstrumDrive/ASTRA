@@ -9,6 +9,19 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.5 (2026-10-05)
+
+The name keeps its expansion, Autonomous Symbolic Theorem Reasoning
+Architecture, and gains the tagline the team asked for: *recursive
+inference in cycles*. It names what the cycle already does: inside every
+cycle a failed review, a crashed validator or a missing input is fed back as
+the input of the next step; in autonomous mode each verdict seeds the next
+cycle's hypothesis.
+
+- README, both architecture whitepapers (title page, recompiled PDFs in
+  `output/pdf/`) and the process banner carry the expansion and the tagline.
+- No behaviour change.
+
 ## 1.1.4 (2026-10-02)
 
 Every job runner opened an empty Windows Terminal window, titled with the
