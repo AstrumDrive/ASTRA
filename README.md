@@ -133,6 +133,13 @@ No Anaconda or preinstalled packages are required. Use CPython 3.12 and
 PowerShell. ASTRA's supported workstation range is Python 3.10-3.12; 3.12 is
 the reproducible baseline used for collaborator installations.
 
+Collaborators who will also use ASTRUM should follow
+[`docs/onboarding/ASTRA_WINDOWS_INSTALL_EN.md`](docs/onboarding/ASTRA_WINDOWS_INSTALL_EN.md):
+it adds the individual SSH authorization, the `.env` remote block with a
+personal `ASTRA_CLIENT_ID`, the MCP registration for Claude Desktop, Claude
+Code and Codex, and the end-to-end test that proves the jobs run from the
+collaborator's own PC.
+
 ### Step 1 — Download
 
 Download or clone this repository:
