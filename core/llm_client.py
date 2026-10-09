@@ -399,7 +399,7 @@ class ASTRAIntelligence:
             if vnext and previous_code:
                 user_prompt += (
                     "\n\nCURRENT VALIDATION SCRIPT TO PATCH:\n"
-                    f"```text\n{previous_code[:16000]}\n```\n"
+                    f"```text\n{previous_code}\n```\n"
                 )
             user_prompt += (
                 f"\n\nPrevious code failed with error:\n{previous_error}\n"
@@ -463,9 +463,9 @@ class ASTRAIntelligence:
         )
         user_prompt = (
             f"CONJECTURE AND SHARED OBJECTIVE:\n{conjecture}\n\n"
-            f"ATOMIC REPAIR INSTRUCTIONS:\n{repair_instructions[:3500]}\n\n"
+            f"ATOMIC REPAIR INSTRUCTIONS:\n{repair_instructions}\n\n"
             "CURRENT VALIDATION SCRIPT:\n"
-            f"```text\n{previous_code[:24000]}\n```"
+            f"```text\n{previous_code}\n```"
         )
         # The under-wired patches the reviewer rejected came from this repair
         # path too, so the strict contract (when enabled) binds the repairer as
@@ -515,7 +515,7 @@ class ASTRAIntelligence:
         user_prompt = (
             f"SHARED FINAL OBJECTIVE:\n{shared_goal}\n\n"
             f"CONSENSUS CONJECTURE:\n{conjecture}\n\n"
-            f"PROPOSED VALIDATION SCRIPT:\n```text\n{code[:14000]}\n```"
+            f"PROPOSED VALIDATION SCRIPT:\n```text\n{code}\n```"
         )
         if static_context:
             user_prompt += (
@@ -715,7 +715,7 @@ class ASTRAIntelligence:
             f"{original_block}"
             f"CONSENSUS CONJECTURE:\n{conjecture}\n\n"
             f"VALIDATION SCRIPT:\n```text\n"
-            f"{(exec_result.get('validation_code') or '')[:16000]}\n```\n\n"
+            f"{exec_result.get('validation_code') or ''}\n```\n\n"
             f"PRE-ORACLE CODE REVIEW:\n{review}\n\n"
             f"EXECUTION EXIT CODE: {_exit}\n"
             f"EXECUTION STDOUT:\n{(exec_result.get('stdout') or '')[:10000]}\n\n"
