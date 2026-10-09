@@ -14,6 +14,24 @@ what keeps each researcher on their own machine and their own identity.
 
 No API keys, CLI login tokens, Tailscale state or SSH private keys are shared.
 
+## 0. One-paste setup
+
+The administrator sends one line, with the collaborator's ASTRUM account and
+the node's Tailscale address filled in. Paste it in PowerShell (Win+X →
+Terminal) and follow the yellow instructions:
+
+```powershell
+irm https://raw.githubusercontent.com/AstrumDrive/ASTRA/main/scripts/setup_windows_collaborator.ps1 -OutFile $env:TEMP\astra_setup.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\astra_setup.ps1 -AstrumUser NAME -AstrumHost TAILSCALE_IP
+```
+
+`scripts/setup_windows_collaborator.ps1` installs Git, Python 3.12, Node.js,
+Tailscale and the Claude app with winget, clones or updates ASTRA, runs
+`install.ps1`, creates the SSH key and copies its public half to the clipboard,
+writes the SSH alias and the `.env` block, registers ASTRA in the Claude app,
+waits until the administrator authorizes the key, and runs the doctor. It is
+safe to run again; a log is kept in `%USERPROFILE%\astra_setup_log.txt`.
+Sections 2 to 7 below are the same procedure by hand.
+
 ## 1. Supported layout
 
 | Layer | Runs on the collaborator's PC | Runs on ASTRUM |
