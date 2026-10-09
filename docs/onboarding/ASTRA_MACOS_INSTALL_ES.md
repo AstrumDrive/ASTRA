@@ -82,15 +82,19 @@ cat ~/.ssh/astra_astrum_ed25519.pub
 ```
 
 Debe enviarse al administrador solamente el contenido de `.pub`. El
-administrador autoriza esa clave pública y comunica por un canal privado el
-usuario y host Tailscale. La clave privada nunca abandona la Mac.
+administrador autoriza esa clave pública para la **cuenta propia en ASTRUM**
+(nombre en minúsculas) y comunica por un canal privado el host Tailscale. La
+clave privada nunca abandona la Mac. Esa cuenta solo llega al gestor de
+trabajos compartido: sin shell ni transferencia de ficheros, y todo lo que se
+envía o cancela queda registrado a su nombre. La cuenta de administración
+`astrum` no es para el trabajo diario.
 
 Crear `~/.ssh/config`:
 
 ```sshconfig
 Host astrum
     HostName HOST_TAILSCALE
-    User USUARIO_ASTRUM
+    User tunombre
     IdentityFile ~/.ssh/astra_astrum_ed25519
     IdentitiesOnly yes
     ProxyCommand tailscale nc %h %p
@@ -101,8 +105,14 @@ Probar y configurar `.env`:
 ```bash
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/astra_astrum_ed25519 ~/.ssh/config
-ssh astrum 'hostname; ~/astra-worker/astra_engine.sh list'
+ssh astrum info
 ```
+
+`ssh astrum info` devuelve un JSON breve con el `host` de ASTRUM, tu
+`client_id`, `"authenticated": true` y la lista de motores. Cualquier otra orden
+se rechaza con un mensaje que explica que la cuenta solo llega al gestor.
+`ASTRA_REMOTE_SCHEDULER=1` es obligatorio; la identidad la da la cuenta de
+ASTRUM y `ASTRA_CLIENT_ID` solo etiqueta los registros locales.
 
 ```dotenv
 ASTRA_REMOTE_HOST=astrum
@@ -113,7 +123,7 @@ ASTRA_REMOTE_SCHEDULER=1
 ASTRA_REMOTE_CLUSTER_MANAGER=~/astra-worker/astra_cluster_manager.py
 ```
 
-La lista de `astra_engine.sh` es la fuente correcta para los motores del
+La lista de motores de `ssh astrum info` es la fuente correcta para el
 clúster; `which sage` no los encuentra porque viven en entornos administrados
 separados.
 

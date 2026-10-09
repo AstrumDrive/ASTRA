@@ -1,0 +1,6 @@
+# Installed as /etc/sudoers.d/astra-queue (root, 0440). See docs/ASTRUM_ACCESO_POR_USUARIO.md.
+# Members of astra-queue may run the job-manager wrapper as astrum, with no
+# arguments, and nothing else. env_reset drops the caller's environment;
+# SSH_CONNECTION is kept so the manager can record the source address.
+Defaults!/usr/local/sbin/astra-queue-rpc env_reset, env_keep += "SSH_CONNECTION", !use_pty, !lecture
+%astra-queue ALL=(astrum) NOPASSWD: /usr/local/sbin/astra-queue-rpc ""

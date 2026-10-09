@@ -405,12 +405,14 @@ async def _do_cluster_submit(req: dict) -> dict:
         "gpu_slots": req.get("gpu_slots", 0),
         "memory_mb": req.get("memory_mb", 0),
         "timeout_seconds": req.get("max_seconds", 3600),
+        "threads_per_process": req.get("threads_per_process", 0),
     }
     # Zero means "let the central manager choose its engine-aware default".
+    zero_means_default = {"cpu_slots", "gpu_slots", "memory_mb", "threads_per_process"}
     payload = {
         key: value
         for key, value in payload.items()
-        if value not in (None, "") and not (key in {"cpu_slots", "gpu_slots", "memory_mb"} and int(value or 0) == 0)
+        if value not in (None, "") and not (key in zero_means_default and int(value or 0) == 0)
     }
     return await cluster_rpc(payload, timeout=60)
 

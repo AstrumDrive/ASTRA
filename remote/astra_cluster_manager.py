@@ -6,6 +6,12 @@ to the ``rpc`` command over the existing SSH transport; a user-level systemd
 service runs ``serve`` and dispatches queued jobs.  Each job executes through
 ``astra_remote_worker.py`` in an isolated directory and survives the submitting
 MCP/client connection.
+
+Collaborators reach ``rpc`` from their own Linux accounts through a ForceCommand
+gate and a narrow sudo rule that sets ``ASTRA_AUTHENTICATED_CLIENT``. With that
+variable the caller's identity overrides the declared ``client_id``, cancelling
+is limited to the caller's own jobs (administrators excepted), and the quotas in
+``<root>/quotas.json`` apply. See docs/ASTRUM_ACCESO_POR_USUARIO.md.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import signal
@@ -55,6 +62,24 @@ def _safe_client(value: object) -> str:
 def _safe_project(value: object) -> str:
     text = CLIENT_RE.sub("-", str(value or "general").strip().lower()).strip("-.")
     return text[:80] or "general"
+
+
+QUOTA_KEYS = ("max_running_cpu_slots", "max_running_gpu_slots", "max_queued")
+
+
+def _authenticated_client() -> str:
+    """Identity set by the root-owned astra-queue-rpc wrapper from SUDO_USER.
+
+    Empty when the caller entered as the service account itself, which keeps
+    the historical behaviour: the declared client_id is trusted.
+    """
+    value = os.environ.get("ASTRA_AUTHENTICATED_CLIENT", "").strip()
+    return _safe_client(value) if value else ""
+
+
+def _cluster_admins() -> set[str]:
+    raw = os.environ.get("ASTRA_CLUSTER_ADMINS", "nelson")
+    return {_safe_client(item) for item in raw.split(",") if item.strip()}
 
 
 def _int(value: object, default: int, minimum: int = 0, maximum: int | None = None) -> int:
@@ -276,6 +301,41 @@ class ClusterStore:
             "memory_slots_mb": memory_slots_mb,
         }
 
+    def quotas(self) -> tuple[dict, str]:
+        """Per-client quotas from ``<root>/quotas.json``; no file means no quotas.
+
+        A malformed file disables quotas rather than blocking every client, and
+        the parse error is reported by ``capacity``.
+        """
+        path = self.root / "quotas.json"
+        if not path.exists():
+            return {}, ""
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("quotas.json must contain a JSON object")
+            return data, ""
+        except Exception as exc:
+            return {}, f"{type(exc).__name__}: {exc}"
+
+    def quota_for(self, client_id: str, config: dict | None = None) -> dict:
+        """Merge the default quota with the client's override; None means no cap."""
+        if config is None:
+            config, _ = self.quotas()
+        clients = config.get("clients")
+        merged: dict[str, int | None] = {}
+        for source in (
+            config.get("default"),
+            clients.get(client_id) if isinstance(clients, dict) else None,
+        ):
+            if not isinstance(source, dict):
+                continue
+            for key in QUOTA_KEYS:
+                if key in source:
+                    value = source[key]
+                    merged[key] = None if value is None else _int(value, 0, 0)
+        return merged
+
     def submit(self, payload: dict) -> dict:
         code = str(payload.get("code") or "")
         if not code.strip():
@@ -295,6 +355,26 @@ class ClusterStore:
                     f"({limits['memory_slots_mb']} MiB after reserve)"
                 )
             }
+        quota = self.quota_for(client_id)
+        for requested, key, label in (
+            (cpu_slots, "max_running_cpu_slots", "cpu_slots"),
+            (gpu_slots, "max_running_gpu_slots", "gpu_slots"),
+        ):
+            cap = quota.get(key)
+            if cap is not None and requested > cap:
+                return {
+                    "error": (
+                        f"{label}={requested} exceeds the {key} quota of "
+                        f"client {client_id} ({cap})"
+                    )
+                }
+        # MPI codes (mpirun, pw.x, ph.x) want one BLAS/OpenMP thread per rank;
+        # the historical default of one thread per reserved slot oversubscribes
+        # the node by a factor equal to the number of ranks.
+        raw_threads = payload.get("threads_per_process")
+        threads_per_process = None
+        if raw_threads not in (None, "", 0, "0"):
+            threads_per_process = _int(raw_threads, 1, 1, cpu_slots)
         priority = _int(payload.get("priority"), 0, -10, 10)
         timeout_seconds = _int(payload.get("timeout_seconds"), 3600, 1, 7 * 86400)
         raw_idempotency_key = payload.get("idempotency_key")
@@ -315,7 +395,11 @@ class ClusterStore:
             "memory_mb": memory_mb,
             "timeout_seconds": timeout_seconds,
         }
+        if threads_per_process is not None:
+            # Added only when set, so idempotency hashes of older requests hold.
+            normalized_request["threads_per_process"] = threads_per_process
         request_sha256 = _request_sha256(normalized_request)
+        auth_detail = "auth=ssh-user" if payload.get("_auth") == "ssh-user" else ""
         replay_job_id = ""
         with self.connect() as connection:
             if idempotency_key:
@@ -332,6 +416,19 @@ class ClusterStore:
                         }
                     replay_job_id = str(existing["job_id"])
             if not replay_job_id:
+                queued_cap = quota.get("max_queued")
+                if queued_cap is not None:
+                    queued_now = connection.execute(
+                        "SELECT COUNT(*) FROM jobs WHERE client_id=? AND status='queued'",
+                        (client_id,),
+                    ).fetchone()[0]
+                    if queued_now >= queued_cap:
+                        return {
+                            "error": (
+                                f"client {client_id} already has {queued_now} queued jobs "
+                                f"(max_queued quota {queued_cap}); wait or cancel one"
+                            )
+                        }
                 stamp = time.strftime("%Y%m%d_%H%M%S")
                 job_id = f"astrum_{stamp}_{client_id}_{uuid.uuid4().hex[:6]}"
                 jobdir = self.jobs_root / job_id
@@ -347,6 +444,8 @@ class ClusterStore:
                     "idempotency_key": idempotency_key,
                     "request_sha256": request_sha256,
                 }
+                if threads_per_process is not None:
+                    request["threads_per_process"] = threads_per_process
                 (jobdir / "request.json").write_text(
                     json.dumps(request, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
@@ -379,7 +478,7 @@ class ClusterStore:
                         request_sha256,
                     ),
                 )
-                self.event(connection, job_id, "submitted")
+                self.event(connection, job_id, "submitted", auth_detail)
         if replay_job_id:
             result = self.status(replay_job_id, include_result=False)
             result["idempotent_replay"] = True
@@ -435,13 +534,30 @@ class ClusterStore:
             ).fetchall()
         return {"jobs": [dict(row) for row in rows], "capacity": self.capacity()}
 
-    def cancel(self, job_id: str, requested_by: str = "") -> dict:
+    def cancel(
+        self,
+        job_id: str,
+        requested_by: str = "",
+        owner_required: str | None = None,
+        authenticated: bool = False,
+    ) -> dict:
+        """Cancel a job; with ``owner_required`` only that client's jobs qualify."""
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = self._row(connection, job_id)
             if row is None:
                 connection.rollback()
                 return {"error": f"unknown cluster job: {job_id}"}
+            if owner_required is not None and row["client_id"] != owner_required:
+                connection.rollback()
+                return {
+                    "error": (
+                        f"cluster job {job_id} belongs to {row['client_id']}; only its "
+                        "owner or an ASTRUM administrator can cancel it"
+                    ),
+                    "job_id": job_id,
+                    "client_id": row["client_id"],
+                }
             if row["status"] in TERMINAL_STATES:
                 connection.commit()
                 return self.status(job_id)
@@ -456,7 +572,10 @@ class ClusterStore:
                     "UPDATE jobs SET cancel_requested=1, heartbeat_ts=? WHERE job_id=?",
                     (now, job_id),
                 )
-            self.event(connection, job_id, "cancel_requested", _safe_client(requested_by))
+            detail = _safe_client(requested_by)
+            if authenticated:
+                detail += " auth=ssh-user"
+            self.event(connection, job_id, "cancel_requested", detail)
             connection.commit()
         return self.status(job_id)
 
@@ -489,6 +608,27 @@ class ClusterStore:
             queued = connection.execute(
                 "SELECT COUNT(*) FROM jobs WHERE status='queued'"
             ).fetchone()[0]
+            per_client_running = {
+                row["client_id"]: {
+                    "jobs": int(row["jobs"]),
+                    "cpu_slots": int(row["cpu"]),
+                    "gpu_slots": int(row["gpu"]),
+                }
+                for row in connection.execute(
+                    """
+                    SELECT client_id, COUNT(*) AS jobs,
+                           COALESCE(SUM(cpu_slots),0) AS cpu,
+                           COALESCE(SUM(gpu_slots),0) AS gpu
+                    FROM jobs WHERE status IN ('starting','running')
+                    GROUP BY client_id
+                    """
+                ).fetchall()
+            }
+        quotas, quotas_error = self.quotas()
+        limits["per_client_running"] = per_client_running
+        limits["quotas"] = quotas
+        if quotas_error:
+            limits["quotas_error"] = quotas_error
         limits.update(
             {
                 "running_jobs": int(running["jobs"]),
@@ -507,8 +647,14 @@ class ClusterStore:
         return limits
 
     def reserve_next(self) -> dict | None:
-        """Reserve one fitting job, fairly rotating between client IDs."""
+        """Reserve one fitting job, fairly rotating between client IDs.
+
+        A job is skipped while it does not fit the node or while starting it
+        would push its client past a running quota; other clients' work and the
+        same client's smaller jobs can still start.
+        """
         limits = self.limits()
+        quota_config, _ = self.quotas()
         with self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             active = connection.execute(
@@ -531,6 +677,18 @@ class ClusterStore:
                     "SELECT client_id, MAX(started_ts) AS last_started FROM jobs GROUP BY client_id"
                 ).fetchall()
             }
+            running_by_client = {
+                row["client_id"]: (int(row["cpu"]), int(row["gpu"]))
+                for row in connection.execute(
+                    """
+                    SELECT client_id, COALESCE(SUM(cpu_slots),0) AS cpu,
+                           COALESCE(SUM(gpu_slots),0) AS gpu
+                    FROM jobs WHERE status IN ('starting','running')
+                    GROUP BY client_id
+                    """
+                ).fetchall()
+            }
+            client_quotas: dict[str, dict] = {}
             per_client: dict[str, sqlite3.Row] = {}
             for row in queued:
                 if (
@@ -539,7 +697,18 @@ class ClusterStore:
                     or row["memory_mb"] > available_memory
                 ):
                     continue
-                per_client.setdefault(row["client_id"], row)
+                client = row["client_id"]
+                if client not in client_quotas:
+                    client_quotas[client] = self.quota_for(client, quota_config)
+                quota = client_quotas[client]
+                used_cpu, used_gpu = running_by_client.get(client, (0, 0))
+                cpu_cap = quota.get("max_running_cpu_slots")
+                gpu_cap = quota.get("max_running_gpu_slots")
+                if cpu_cap is not None and used_cpu + row["cpu_slots"] > cpu_cap:
+                    continue
+                if gpu_cap is not None and used_gpu + row["gpu_slots"] > gpu_cap:
+                    continue
+                per_client.setdefault(client, row)
             if not per_client:
                 connection.commit()
                 return None
@@ -604,7 +773,7 @@ def run_job(store: ClusterStore, job_id: str) -> int:
     workspace.mkdir(parents=True, exist_ok=True)
     timeout_seconds = int(job["timeout_seconds"])
     env = dict(os.environ)
-    threads = str(max(1, int(job["cpu_slots"])))
+    threads = str(request.get("threads_per_process") or max(1, int(job["cpu_slots"])))
     for name in (
         "OMP_NUM_THREADS",
         "OPENBLAS_NUM_THREADS",
@@ -768,12 +937,42 @@ def _wait_for_job(store: ClusterStore, job_id: str, seconds: int) -> dict:
     return status
 
 
+def _info(caller: str) -> dict:
+    """Host, caller identity and engine registry; backs ``ssh astrum info``."""
+    runner = Path(
+        os.environ.get(
+            "ASTRA_ENGINE_RUNNER",
+            str(Path(__file__).resolve().with_name("astra_engine.sh")),
+        )
+    ).expanduser()
+    info: dict = {
+        "host": platform.node(),
+        "client_id": caller or "(service account)",
+        "authenticated": bool(caller),
+    }
+    try:
+        result = subprocess.run(
+            [str(runner), "list"], capture_output=True, text=True, timeout=30
+        )
+        info["engines"] = [line for line in result.stdout.splitlines() if line.strip()]
+        if result.returncode:
+            info["engines_error"] = result.stderr.strip()[-500:]
+    except Exception as exc:
+        info["engines_error"] = f"{type(exc).__name__}: {exc}"
+    return info
+
+
 def rpc(store: ClusterStore, request: dict) -> dict:
+    # Underscore fields are set here, never by the caller.
+    request = {key: value for key, value in dict(request).items() if not str(key).startswith("_")}
     action = str(request.get("action") or "").strip().lower()
+    caller = _authenticated_client()
     if action in {"submit", "submit_wait"}:
-        request = dict(request)
         connection = os.environ.get("SSH_CONNECTION", "").strip().split()
         request["_source_ip"] = connection[0] if connection else ""
+        if caller:
+            request["client_id"] = caller
+            request["_auth"] = "ssh-user"
         submitted = store.submit(request)
         if submitted.get("error") or action == "submit":
             return submitted
@@ -790,12 +989,15 @@ def rpc(store: ClusterStore, request: dict) -> dict:
             return store.status(job_id)
         return store.list_jobs(request.get("limit", 20), str(request.get("client_filter") or ""))
     if action == "cancel":
-        return store.cancel(
-            str(request.get("job_id") or "").strip(),
-            str(request.get("client_id") or ""),
-        )
+        job_id = str(request.get("job_id") or "").strip()
+        if caller:
+            owner = None if caller in _cluster_admins() else caller
+            return store.cancel(job_id, caller, owner_required=owner, authenticated=True)
+        return store.cancel(job_id, str(request.get("client_id") or ""))
     if action == "capacity":
         return store.capacity()
+    if action == "info":
+        return _info(caller)
     return {"error": f"unknown cluster action: {action}"}
 
 

@@ -85,15 +85,19 @@ Get-Content $env:USERPROFILE\.ssh\astra_astrum_ed25519.pub
 ```
 
 Send **only** the `.pub` line to the ASTRUM administrator, out of band (not
-through a Claude chat). The administrator adds it to ASTRUM and tells you the
-host and user.
+through a Claude chat). The administrator authorizes it for **your own ASTRUM
+account** (your first name in lowercase) and tells you the host.
+
+Your ASTRUM account reaches only the shared job manager: it has no shell and
+no file transfer, and everything you submit or cancel is recorded under that
+account. The administrator account `astrum` is not for daily work.
 
 Create or edit `C:\Users\<you>\.ssh\config`:
 
 ```sshconfig
 Host astrum
     HostName YOUR_TAILSCALE_HOST
-    User YOUR_ASTRUM_USER
+    User yourname
     IdentityFile ~/.ssh/astra_astrum_ed25519
     IdentitiesOnly yes
     ProxyCommand tailscale nc %h %p
@@ -105,15 +109,19 @@ Host astrum
 with the Windows OpenSSH client:
 
 ```powershell
-C:\Windows\System32\OpenSSH\ssh.exe astrum "hostname; ~/astra-worker/astra_engine.sh list"
+C:\Windows\System32\OpenSSH\ssh.exe astrum info
 ```
 
-You should see the ASTRUM hostname and the engine list (`oracle`, `sci`,
-`sage`, ...). Never replace the alias with the raw IP, another key or a
-hand-written proxy.
+You should see a short JSON with the ASTRUM `host`, your `client_id`,
+`"authenticated": true` and the engine list (`oracle`, `sci`, `sage`, ...).
+Any other command, or a plain `ssh astrum`, answers with an error that says the
+account only reaches the job manager; that is expected. Never replace the alias
+with the raw IP, another key or a hand-written proxy.
 
 Edit `.env` (copy it from `.env.example` on first install) and set the remote
-block. Use your own name in `ASTRA_CLIENT_ID`:
+block. `ASTRA_REMOTE_SCHEDULER=1` is required: it is the only route your ASTRUM
+account accepts. Your identity comes from your ASTRUM account; put your name in
+`ASTRA_CLIENT_ID` anyway, for local logs:
 
 ```dotenv
 ASTRA_ORACLE_MODE=local
@@ -205,7 +213,8 @@ From the MCP client, in this order:
 3. `astra_cluster_submit` with a trivial script (`print("hello")`, engine
    `python`, timeout 30).
 
-On ASTRUM the job is recorded with your `client_id` and your Tailscale IP:
+On ASTRUM the job is recorded with your ASTRUM account as `client_id` and your
+Tailscale IP (administrator view):
 
 ```bash
 python3 - <<'EOF'
@@ -217,19 +226,20 @@ EOF
 
 If the job shows another person's `client_id` or IP, your session is not
 running ASTRA on your PC: check that Claude Desktop lists *your* computer under
-Settings → Account → *Local devices* and that `.env` has your
-`ASTRA_CLIENT_ID`.
+Settings → Account → *Local devices* and that `.ssh\config` has `User yourname`.
 
 ## 8. Shared-queue etiquette
 
-- `astra_cluster_cancel` cancels **any** job, not only yours. Check
-  `astra_cluster_job` for the owner before cancelling, and never cancel a job
-  that is not yours without asking.
+- `astra_cluster_cancel` cancels only your own jobs; the administrator can
+  cancel any job. To free a slot held by someone else, ask them.
+- Each person has quotas (by default 16 CPU slots and 1 GPU running, 20 jobs
+  queued). A job above your running quota waits while other people's jobs
+  start; `astra_cluster_capacity` shows `per_client_running` and the quotas.
 - Declare memory for heavy jobs; a zero memory request is "unspecified".
-- For MPI codes such as Quantum ESPRESSO, set `OMP_NUM_THREADS=1`,
-  `MKL_NUM_THREADS=1` and `OPENBLAS_NUM_THREADS=1` in the job script. The
-  queue counts MPI ranks as CPU slots; it cannot see threads opened inside each
-  rank, and oversubscription makes the run slower for everyone.
+- For MPI codes such as Quantum ESPRESSO, pass `threads_per_process=1` to
+  `astra_cluster_submit`. Otherwise every MPI rank opens one BLAS/OpenMP thread
+  per reserved slot: 12 ranks on 12 slots become 144 threads, and the run is
+  slower for everyone.
 - Anything longer than one or two minutes belongs on ASTRUM, not on the PC.
 
 ## 9. Updating safely
@@ -247,20 +257,23 @@ Restart the MCP client afterwards so it picks up the new server code.
 
 ## Administrator checklist (ASTRUM side)
 
-Done once per collaborator by the ASTRUM administrator, from a machine that
-already has `ssh astrum`:
+Done once per collaborator by the ASTRUM administrator, logged in as `astrum`.
+Accounts, the gate and the per-user key files are installed by
+`remote/setup_astra_queue_access.sh`; see
+[`../ASTRUM_ACCESO_POR_USUARIO.md`](../ASTRUM_ACCESO_POR_USUARIO.md). New
+collaborators must first be added to `QUEUE_USERS` in that script.
 
 ```bash
 # 1. Confirm the collaborator's PC is on the tailnet.
-ssh astrum "tailscale status | grep -i windows"
+tailscale status | grep -i windows
 
-# 2. Authorize the public key, labelled with the collaborator's name.
-ssh astrum "echo 'ssh-ed25519 AAAA...rest-of-the-pub-line... astra-yourname' >> ~/.ssh/authorized_keys"
-
-# 3. Verify the label is there.
-ssh astrum "awk '{print \$1, \$NF}' ~/.ssh/authorized_keys"
+# 2. Save the .pub line they sent you, then authorize it (plan first, then apply).
+cd ~/astra-worker/queue-access
+sudo bash setup_astra_queue_access.sh --add-key yourname ~/yourname.pub
+sudo bash setup_astra_queue_access.sh --add-key yourname ~/yourname.pub --apply
 ```
 
 Tell the collaborator, out of band: `HostName` = ASTRUM's Tailscale IP, `User`
-= `astrum`. After their first test job, confirm in `state.db` that it carries
-their `client_id` and their IP (section 7).
+= their ASTRUM account. After their first test job, confirm in `state.db` that
+it carries their account as `client_id` and their IP (section 7). Never add a
+collaborator's key for the `astrum` account.

@@ -454,11 +454,13 @@ async def astra_cluster_submit(
     gpu_slots: int = 0,
     memory_mb: int = 0,
     max_seconds: int = 3600,
+    threads_per_process: int = 0,
 ) -> str:
     """Queue persistent scientific computation on the shared ASTRUM node.
 
     Unlike a direct remote oracle call, this job is admitted by ASTRUM's central
-    CPU/GPU scheduler, is attributed to ASTRA_CLIENT_ID, and continues if the
+    CPU/GPU scheduler, is attributed to the ASTRUM account that submits it
+    (ASTRA_CLIENT_ID on the shared service account), and continues if the
     laptop, agent, SSH session, or local MCP server disconnects. Poll the
     returned job_id with astra_cluster_job.
 
@@ -472,6 +474,9 @@ async def astra_cluster_submit(
         gpu_slots: requested GPU slots; 0 auto-detects common CUDA/JAX/CuPy use.
         memory_mb: hard scheduler reservation; 0 leaves it unspecified.
         max_seconds: execution timeout after the job starts.
+        threads_per_process: OMP/MKL/OpenBLAS threads per process. 0 keeps one
+            thread per reserved slot. Set 1 for MPI codes (mpirun, pw.x, ph.x)
+            so that N ranks use N slots instead of N x cpu_slots threads.
     """
     res = await asyncio.to_thread(
         _call_astra,
@@ -484,6 +489,7 @@ async def astra_cluster_submit(
             "gpu_slots": int(gpu_slots),
             "memory_mb": int(memory_mb),
             "max_seconds": int(max_seconds),
+            "threads_per_process": int(threads_per_process),
         },
         timeout=60,
     )

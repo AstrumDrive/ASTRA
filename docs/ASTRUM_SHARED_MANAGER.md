@@ -34,18 +34,27 @@ ASTRA_REMOTE_CLUSTER_MANAGER=~/astra-worker/astra_cluster_manager.py
 ASTRA_REMOTE_QUEUE_WAIT=300
 ```
 
-Gabriel uses the same settings with `ASTRA_CLIENT_ID=gabriel`. The identifier is
-an operational label, while Tailscale and each researcher's distinct SSH public
-key provide the connection-level identity.
+Collaborators do not use the `astrum` account. Each one has an ASTRUM account
+of their own (`ivaylo`, `gabriel`) whose SSH key can only reach this manager;
+for those accounts the manager takes `client_id` from the authenticated Linux
+user, ignores the declared one, lets them cancel only their own jobs, and
+applies per-client quotas from `~/astra-worker/cluster/quotas.json`. Entering as
+`astrum` (the administrator) keeps the declared `client_id`. Design, rationale
+and deployment: [`ASTRUM_ACCESO_POR_USUARIO.md`](ASTRUM_ACCESO_POR_USUARIO.md).
 
 ## MCP operations
 
 - `astra_cluster_submit`: submit code with optional project, priority, CPU/GPU
-  slots, memory reservation, and timeout. A zero memory request remains
-  unspecified; heavy jobs must declare their expected peak memory.
+  slots, memory reservation, timeout and `threads_per_process`. A zero memory
+  request remains unspecified; heavy jobs must declare their expected peak
+  memory. MPI codes (`mpirun`, `pw.x`, `ph.x`) should send
+  `threads_per_process=1`; the default is one BLAS/OpenMP thread per reserved
+  slot in every process.
 - `astra_cluster_job`: inspect one job or the shared recent queue.
-- `astra_cluster_cancel`: cancel a queued or running job and audit the requester.
-- `astra_cluster_capacity`: inspect total, reserved, used, and available slots.
+- `astra_cluster_cancel`: cancel a queued or running job and audit the
+  requester. Collaborator accounts can cancel only their own jobs.
+- `astra_cluster_capacity`: inspect total, reserved, used, and available slots,
+  per-client running usage and the quotas in force.
 
 Ordinary remote `astra_execute` calls also use the scheduler when
 `ASTRA_REMOTE_SCHEDULER=1`. If a synchronous call exhausts its queue-wait
@@ -105,9 +114,8 @@ Validate before reloading:
 sudo journalctl -u ssh --since today | grep 'Accepted publickey'
 ```
 
-`LogLevel VERBOSE` records the accepted public-key fingerprint. It complements
-the scheduler's `client_id`; it does not create separate Linux ownership while
-all collaborators use the shared `astrum` account.
+`LogLevel VERBOSE` records the accepted public-key fingerprint. Together with
+the per-collaborator accounts it ties every connection to a person.
 
 ## Future multi-node growth
 

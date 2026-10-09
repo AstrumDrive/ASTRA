@@ -1,0 +1,11 @@
+{
+  "default": {
+    "max_running_cpu_slots": 16,
+    "max_running_gpu_slots": 1,
+    "max_queued": 20
+  },
+  "clients": {
+    "nelson": {"max_running_cpu_slots": 28},
+    "astra-2.0-dev": {"max_running_cpu_slots": 28}
+  }
+}

@@ -61,12 +61,14 @@ cat ~/.ssh/astra_astrum_ed25519.pub
 ```
 
 Comparte solamente el contenido de `.pub` con el administrador. Nunca envíes la
-clave privada. Si ya tienes un alias `astrum` funcional en `~/.ssh/config`,
-puedes reutilizarlo. En `.env` configura:
+clave privada. El administrador la autoriza para tu **cuenta propia** en
+ASTRUM: en el alias `astrum` de `~/.ssh/config` pon `User tunombre` (no
+`astrum`) y comprueba con `ssh astrum info`. En `.env` configura:
 
 ```dotenv
 ASTRA_REMOTE_HOST=astrum
 ASTRA_REMOTE_SSH_OPTIONS=
+ASTRA_REMOTE_SCHEDULER=1
 ```
 
 ## 4. Verificar sin gastar cuota de modelos

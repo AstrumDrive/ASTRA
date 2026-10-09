@@ -102,16 +102,18 @@ cat ~/.ssh/astra_astrum_ed25519.pub
 ```
 
 Send only the `.pub` contents to the ASTRUM administrator. Never send the file
-without `.pub`. The administrator adds the public key to the collaborator's
-authorized ASTRUM account and communicates the SSH username and Tailscale host
-out of band.
+without `.pub`. The administrator authorizes the key for the collaborator's
+**own ASTRUM account** (first name in lowercase) and communicates the Tailscale
+host out of band. That account reaches only the shared job manager: no shell,
+no file transfer, and every submission or cancellation is recorded under it.
+The administrator account `astrum` is not for daily work.
 
 Add a host alias to `~/.ssh/config`:
 
 ```sshconfig
 Host astrum
     HostName YOUR_TAILSCALE_HOST
-    User YOUR_ASTRUM_USER
+    User yourname
     IdentityFile ~/.ssh/astra_astrum_ed25519
     IdentitiesOnly yes
     ProxyCommand tailscale nc %h %p
@@ -122,10 +124,17 @@ Then restrict the local files and test the route:
 ```bash
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/astra_astrum_ed25519 ~/.ssh/config
-ssh astrum 'hostname; ~/astra-worker/astra_engine.sh list'
+ssh astrum info
 ```
 
-Edit ASTRA's `.env` and replace the two placeholder lines with:
+`ssh astrum info` prints a short JSON with the ASTRUM `host`, your
+`client_id`, `"authenticated": true` and the engine list. Any other command is
+refused with a message saying the account only reaches the job manager.
+
+Edit ASTRA's `.env` and replace the two placeholder lines with the block below.
+`ASTRA_REMOTE_SCHEDULER=1` is required: it is the only route the account
+accepts. The identity comes from the ASTRUM account; `ASTRA_CLIENT_ID` only
+labels local logs:
 
 ```dotenv
 ASTRA_REMOTE_HOST=astrum
@@ -137,7 +146,7 @@ ASTRA_REMOTE_CLUSTER_MANAGER=~/astra-worker/astra_cluster_manager.py
 ```
 
 The alias keeps machine-specific host, user, and key information out of the
-repository. The `astra_engine.sh list` command is authoritative on ASTRUM;
+repository. The engine list from `ssh astrum info` is authoritative on ASTRUM;
 plain `which sage` or `which cadabra2` is not, because the engines live in
 separate managed environments.
 
