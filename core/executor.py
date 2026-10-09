@@ -24,6 +24,20 @@ def _decide_oracle(code: str) -> str:
     return "remote" if any(k in c for k in heavy) else "local"
 
 async def execute_python_code(code: str, workspace_dir: str = "workspace", timeout: int = None) -> dict:
+    """Run a validator; ``# ASTRA_CERTIFIED: arb`` first gets the vetted ball
+    arithmetic prelude (core/certified), and the result records which one."""
+    from core.certified import expand_certified
+
+    code, certified, refusal = expand_certified(code, detect_engine(code))
+    if refusal:
+        return {"stdout": "", "stderr": refusal, "exit_code": -2, "engine": detect_engine(code)}
+    result = await _execute_python_code(code, workspace_dir=workspace_dir, timeout=timeout)
+    if certified and isinstance(result, dict):
+        result["certified_prelude"] = certified
+    return result
+
+
+async def _execute_python_code(code: str, workspace_dir: str = "workspace", timeout: int = None) -> dict:
     """
     Saves the Python code in the workspace and executes it asynchronously in an isolated subprocess.
     Captures standard output, error, and respects a timeout to prevent infinite loops in solvers.

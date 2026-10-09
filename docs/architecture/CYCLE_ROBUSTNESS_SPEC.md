@@ -254,3 +254,25 @@ Primera entrega: C0 + C1.
   lecturas se añaden a la pregunta de entradas faltantes como opciones
   `convention_N`, también sin reanudar desde el checkpoint, y "assume" deja
   de ser la única manera de fijar una convención.
+- **Aritmética de bolas certificada** (`core/certified/`, 2026-10-09). Los dos
+  ciclos de Kondo (6 y 9 de octubre) murieron en la revisión porque el
+  validador tenía que certificar ramas de logaritmos complejos y una cota del
+  resto uniforme en un cono usando floats, y el revisor no lo aceptó (además
+  cazó un ln 2 que faltaba en log(u-2) y que habría dado una refutación
+  falsa). Ahora un validador Python con la línea `# ASTRA_CERTIFIED: arb`
+  recibe un módulo verificado sobre python-flint (Arb): `branch_index` (el k
+  certificado en lhs - rhs = 2πik), comparaciones `is_certainly_*` (True solo
+  si es seguro; False no es lo contrario), `unique_integer`, `polar_box`,
+  `sup_abs_on_sector` / `certify_sup_abs_le` (cota rigurosa de |f| en el
+  rectángulo polar cerrado, por cajas adaptativas) y `analytic_tail`. Lo que
+  no se puede decidir lanza `Undecided`, nunca PASS ni FAIL. El revisor trata
+  el módulo como correcto y audita su uso; la cola |z| > r_max se declara
+  como `ANALYTIC_TAIL:` y el resultado queda condicional
+  (`analytic_tails`, `conditional_on_assumptions`, el lema como pendiente).
+  La inyección escribe el módulo en texto plano y compila el validador sin
+  cambios como `validator.py`, así que los tracebacks citan sus líneas. Una
+  primera versión con una línea `exec` en base64 la borraba el antivirus de
+  una estación de trabajo al lanzarla: nada que parezca ofuscado. El resultado
+  registra `certified_prelude` (versión y hash). Solo motor Python: en local
+  hace falta python-flint (en `requirements.txt`; el doctor lo avisa) y el
+  Python de los validadores de ASTRUM ya trae la 0.9.0.

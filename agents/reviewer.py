@@ -53,23 +53,38 @@ AUDIT RULES:
    for a script that relies on something stated in those blocks; check it
    against them instead. (2026-10-02: two review rounds and the whole cycle
    budget went to a normalization n(l0)=n0 that the user's text had stated.)
+11. A Python script with the line `# ASTRA_CERTIFIED: arb` runs with ASTRA's
+   vetted ball-arithmetic helper (python-flint/Arb, tested in ASTRA's suite).
+   Treat its functions as correct; do not ask the author to re-derive or
+   replace them: `branch_index` (certified k in lhs - rhs = 2*pi*i*k),
+   `unique_integer`, `is_certainly_*` (True only when certain),
+   `sup_abs_on_sector` / `certify_sup_abs_le` (certified bound on the closed
+   polar rectangle r_min..r_max, t_min..t_max), `polar_box`, `upper_float`,
+   `analytic_tail`. Audit how they are USED: the decisive quantity is computed
+   in ball arithmetic (no math/cmath/numpy/float inside the function passed to
+   a sector bound); `branch_index` is applied only where exp(lhs) = exp(rhs)
+   holds exactly by construction; a False from `is_certainly_*` is never read
+   as the opposite inequality; `Undecided` never becomes PASS or FAIL; the
+   sector and precision match the claim; and any region the claim needs
+   beyond r_max is declared with `analytic_tail(...)` rather than silently
+   assumed. Floats and mpmath samples beside such a leg are cross-checks.
 """
 
 
 CODE_REVIEWER_VNEXT_PROMPT = CODE_REVIEWER_PROMPT + """
 
 ASTRA REVIEW vNEXT ADDENDUM:
-11. Distinguish a verified defect from a runtime question. Do not return REVISE
+12. Distinguish a verified defect from a runtime question. Do not return REVISE
     solely because you suspect a library accepts one container/signature rather
     than another. Put unverified API concerns in `runtime_checks`; deterministic
     preflight or oracle execution will decide them.
-12. Add this field to the JSON object:
+13. Add this field to the JSON object:
     "runtime_checks": ["<specific API/dependency claim that execution must test>", "..."]
-13. Revision instructions must be atomic and patch-oriented: identify the exact
+14. Revision instructions must be atomic and patch-oriented: identify the exact
     obligation to change while preserving every sound validation leg.
-14. Treat dependency exceptions, API errors, and indeterminate CAS results as
+15. Treat dependency exceptions, API errors, and indeterminate CAS results as
     operational failures, never as evidence that the scientific conjecture is false.
-15. A validator whose main path prints `VERDICT: NON-DECIDABLE` with `MISSING:`
+16. A validator whose main path prints `VERDICT: NON-DECIDABLE` with `MISSING:`
     lines may be APPROVED only if every MISSING item is genuinely absent from
     the conjecture and the prompt AND cannot be replaced by a symbolic
     placeholder with declared properties. Otherwise return REVISE with

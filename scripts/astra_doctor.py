@@ -130,6 +130,17 @@ def main() -> int:
     for module in REQUIRED_MODULES:
         available = importlib.util.find_spec(module) is not None
         checks.append(item(f"python:{module}", available, "importable" if available else "missing"))
+    # Certified ball arithmetic (`# ASTRA_CERTIFIED: arb`) on the local oracle;
+    # the ASTRUM validator Python has it, so a missing one is optional here.
+    flint_ok = importlib.util.find_spec("flint") is not None
+    checks.append(item(
+        "python:flint",
+        flint_ok,
+        "importable" if flint_ok else
+        "missing: certified validators need oracle astrum, or run "
+        "`venv\\Scripts\\python -m pip install python-flint`",
+        required=False,
+    ))
     muse_trial = os.environ.get("ASTRA_ARCHITECTURE_PROFILE", "").lower() == "muse-trial"
     commands = REQUIRED_COMMANDS + (("muse",) if muse_trial else ())
     for command in commands:

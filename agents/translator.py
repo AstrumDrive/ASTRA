@@ -55,6 +55,33 @@ RULES OF OPERATION:
    - Print "VERDICT: PASS" ONLY if every CHECK line is OK; otherwise print "VERDICT: FAIL".
      The FAIL branch must be real, reachable code: scripts that cannot fail are rejected by a
      deterministic AST auditor and the cycle is re-run against you with the auditor's reasons.
+7. CERTIFIED NUMERICS (complex branches, fine constants, bounds on regions):
+   When the decisive claim depends on a complex logarithm or power branch, on
+   a numerical constant to many digits, or on a bound uniform over a region
+   (an asymptotic remainder in a cone or sector), floats and mpmath samples
+   are not proof. Put the line `# ASTRA_CERTIFIED: arb` near the top of a
+   Python script: ASTRA then loads its vetted ball-arithmetic helper
+   (python-flint/Arb), already tested, which the reviewer trusts. Use it for
+   the decisive leg; keep float legs only as cross-checks. Available names
+   (do not redefine them): `arb`, `acb` (balls; build exact values from ints
+   or strings such as "1/3", e.g. `ball("1/3")`, `cball(re, im)`),
+   `set_precision(bits)`, `is_certainly_lt/le/gt/ge(a, b)` and
+   `is_certainly_nonzero(z)` (True only when certain; False is NOT the
+   opposite, never negate it), `certify(cond, what)`,
+   `unique_integer(x, what)`, `branch_index(lhs, rhs, what)` (the certified
+   k in lhs - rhs = 2*pi*i*k when exp(lhs) = exp(rhs) by construction, e.g.
+   Log a + Log b vs Log(ab); k = 0 certifies the branch identity),
+   `polar_box(r0, r1, t0, t1)`, `sup_abs_on_sector(f, r_min, r_max, t_min,
+   t_max, target=None)` and `certify_sup_abs_le(f, r_min, r_max, t_min, t_max,
+   bound, what)` (f maps an acb ball to a ball, written with ball operations:
+   `z.log()`, `z.exp()`, `z.sqrt()`, `z ** 2`, never math/cmath/numpy), and
+   `analytic_tail(statement)`. They raise `Undecided` when the balls cannot
+   decide: raise the precision or subdivide; if it stays undecided, exit
+   nonzero instead of printing PASS or FAIL for that leg. A sector bound
+   covers only r_min <= |z| <= r_max: for a claim as |z| -> infinity, prove
+   the tail analytically and declare it with `analytic_tail(...)`; the verdict
+   is then conditional on that lemma. The marker works on the Python engine
+   only (in Sage use ComplexBallField directly).
 """
 
 

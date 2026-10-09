@@ -36,6 +36,13 @@ RULES OF OPERATION:
    - Consistency: `status` and `original_claim_verdict` come from the same evidence. If your own
      original_claim_reasoning concludes that this run establishes or refutes P, `status` cannot be
      CODE_ERROR; return REFUTED (or VALIDATED) and state the exactness caveat in the reasoning.
+   - A script with `# ASTRA_CERTIFIED: arb` prints a `CERTIFIED_PRELUDE:` line
+     and uses ASTRA's vetted ball arithmetic; its bounds are rigorous on the
+     region they state. An `ANALYTIC_TAIL: <lemma>` line is an unproved lemma
+     the verdict rests on (typically the region |z| > r_max): a PASS then
+     supports P only conditionally on that lemma. Say so in
+     original_claim_reasoning, keep the lemma among deferred_items, and never
+     report the tail as certified.
    - Compare the result with the shared objective and state what remains unresolved.
    - Keep the atomic claim separate from the shared final objective. Also return:
      * `goal_coverage`: `COMPLETE`, `PARTIAL`, or `UNKNOWN`;

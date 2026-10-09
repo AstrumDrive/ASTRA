@@ -5,6 +5,9 @@ qutip>=5.0.0
 numpy>=1.26.0
 scipy>=1.13.0
 mpmath>=1.3.0
+# Certified ball arithmetic (Arb) for `# ASTRA_CERTIFIED: arb` validators;
+# the ASTRUM validator Python already has 0.9.0.
+python-flint>=0.9.0
 
 # GR, fluids, numerical validation, and diagnostics
 einsteinpy>=0.4.0

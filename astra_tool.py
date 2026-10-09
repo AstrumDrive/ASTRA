@@ -1314,6 +1314,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         parse_assumed_inputs,
     )
     from core.non_decidable import detect_non_decidable, resolve_non_decidable
+    from core.certified import parse_analytic_tails
     from core.progress_window import open_progress_window
     import hashlib
 
@@ -2623,6 +2624,18 @@ async def _do_cycle_impl(req: dict) -> dict:
             # the values it used are unknown, so the verdict stays conditional.
             deferred_assumed.append(SILENT_ASSUME_DEFERRED)
         analysis["deferred_items"] = deferred_assumed
+    # ANALYTIC_TAIL: lines (core/certified): a certified sector bound covers a
+    # compact region only; the lemma for the rest is unproved, so the verdict
+    # is conditional on it and its proof stays deferred.
+    analytic_tails = parse_analytic_tails((exec_result or {}).get("stdout") or "")
+    if analytic_tails:
+        analysis = dict(analysis)
+        deferred_tails = _normalize_deferred_items(analysis.get("deferred_items"))
+        for item in analytic_tails:
+            entry = f"Prove the analytic tail lemma: {item}"
+            if entry not in deferred_tails:
+                deferred_tails.append(entry)
+        analysis["deferred_items"] = deferred_tails
     coverage = _goal_coverage(
         shared_goal,
         intuition,
@@ -2716,6 +2729,11 @@ async def _do_cycle_impl(req: dict) -> dict:
     if assumed_inputs or silent_assume:
         out["assumed_inputs"] = assumed_inputs
         out["conditional_on_assumptions"] = True
+    if analytic_tails:
+        out["analytic_tails"] = analytic_tails
+        out["conditional_on_assumptions"] = True
+    if (exec_result or {}).get("certified_prelude"):
+        out["certified_prelude"] = exec_result["certified_prelude"]
     if resumed_from:
         out["resumed_from"] = resumed_from
     if request_record["structure_request"] or request_record.get("resume_warning"):
