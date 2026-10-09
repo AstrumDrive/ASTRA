@@ -278,7 +278,11 @@ async def astra_cycle(intuition: str, oracle: str = "local", timeout: int = 1500
 
     When status is NON_DECIDABLE, ASK THE USER the `input_request.question`
     and re-run with the option's `rerun` fields (provide / assume / extract);
-    ending without a decision is not the only exit.
+    ending without a decision is not the only exit. A decided cycle whose
+    `original_claim_verdict` is INCONCLUSIVE only because the claim leaves a
+    convention unstated carries an `input_request` with kind "convention":
+    ask which reading the user meant and re-run that option's `rerun` (a
+    fresh cycle that answers the claim under that convention).
 
     Returns JSON with separate layers: `status`/`atomic_status` for the bounded
     conjecture, `oracle_verdict` for executable PASS/FAIL, `goal_coverage` for
@@ -359,8 +363,9 @@ async def astra_cycle_submit(
             bounded single-cycle direction before the conjecture phase; the
             original and structured request are kept on the result.
         inputs / input_policy / resume_checkpoint: as in astra_cycle. A job
-            that ends NON_DECIDABLE carries `input_request`: ask the user and
-            resubmit with the chosen option's `rerun` fields.
+            that ends NON_DECIDABLE, or whose claim is left open only by an
+            unstated convention (kind "convention"), carries `input_request`:
+            ask the user and resubmit with the chosen option's `rerun` fields.
     """
     req = {
         "action": "cycle_submit",

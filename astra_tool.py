@@ -1306,6 +1306,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     )
     from core.input_request import (
         SILENT_ASSUME_DEFERRED,
+        build_convention_request,
         build_input_request,
         inputs_block,
         inputs_text,
@@ -2700,8 +2701,15 @@ async def _do_cycle_impl(req: dict) -> dict:
     if analysis.get("status") == "NON_DECIDABLE":
         # Ask instead of stop: the calling agent puts this to the user.
         out["input_request"] = build_input_request(
-            out.get("missing_inputs") or [], checkpoint_path, req
+            out.get("missing_inputs") or [], checkpoint_path, req,
+            convention_request=analysis.get("convention_request"),
         )
+    else:
+        # A claim left open only by an unstated convention: ask which reading
+        # the user meant (status and original_claim_verdict stay as they are).
+        convention_request = build_convention_request(analysis, req)
+        if convention_request:
+            out["input_request"] = convention_request
     out["input_policy"] = request_record["input_policy"]
     if request_record.get("inputs"):
         out["inputs"] = request_record["inputs"]

@@ -19,6 +19,10 @@ RULES OF OPERATION:
      objective and the conjecture, and you agree they cannot be derived from what
      is given. Return `missing_inputs` (a JSON list of those inputs) and NO
      corrected_code: a rewrite cannot supply data the request does not contain.
+     When a missing input is a convention or a reading of P rather than data
+     (how division by zero is read, which regime or assumptions P means),
+     ALSO return `convention_request` (rule 3), naming the readings the
+     validator or the field actually uses.
      If the inputs CAN be derived, or symbolic placeholders would decide the
      claim, return CODE_ERROR with corrected_code instead.
 2. INDEPENDENT AUDIT:
@@ -61,6 +65,20 @@ RULES OF OPERATION:
    exact relation between the tested conjecture and P.
    Never let a `VALIDATED` status imply P is true when the validated
    conjecture actually contradicts P.
+   CONVENTION REQUEST: when original_claim_verdict is INCONCLUSIVE or
+   SUBSTITUTED ONLY because P, as stated, leaves a convention, an assumption
+   or a domain unstated, and P would be decided once that reading is fixed
+   (division by zero excluded or totalized, a flow regime never named, a sign
+   or normalization convention), and `status` is VALIDATED, REFUTED, or
+   NON_DECIDABLE with that convention among the missing inputs,
+   also return `convention_request`: {"question": one sentence the user can
+   answer, "conventions": [2 to 4 objects {"label": a few words, "statement":
+   the reading as one explicit sentence that, added to P, makes P decidable}]}.
+   List the readings the evidence or the field actually uses; do not state a
+   verdict per reading (the re-run decides each one). Omit the field in every
+   other case: missing data, a defective validator, an undecided computation.
+   When a FROZEN INPUTS block fixes a CONVENTION chosen by the user, judge P
+   with that convention added and name it in original_claim_reasoning.
 4. CORRECTIVE ACTION:
    - If VALIDATED or REFUTED, output a 'reasoning' field in the JSON explaining the physical conclusion.
    - If VALIDATED or REFUTED, output a 'next_step' field in the JSON with one concrete suggestion for the next research action (e.g., extend to a different metric, check a boundary condition, generalise to n dimensions).

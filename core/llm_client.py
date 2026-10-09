@@ -127,6 +127,16 @@ def _normalize_original_claim_verdict(parsed: dict, anchor_text: str) -> dict:
     parsed["original_claim_verdict"] = verdict
     reasoning = str(parsed.get("original_claim_reasoning") or "").strip()
     parsed["original_claim_reasoning"] = reasoning[:1000]
+    # The readings that would decide an INCONCLUSIVE claim (2026-10-09):
+    # shape only here; astra_tool decides from the final status and verdict
+    # whether it becomes an input_request (core/input_request.py).
+    from core.input_request import normalize_convention_request
+
+    convention = normalize_convention_request(parsed.get("convention_request"))
+    if convention is None:
+        parsed.pop("convention_request", None)
+    else:
+        parsed["convention_request"] = convention
     return parsed
 
 

@@ -235,3 +235,22 @@ Primera entrega: C0 + C1.
   pregunto (solo si el objetivo es el mismo) y arranca en el validador. Los
   `inputs` llegan como bloque FROZEN INPUTS al motor de conjeturas, al
   estructurador y al autor del validador; la clave del cache los incluye.
+- **Convención faltante: preguntar** (2026-10-09). En el benchmark del 9 de
+  octubre se perdieron dos casos por esto: "a/b=c/b implica a=c para todo
+  real" y el escalado de Hagen–Poiseuille. Los dos terminaron VALIDATED
+  con `original_claim_verdict` INCONCLUSIVE porque el enunciado no fijaba una
+  convención (división entre cero) o unas hipótesis (régimen del flujo). El
+  validador del primero ya había decidido cada lectura. Si el ciclo decidió
+  su conjetura (VALIDATED/REFUTED), el claim quedó INCONCLUSIVE/SUBSTITUTED
+  y el analista nombra de 2 a 4 lecturas (`convention_request`), el resultado
+  lleva `input_request` con `kind: "convention"`: la pregunta, las lecturas y,
+  por cada una, la re-ejecución con la lectura en `inputs` (opción `other`
+  para una convención propia). No usa `resume_checkpoint`, porque la
+  convención puede cambiar la conjetura. `status` y `original_claim_verdict`
+  no cambian, así que el benchmark sigue contando esos casos como no
+  acertados. La convención también puede faltar por la vía NON_DECIDABLE: al
+  repetir el caso de la división, el validador declaró
+  `MISSING: a convention for real division at b = 0`. En ese caso las
+  lecturas se añaden a la pregunta de entradas faltantes como opciones
+  `convention_N`, también sin reanudar desde el checkpoint, y "assume" deja
+  de ser la única manera de fijar una convención.
