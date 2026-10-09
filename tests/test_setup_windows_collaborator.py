@@ -127,6 +127,16 @@ class SetupWindowsCollaboratorTests(unittest.TestCase):
         backups = list(self.root.glob("claude_desktop_config.json.*.bak"))
         self.assertEqual(len(backups), 1)
 
+    def test_find_python312_returns_a_real_312_interpreter(self):
+        result = self.ps("Find-Python312")
+        path = result.stdout.strip()
+        if not path:
+            self.skipTest("no Python 3.12 on this machine")
+        self.assertNotIn("WindowsApps", path)
+        version = subprocess.run([path, "-c", "import sys; print(sys.version_info[:2])"],
+                                 capture_output=True, text=True, timeout=60).stdout.strip()
+        self.assertEqual(version, "(3, 12)")
+
     def test_main_refuses_to_run_without_user_and_host(self):
         result = subprocess.run(
             [_powershell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(SCRIPT)],

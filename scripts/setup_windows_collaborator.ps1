@@ -186,13 +186,20 @@ function Install-WingetPackage([string]$Id, [string]$Label) {
     Update-SessionPath
 }
 
-function Test-Python312 {
+function Find-Python312 {
+    <# Path of a real Python 3.12 (never the Microsoft Store alias), or $null. #>
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py) {
-        & $py.Source -3.12 -c "import sys" 2>$null
-        if ($LASTEXITCODE -eq 0) { return $true }
+        $exe = (& $py.Source -3.12 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1)
+        if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path -LiteralPath $exe.Trim())) { return $exe.Trim() }
     }
-    return $false
+    foreach ($candidate in @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+        "C:\Program Files\Python312\python.exe"
+    )) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $null
 }
 
 function Install-Prerequisites {
@@ -201,7 +208,7 @@ function Install-Prerequisites {
         Stop-Setup "winget is not available. Update 'App Installer' from the Microsoft Store and run this again."
     }
     if (Get-Command git -ErrorAction SilentlyContinue) { Write-Ok "Git" } else { Install-WingetPackage "Git.Git" "Git" }
-    if (Test-Python312) { Write-Ok "Python 3.12" } else { Install-WingetPackage "Python.Python.3.12" "Python 3.12" }
+    if (Find-Python312) { Write-Ok "Python 3.12" } else { Install-WingetPackage "Python.Python.3.12" "Python 3.12" }
     if (Get-Command node -ErrorAction SilentlyContinue) { Write-Ok "Node.js" } else { Install-WingetPackage "OpenJS.NodeJS.LTS" "Node.js" }
     $tailscale = Get-Command tailscale -ErrorAction SilentlyContinue
     if (-not $tailscale -and (Test-Path "C:\Program Files\Tailscale\tailscale.exe")) { $env:Path += ";C:\Program Files\Tailscale" }
@@ -213,7 +220,7 @@ function Install-Prerequisites {
     }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { $env:Path += ";C:\Program Files\Git\cmd" }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Stop-Setup "Git did not install correctly." }
-    if (-not (Test-Python312)) { Stop-Setup "Python 3.12 did not install correctly." }
+    if (-not (Find-Python312)) { Stop-Setup "Python 3.12 did not install correctly." }
 }
 
 function Test-Tailscale {
@@ -240,7 +247,10 @@ function Install-Astra {
         & git clone $RepoUrl $InstallDir | Out-Host
         if ($LASTEXITCODE -ne 0) { Stop-Setup "git clone failed." }
     }
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallDir "install.ps1") -NonInteractive | Out-Host
+    $python = Find-Python312
+    if (-not $python) { Stop-Setup "Python 3.12 was not found." }
+    Write-Info "Using $python"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallDir "install.ps1") -NonInteractive -PythonPath $python | Out-Host
     if ($LASTEXITCODE -ne 0) { Stop-Setup "install.ps1 failed (see the red lines above)." }
     Write-Ok "ASTRA installed in $InstallDir"
 }
