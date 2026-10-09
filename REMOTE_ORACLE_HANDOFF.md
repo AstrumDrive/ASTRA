@@ -2,9 +2,8 @@
 
 Date: 2026-06-17
 
-Canonical machine guide for agents:
-
-`C:\Users\Nelson\REMOTE_CLUSTER_GUIDE.md`
+Canonical machine guide for agents: the administrator's cluster guide
+(`REMOTE_CLUSTER_GUIDE.md`, kept outside this public repository).
 
 ## Current State
 
@@ -12,17 +11,13 @@ ASTRA_Production is configured to keep the Flask/Web UI local on Windows while
 sending Phase 4 validation scripts to a stronger Ubuntu machine over
 Tailscale + SSH.
 
-Local project:
+Local project: the ASTRA checkout on the workstation.
 
-`C:\Users\Nelson\Dev\ASTRA`
-
-Remote worker:
-
-`astrum@100.66.143.117`
+Remote worker: the SSH alias `astrum`. Host, account, key and Tailscale proxy
+live in the workstation's `~/.ssh/config`, not in this repository.
 
 Remote machine observed during setup:
 
-- Hostname: `astrum-X870E-AORUS-ELITE-WIFI7-ICE`
 - OS: Ubuntu 26.04 LTS
 - CPU visible to shell: 32 logical CPUs (AMD Ryzen 9 9950X3D, 16 cores / 32 threads)
 - RAM visible to shell: 29 GiB
@@ -36,7 +31,7 @@ Remote machine observed during setup:
   libraries outside the loader path). Fixed that day with
   `zz_nvidia_preload.pth`/`.py` in the venv's `site-packages` (also in the
   `pkgs` env); verified `cupy.linalg.eigh`, cuRAND and cuFFT. Details and
-  timings: `C:\Users\Nelson\Dev\REMOTE_CLUSTER_GUIDE.md`, section "GPU".
+  timings: the cluster guide, section "GPU".
 
 ## Local ASTRA Configuration
 
@@ -45,12 +40,12 @@ Remote machine observed during setup:
 ```env
 ASTRA_ORACLE_MODE=remote
 ASTRA_ORACLE_TIMEOUT=600
-ASTRA_REMOTE_HOST=astrum@100.66.143.117
+ASTRA_REMOTE_HOST=astrum
 ASTRA_REMOTE_PYTHON=~/astra-worker/venv/bin/python
 ASTRA_REMOTE_WORKER=~/astra-worker/astra_remote_worker.py
 ASTRA_REMOTE_WORKDIR=~/astra-worker/workspace
 ASTRA_REMOTE_CONNECT_TIMEOUT=15
-ASTRA_REMOTE_SSH_OPTIONS=-i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p"
+ASTRA_REMOTE_SSH_OPTIONS=
 ```
 
 Do not print `.env`: it may contain LLM API keys.
@@ -58,20 +53,30 @@ Do not print `.env`: it may contain LLM API keys.
 ## SSH/Tailscale
 
 The server is reachable through Tailscale. Standard direct port 22 was not
-reachable initially, but SSH through Tailscale proxy works:
+reachable initially, but SSH through the Tailscale proxy works. The alias in
+`~/.ssh/config` carries the whole route:
 
-```powershell
-ssh -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" astrum@100.66.143.117 "hostname && whoami"
+```sshconfig
+Host astrum
+    HostName <ASTRUM_TAILSCALE_IP>
+    User <ASTRUM_ACCOUNT>
+    IdentityFile ~/.ssh/<PRIVATE_KEY>
+    IdentitiesOnly yes
+    ProxyCommand tailscale nc %h %p
 ```
 
-The public key `C:\Users\Nelson\.ssh\google_compute_engine.pub` is installed in
-`/home/astrum/.ssh/authorized_keys`.
+```powershell
+ssh astrum "hostname && whoami"
+```
 
-The private key ACL was restricted so Windows OpenSSH accepts it:
+Public keys are authorized by the administrator in
+`/etc/ssh/authorized_keys/<account>`; collaborator accounts reach only the job
+manager (see `docs/ASTRUM_ACCESO_POR_USUARIO.md`). The commands in "Reinstall /
+Repair Commands" need the administrator account.
 
-- `NELSON\Nelson:F`
-- `NT AUTHORITY\SYSTEM:F`
-- `BUILTIN\Administrators:F`
+On Windows the private key's ACL must be restricted to the owning user,
+`NT AUTHORITY\SYSTEM` and `BUILTIN\Administrators`, or Windows OpenSSH refuses
+it.
 
 ## Installed Remote Engines
 
@@ -148,26 +153,26 @@ Manual smoke tests that passed during setup:
 Copy scripts:
 
 ```powershell
-scp -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" .\remote\astra_remote_worker.py .\remote\install_worker_python.sh .\remote\install_sage_cadabra.sh astrum@100.66.143.117:~/astra-worker/
+scp .\remote\astra_remote_worker.py .\remote\install_worker_python.sh .\remote\install_sage_cadabra.sh astrum:~/astra-worker/
 ```
 
 Reinstall Python worker packages:
 
 ```powershell
-ssh -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" astrum@100.66.143.117 "chmod +x ~/astra-worker/install_worker_python.sh && ~/astra-worker/install_worker_python.sh"
+ssh astrum "chmod +x ~/astra-worker/install_worker_python.sh && ~/astra-worker/install_worker_python.sh"
 ```
 
 Reinstall Sage/Cadabra:
 
 ```powershell
-ssh -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" astrum@100.66.143.117 "chmod +x ~/astra-worker/install_sage_cadabra.sh && ~/astra-worker/install_sage_cadabra.sh"
+ssh astrum "chmod +x ~/astra-worker/install_sage_cadabra.sh && ~/astra-worker/install_sage_cadabra.sh"
 ```
 
 Reinstall GPU stack:
 
 ```powershell
-scp -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" .\remote\install_gpu_stack.sh astrum@100.66.143.117:~/astra-worker/
-ssh -i C:\Users\Nelson\.ssh\google_compute_engine -o "ProxyCommand=tailscale nc %h %p" astrum@100.66.143.117 "chmod +x ~/astra-worker/install_gpu_stack.sh && ~/astra-worker/install_gpu_stack.sh"
+scp .\remote\install_gpu_stack.sh astrum:~/astra-worker/
+ssh astrum "chmod +x ~/astra-worker/install_gpu_stack.sh && ~/astra-worker/install_gpu_stack.sh"
 ```
 
 ## Git State At Handoff
