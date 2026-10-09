@@ -104,12 +104,14 @@ async def execute_python_code(code: str, workspace_dir: str = "workspace", timeo
 
         try:
             result = await asyncio.to_thread(_run_script)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            from core.timeout_recovery import output_text
             logger.warning(f"Timeout of {timeout}s exceeded in {filepath}")
             return {
-                "stdout": "",
-                "stderr": f"TimeoutError: The Python solver exceeded the limit of {timeout} seconds (possible infinite loop or intractable computation).",
-                "exit_code": 124
+                "stdout": output_text(exc.stdout),
+                "stderr": output_text(exc.stderr) + f"\nTimeoutError: The Python solver exceeded {timeout} seconds; computation incomplete.",
+                "exit_code": 124,
+                "timed_out": True,
             }
 
         return {

@@ -140,11 +140,14 @@ def run_code(code: str, workdir: str, timeout: int) -> dict:
             "engine": engine,
             "duration_s": round(time.monotonic() - start, 3),
         }
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        def text_output(value):
+            return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
         return {
-            "stdout": "",
-            "stderr": f"TimeoutError: Execution exceeded {timeout}s.",
+            "stdout": text_output(exc.stdout),
+            "stderr": text_output(exc.stderr) + f"\nTimeoutError: Execution exceeded {timeout}s.",
             "exit_code": 124,
+            "timed_out": True,
             "engine": engine,
             "duration_s": round(time.monotonic() - start, 3),
         }

@@ -199,8 +199,9 @@ def _run(cmd: list[str], timeout: int) -> dict:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                                 creationflags=_NT_NO_WINDOW)
         return {"stdout": result.stdout, "stderr": result.stderr, "exit_code": result.returncode}
-    except subprocess.TimeoutExpired:
-        return {"stdout": "", "stderr": f"TimeoutError: Execution exceeded {timeout}s.", "exit_code": 124}
+    except subprocess.TimeoutExpired as exc:
+        from core.timeout_recovery import output_text
+        return {"stdout": output_text(exc.stdout), "stderr": output_text(exc.stderr) + f"\nTimeoutError: Execution exceeded {timeout}s.", "exit_code": 124, "timed_out": True}
     except Exception as exc:
         return {"stdout": "", "stderr": f"SystemError: {exc}", "exit_code": -1}
 

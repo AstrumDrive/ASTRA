@@ -1,0 +1,24 @@
+{
+  "stdout": "PROGRESS timeout_probe_started\n",
+  "stderr": "\nTimeoutError: Execution exceeded 2s.",
+  "exit_code": 124,
+  "timed_out": true,
+  "engine": "python",
+  "duration_s": 4.009,
+  "verdict": "NONE",
+  "cluster_job_id": "astrum_20261005_183155_nelson_fdb294",
+  "client_id": "nelson",
+  "project": "general",
+  "cluster_status": "failed",
+  "remote_host": "astrum",
+  "guard": {
+    "verdict_suspect": false,
+    "reasons": [],
+    "checks_total": 0,
+    "checks_ok": 0,
+    "checks_fail": 0,
+    "asserts": 0,
+    "comparisons": 0
+  },
+  "oracle_used": "remote"
+}

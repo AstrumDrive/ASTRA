@@ -99,11 +99,13 @@ async def execute_remote_code(
             )
 
         result = await asyncio.to_thread(_run_remote)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
+        from core.timeout_recovery import output_text
         return {
-            "stdout": "",
-            "stderr": f"TimeoutError: Remote oracle exceeded {timeout} seconds.",
+            "stdout": output_text(exc.stdout),
+            "stderr": output_text(exc.stderr) + f"\nTimeoutError: Remote oracle exceeded {timeout} seconds.",
             "exit_code": 124,
+            "timed_out": True,
             "engine": "remote",
         }
     except FileNotFoundError:
@@ -177,12 +179,17 @@ os.close(fd)
 try:
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(source)
-    result = subprocess.run(
-        [runner, {engine!r}, path],
-        capture_output=True,
-        text=True,
-        timeout={int(timeout)},
-    )
+    try:
+        result = subprocess.run(
+            [runner, {engine!r}, path], capture_output=True, text=True,
+            timeout={int(timeout)},
+        )
+    except subprocess.TimeoutExpired as exc:
+        def text_output(value):
+            return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
+        sys.stdout.write(text_output(exc.stdout))
+        sys.stderr.write(text_output(exc.stderr) + "\\nTimeoutError: managed engine deadline reached.")
+        raise SystemExit(124)
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
     raise SystemExit(result.returncode)

@@ -664,6 +664,13 @@ def _escalate_agent_models(agent):
 def _apply_guard(analysis: dict, exec_result: dict) -> dict:
     """La auditoria determinista manda sobre el juicio del LLM: un VALIDATED
     cuyo script no podia fallar (o con CHECKs en FAIL) se degrada a WEAK_PASS."""
+    from core.timeout_recovery import timed_out
+    if timed_out(exec_result or {}):
+        analysis = dict(analysis)
+        analysis.update(status="CODE_ERROR", original_claim_verdict="INCONCLUSIVE",
+                        goal_coverage="PARTIAL", goal_resolved=False)
+        analysis["original_claim_reasoning"] = "Execution deadline reached; no complete decision of the original claim."
+        return analysis
     g = (exec_result or {}).get("guard") or {}
     # ASTRA_VERDICT_GUARD=0 keeps the audit in the result for provenance but
     # stops it from degrading the verdict: the single-model baseline of the
@@ -1444,6 +1451,7 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     # --- Observabilidad: cronometro por fase + hitos al archivo de progreso.
     t_start = time.monotonic()
+    execution_history = []
     timings = {}
     # Persistent runners supply their own hard ceiling.  Honour it here so
     # CycleBudget can return a checkpointed PARTIAL result before the detached
@@ -1663,6 +1671,8 @@ async def _do_cycle_impl(req: dict) -> dict:
                 "cycle, or use the checkpoint's conjecture/code with astra_execute."
             ),
         }
+        if execution_history:
+            out["execution_history"] = list(execution_history)
         if conjecture_text:
             # SALVAVIDAS: si murio el traductor, devolver la conjetura ya pagada
             # para que el agente llamador la traduzca el mismo y use astra_execute.
@@ -2227,6 +2237,13 @@ async def _do_cycle_impl(req: dict) -> dict:
     translation_input = build_translation_input(
         shared_goal, intuition, extra_inputs, conjecture
     )
+    if req.get("exec_timeout"):
+        translation_input += (
+            "\n\nEXECUTION CONTRACT: each oracle attempt is bounded by "
+            f"{req['exec_timeout']} seconds. Print flushed PROGRESS stage lines. "
+            "On a timeout, preserve the claim and change the computational strategy; "
+            "an incomplete attempt cannot establish the original claim."
+        )
     _progress("translate", timings=timings)
     t0 = time.monotonic()
     _prepare_agent(trans, "TRANSLATOR")
@@ -2324,6 +2341,8 @@ async def _do_cycle_impl(req: dict) -> dict:
     )
     t0 = time.monotonic()
     exec_result = await execute_python_code(code, timeout=effective_exec_t)
+    from core.timeout_recovery import attempt_record, recovery_instructions, timed_out
+    execution_history = [attempt_record(code, exec_result, effective_exec_t, 1)]
     _mark("execute", t0)
     exec_result["validation_code"] = code
     exec_result["code_review"] = code_review
@@ -2332,6 +2351,7 @@ async def _do_cycle_impl(req: dict) -> dict:
     _save_cycle_checkpoint(
         "execution_complete",
         execution=exec_result,
+        execution_history=execution_history,
     )
     _progress("analyze", timings=timings)
     if _phase_starved("ANALYST"):
@@ -2350,6 +2370,8 @@ async def _do_cycle_impl(req: dict) -> dict:
     nd_declaration = detect_non_decidable(exec_result)
     nd_declarations = 1 if nd_declaration else 0
     max_retries = max(0, int(os.environ.get("ASTRA_MAX_RETRIES", "2").strip().strip("'\"")))
+    if exec_t is not None and 0 < exec_t <= 100:
+        max_retries = min(max_retries, 2)  # At most three reviewed execution attempts.
     analysis = resolve_non_decidable(
         analysis, nd_declaration, nd_declarations, retry_available=max_retries > 0
     )
@@ -2417,6 +2439,8 @@ async def _do_cycle_impl(req: dict) -> dict:
             else:
                 # Codex diagnoses and reviews; Claude remains the code author.
                 err_ctx = (
+                    recovery_instructions(exec_result, effective_exec_t)
+                    +
                     (exec_result.get("stderr") or "")
                     + "\n--- stdout tail ---\n"
                     + (exec_result.get("stdout") or "")[-800:]
@@ -2506,11 +2530,15 @@ async def _do_cycle_impl(req: dict) -> dict:
             )
             return out
         t0 = time.monotonic()
+        if timed_out(exec_result) and execution_history[-1]["code_sha256"] == hashlib.sha256(code.encode("utf-8")).hexdigest():
+            analysis["repair_note"] = "Timed-out validator was unchanged; repeat execution suppressed."
+            break
         effective_exec_t = budget.phase_timeout(
             requested_exec_t,
             default_seconds=180,
         )
         exec_result = await execute_python_code(code, timeout=effective_exec_t)
+        execution_history.append(attempt_record(code, exec_result, effective_exec_t, len(execution_history) + 1))
         _mark("execute", t0)
         exec_result["validation_code"] = code
         exec_result["code_review"] = code_review
@@ -2624,6 +2652,7 @@ async def _do_cycle_impl(req: dict) -> dict:
         "shared_goal": shared_goal,
         "retried": retried,
         "retries": retries,
+        "execution_history": execution_history,
         "autofixed": autofixes,
         "timings": timings,
         "deliberation": deliberation,
