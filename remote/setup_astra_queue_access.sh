@@ -235,7 +235,7 @@ if ((APPLY)); then
         rm -f -- "$DROPIN"
         die "sshd -t failed; drop-in removed, nothing reloaded"
     fi
-    effective() { "$SSHD" -T -C "user=$1,host=astrum,addr=100.66.61.113" | awk -v k="$2" '$1 == k { $1 = ""; sub(/^ /, ""); print }'; }
+    effective() { "$SSHD" -T -C "user=$1,host=astrum,addr=192.0.2.1" | awk -v k="$2" '$1 == k { $1 = ""; sub(/^ /, ""); print }'; }
     problems=""
     [[ "$(effective "$SERVICE_USER" passwordauthentication)" == no ]] || problems+=" password-auth"
     [[ "$(effective "$SERVICE_USER" authorizedkeysfile)" == "$KEY_DIR/%u" ]] || problems+=" astrum-keyfile"
