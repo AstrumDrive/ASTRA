@@ -76,6 +76,8 @@ KNOWN_TEST_INTUITIONS = frozenset({
     # tests/test_verdict_reanchoring.py (ported from the 2.0 line 2026-09-30)
     "For all real x, sqrt(x^2) = x.",
     "Test the CLI auth preflight.",
+    # tests/test_timeout_recovery.py (2026-10-05)
+    "Single explicit claim for test.",
 })
 TEST_WALL_SECONDS = 120.0       # cycle_timeout_seconds the suite used until 2026-09-05
 SUB_SECOND = 1.0
