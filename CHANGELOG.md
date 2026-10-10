@@ -9,15 +9,48 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
-## Unreleased
+## 1.1.7 (2026-10-09)
 
+Two Kondo cycles stopped at review because floats cannot certify complex
+logarithm branches or a uniform remainder bound, and the 9 October
+benchmark lost two cases that were decided in all but name (an unstated
+convention). This release gives validators certified arithmetic, asks the
+user which convention was meant, keeps partial evidence on a timeout, and
+opens ASTRUM to per-person accounts. Not yet measured on the research
+corpus, hence a patch release.
+
+- Certified ball arithmetic: a Python validator that declares
+  `# ASTRA_CERTIFIED: arb` gets a vetted python-flint (Arb) prelude
+  (`core/certified/`): certified branch index, certain comparisons, rigorous
+  sup bounds on polar sectors, declared analytic tails. Anything the balls
+  cannot decide raises Undecided, never PASS or FAIL. Author rule 7,
+  reviewer rule 11 (vNext rules renumbered 12-16), analyst ANALYTIC_TAIL
+  rule; python-flint in `requirements.txt`, optional in the doctor.
+- Convention requests: when a decided cycle leaves the claim INCONCLUSIVE or
+  SUBSTITUTED only because a convention, assumption or domain is unstated,
+  the analyst names the readings and `input_request` (kind `convention`)
+  offers one fresh re-run per reading. `status` and
+  `original_claim_verdict` never change.
+- Timeout recovery: an execution deadline keeps partial stdout and stderr,
+  is CODE_ERROR with the claim INCONCLUSIVE, and is never read as a
+  counterexample; repair gets recovery instructions, an unchanged validator
+  is not rerun, and every attempt is logged in `execution_history`.
+- Complete validator code in the reviewer, correction, repair and analyst
+  prompts (the 14,000-24,000-character cuts on the script and the 3,500 on
+  repair instructions are removed), completing the full-context work of
+  1.1.6.
+- ASTRUM per-person access: accounts that reach only the job manager,
+  identity taken from the SSH account, cancel-own-jobs, per-person quotas,
+  `threads_per_process` for MPI jobs, `ssh astrum info`. One-paste Windows
+  setup for collaborators and a Windows onboarding guide; public documents
+  carry no installation-specific data.
 - Meta Muse Code removed (decision of 2026-10-09: the subscription is
   cancelled; ASTRA uses only the Claude, Codex and agy CLIs). Gone: the
   `muse_cli` provider and its WSL bridge, the `muse-trial` profile and its
   overlay and scripts, the Muse entries of max mode and of the doctor. The
-  overlay loader keeps its profile mutual-exclusion rule, now tested with a
-  test-only second profile. The production manifest no longer lists
-  `muse_cli`, so cycle-cache keys change once.
+  production manifest no longer lists `muse_cli`, so cycle-cache keys change
+  once.
+- Tests: suite 731 passed, 5 skipped.
 
 ## 1.1.6 (2026-10-05)
 
