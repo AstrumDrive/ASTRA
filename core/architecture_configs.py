@@ -13,16 +13,6 @@ ARCHITECTURE_ROLES: dict[str, dict[str, Any]] = {
         "reviewer": "codex_cli",
         "repairer": "claude_cli",
     },
-    # Time-bounded local trial. Muse is an additional independent proposer and
-    # critic only; the production validator and analysis roles do not change.
-    "muse-trial": {
-        "proposers": ["codex_cli", "agy_cli", "muse_cli"],
-        "synthesizer": "codex_cli",
-        "author": "claude_cli",
-        "reviewer": "codex_cli",
-        "repairer": "claude_cli",
-        "navigator": "agy_cli",
-    },
     # Opt-in codex quota relief. Identical to ``full`` except the SYNTHESIZER
     # moves off the (weekly-limited) codex account to agy, whose quota is a
     # separate pool. The anti-cheat REVIEWER gate and the ANALYST verdict stay

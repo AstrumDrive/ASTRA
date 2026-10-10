@@ -97,13 +97,6 @@ PROVIDERS = {
         "label": "agy / Antigravity CLI (reemplaza gemini_cli; OAuth Google, sin API)",
         "cli_bin": "agy",
     },
-    "muse_cli": {
-        "env": None,
-        "package": None,
-        "label": "Meta Muse Code (CLI via WSL, experimental)",
-        "cli_bin": "muse",
-        "wsl_bridge": True,
-    },
 }
 
 PHASES = {
@@ -170,8 +163,8 @@ def env_path() -> Path:
 #  - COMPOSABLE overlays touch an orthogonal knob (no profile) and may coexist
 #    with one profile overlay and with each other. strict_translator only sets
 #    ASTRA_TRANSLATOR_STRICT_CONTRACT (cycle-robustness spec, C0); treating it
-#    as exclusive would silently disable an active muse_trial when enabled.
-_PROFILE_OVERLAYS = ("muse_trial", "quota_relief")
+#    as exclusive would silently disable an active profile overlay when enabled.
+_PROFILE_OVERLAYS = ("quota_relief",)
 _COMPOSABLE_OVERLAYS = ("strict_translator",)
 _ENV_OVERLAYS = _PROFILE_OVERLAYS + _COMPOSABLE_OVERLAYS
 
@@ -275,21 +268,8 @@ def configured_providers() -> list[str]:
 
 
 def _cli_available(meta: dict) -> bool:
-    """Check native CLIs, plus the explicitly configured Muse WSL bridge."""
-    if not meta.get("wsl_bridge"):
-        return shutil.which(meta["cli_bin"]) is not None
-    distro = (os.environ.get("ASTRA_MUSE_WSL_DISTRO") or "Debian").strip()
-    if not shutil.which("wsl.exe"):
-        return False
-    try:
-        probe = subprocess.run(
-            ["wsl.exe", "-d", distro, "--", "bash", "-lc",
-             'export PATH="$HOME/.local/bin:$PATH"; muse --version'],
-            capture_output=True, text=True, timeout=10,
-        )
-        return probe.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+    """Check that a subscription CLI is on PATH."""
+    return shutil.which(meta["cli_bin"]) is not None
 
 
 # --- Subscription-CLI session preflight (2026-09-30) ------------------------

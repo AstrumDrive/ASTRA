@@ -6,7 +6,6 @@ env/
 .env
 .env.*
 !.env.example
-config/muse_trial.enabled
 config/quota_relief.enabled
 config/strict_translator.enabled
 

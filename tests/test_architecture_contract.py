@@ -90,28 +90,6 @@ class ArchitectureContractTests(unittest.TestCase):
         )
         self.assertEqual(audit["required_failures"], [])
 
-    def test_muse_trial_profile_passes_its_explicit_contract(self):
-        env = self.canonical_environment()
-        env.update(
-            {
-                "ASTRA_ARCHITECTURE_PROFILE": "muse-trial",
-                "ASTRA_CONJECTURE_PROVIDER": "codex_cli,agy_cli,muse_cli",
-                "ASTRA_MUSE_MODELS": "muse-spark-1.3",
-                "ASTRA_MUSE_REASONING": "high",
-            }
-        )
-        audit = audit_production_architecture(env, check_binaries=False)
-        self.assertEqual(audit["status"], "PASS")
-        self.assertEqual(audit["manifest"]["profile"], "muse-trial")
-        self.assertEqual(
-            audit["manifest"]["architecture_id"],
-            "astra-muse-trial-v1",
-        )
-        self.assertEqual(
-            audit["manifest"]["roles"]["proposers"],
-            ["codex_cli", "agy_cli", "muse_cli"],
-        )
-
     def test_quota_relief_profile_passes_its_explicit_contract(self):
         # Opt-in codex quota relief: synthesizer moves to agy, everything else
         # stays. The contract must accept synthesizer=agy_cli (and its agy

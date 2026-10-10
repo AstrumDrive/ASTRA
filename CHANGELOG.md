@@ -9,6 +9,16 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## Unreleased
+
+- Meta Muse Code removed (decision of 2026-10-09: the subscription is
+  cancelled; ASTRA uses only the Claude, Codex and agy CLIs). Gone: the
+  `muse_cli` provider and its WSL bridge, the `muse-trial` profile and its
+  overlay and scripts, the Muse entries of max mode and of the doctor. The
+  overlay loader keeps its profile mutual-exclusion rule, now tested with a
+  test-only second profile. The production manifest no longer lists
+  `muse_cli`, so cycle-cache keys change once.
+
 ## 1.1.6 (2026-10-05)
 
 A source audit (warp, felt-acceleration revision) found that the validator

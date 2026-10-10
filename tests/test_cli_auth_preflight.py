@@ -65,7 +65,6 @@ class ProbeParsingTests(unittest.TestCase):
         with patch("core.preflight.shutil.which", return_value=None):
             self.assertEqual(cli_auth_state("claude_cli")[0], "unknown")
         self.assertEqual(cli_auth_state("agy_cli")[0], "unknown")
-        self.assertEqual(cli_auth_state("muse_cli")[0], "unknown")
 
     def test_binary_override_is_honoured(self):
         seen = []

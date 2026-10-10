@@ -18,9 +18,7 @@ ARCHITECTURE_ID = "astra-compact-three-agent-v2"
 # as `full`. `full` remains available for a deliberately deep cycle.
 NO_ENSEMBLE_ARCHITECTURE_ID = "astra-single-proposer-v1"
 QUOTA_ARCHITECTURE_ID = "astra-quota-optimized-v1"
-MUSE_TRIAL_ARCHITECTURE_ID = "astra-muse-trial-v1"
 QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
-MUSE_TRIAL_MODEL = "muse-spark-1.3"
 # 7 (2026-09-09): the cycle cache payload gained inputs / input_policy /
 # resume_checkpoint (core/input_request.py); bumped so the invalidation of
 # every earlier entry is documented, not silent (same precedent as 4->5, 5->6).
@@ -89,8 +87,6 @@ def production_manifest(
     role_profile = (
         "no-ensemble"
         if profile in {"quota-optimized", "no-ensemble"}
-        else "muse-trial"
-        if profile == "muse-trial"
         else "quota-relief"
         if profile == "quota-relief"
         else "full"
@@ -146,7 +142,6 @@ def production_manifest(
             "ASTRA_AGY_MODELS",
             EXPECTED_PRIMARY_MODELS["agy_cli"],
         ),
-        "muse_cli": _csv(source, "ASTRA_MUSE_MODELS", MUSE_TRIAL_MODEL),
     }
     phase_overrides = {
         phase.lower(): _csv(source, f"ASTRA_{phase}_MODELS")
@@ -168,8 +163,6 @@ def production_manifest(
         "architecture_id": (
             QUOTA_ARCHITECTURE_ID
             if profile == "quota-optimized"
-            else MUSE_TRIAL_ARCHITECTURE_ID
-            if profile == "muse-trial"
             else QUOTA_RELIEF_ARCHITECTURE_ID
             if profile == "quota-relief"
             else NO_ENSEMBLE_ARCHITECTURE_ID
@@ -187,7 +180,6 @@ def production_manifest(
                 # Heterogeneous proposal calls use each CLI's provider ladder.
                 "codex_proposer": provider_models["codex_cli"],
                 "agy_proposer": provider_models["agy_cli"],
-                "muse_proposer": provider_models["muse_cli"],
                 "synthesizer": effective("synth", roles["synthesizer"]),
                 "author": effective("translator", roles["author"]),
                 "reviewer": effective("reviewer", roles["reviewer"]),
@@ -198,7 +190,6 @@ def production_manifest(
         "effort": {
             "codex": _value(source, "ASTRA_CODEX_REASONING", "xhigh").lower(),
             "agy": _value(source, "ASTRA_AGY_EFFORT", "high").lower(),
-            "muse": _value(source, "ASTRA_MUSE_REASONING", "high").lower(),
         },
         "controls": {
             "cross_critique": len(roles["proposers"]) >= 2,
@@ -298,13 +289,11 @@ def audit_production_architecture(
     manifest = production_manifest(source)
     profile = manifest["profile"]
     known_profile = profile in {
-        "full", "no-ensemble", "quota-optimized", "muse-trial", "quota-relief"
+        "full", "no-ensemble", "quota-optimized", "quota-relief"
     }
     expected = architecture_roles(
         "no-ensemble"
         if profile in {"quota-optimized", "no-ensemble"}
-        else "muse-trial"
-        if profile == "muse-trial"
         else "quota-relief"
         if profile == "quota-relief"
         else "full"
@@ -342,7 +331,7 @@ def audit_production_architecture(
         "architecture_profile",
         known_profile,
         profile,
-        "full, no-ensemble, quota-optimized, muse-trial, or quota-relief",
+        "full, no-ensemble, quota-optimized, or quota-relief",
     )
     add(
         "production_role_map",
@@ -357,14 +346,6 @@ def audit_production_architecture(
             bool(ladder) and ladder[0] == primary,
             ladder[0] if ladder else "",
             primary,
-        )
-    if profile == "muse-trial":
-        muse_ladder = manifest["models"]["muse_cli"]
-        add(
-            "muse_trial_model",
-            muse_ladder == [MUSE_TRIAL_MODEL],
-            muse_ladder,
-            [MUSE_TRIAL_MODEL],
         )
     expected_effective = {
         "codex_proposer": EXPECTED_PRIMARY_MODELS["codex_cli"],
@@ -383,8 +364,6 @@ def audit_production_architecture(
         "analyst": EXPECTED_PRIMARY_MODELS["codex_cli"],
         "navigator": EXPECTED_PRIMARY_MODELS["agy_cli"],
     }
-    if profile == "muse-trial":
-        expected_effective["muse_proposer"] = MUSE_TRIAL_MODEL
     for role, primary in expected_effective.items():
         ladder = manifest["models"]["effective"][role]
         add(
@@ -405,13 +384,6 @@ def audit_production_architecture(
         manifest["effort"]["agy"],
         "high",
     )
-    if profile == "muse-trial":
-        add(
-            "muse_reasoning",
-            manifest["effort"]["muse"] == "high",
-            manifest["effort"]["muse"],
-            "high",
-        )
     add(
         "independent_code_review",
         manifest["controls"]["independent_code_review"],
@@ -450,14 +422,6 @@ def audit_production_architecture(
                 location is not None,
                 location or "",
                 f"{binary} available on PATH",
-            )
-        if profile == "muse-trial":
-            wsl_location = shutil.which("wsl.exe")
-            add(
-                "muse_cli_wsl_bridge",
-                wsl_location is not None,
-                wsl_location or "",
-                "wsl.exe available on PATH; astra_doctor also verifies Muse in WSL",
             )
 
     scientific_engines: dict[str, dict[str, Any]] = {}

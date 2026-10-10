@@ -46,9 +46,7 @@ class Apply(unittest.TestCase):
             self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5")
             self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5")
             self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.1-pro-high")
-            self.assertEqual(os.environ["ASTRA_MUSE_MODELS"], "muse-spark-1.3")
             self.assertEqual(os.environ["ASTRA_CODEX_REASONING"], "xhigh")
-            self.assertEqual(os.environ["ASTRA_MUSE_REASONING"], "ultra")
             # per-call ceilings raised well above the defaults (codex 240)
             self.assertGreaterEqual(int(os.environ["ASTRA_CLI_TIMEOUT"]), 900)
             self.assertGreaterEqual(int(os.environ["ASTRA_TRANSLATOR_TIMEOUT"]), 1800)
@@ -60,7 +58,7 @@ class Apply(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=False):
             apply_max_mode({"max_mode": True})
             for key in ("ASTRA_CODEX_MODELS", "ASTRA_CLAUDE_MODELS",
-                        "ASTRA_AGY_MODELS", "ASTRA_MUSE_MODELS"):
+                        "ASTRA_AGY_MODELS"):
                 self.assertNotIn(",", os.environ[key], f"{key} must be top-only")
 
     def test_does_not_set_the_cycle_wall(self):
@@ -95,14 +93,14 @@ class RestoreRoundTrip(unittest.TestCase):
             # A key that pre-exists (must be restored to its old value) and one
             # that does not (must be removed on restore).
             os.environ["ASTRA_CODEX_MODELS"] = "gpt-5.5"
-            os.environ.pop("ASTRA_MUSE_MODELS", None)
+            os.environ.pop("ASTRA_AGY_MODELS", None)
             before = dict(os.environ)
             snapshot = apply_max_mode({"max_mode": True})
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
-            self.assertEqual(os.environ["ASTRA_MUSE_MODELS"], "muse-spark-1.3")
+            self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.1-pro-high")
             restore_max_mode(snapshot)
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.5")
-            self.assertNotIn("ASTRA_MUSE_MODELS", os.environ)
+            self.assertNotIn("ASTRA_AGY_MODELS", os.environ)
             self.assertEqual(dict(os.environ), before)
 
     def test_restore_none_is_a_noop(self):

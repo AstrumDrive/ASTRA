@@ -971,10 +971,8 @@ _MAX_MODE_ENV = {
     "ASTRA_CLAUDE_MODELS": "claude-opus-5-5",
     "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5",
     "ASTRA_AGY_MODELS": "gemini-3.1-pro-high",
-    "ASTRA_MUSE_MODELS": "muse-spark-1.3",
     "ASTRA_CODEX_REASONING": "xhigh",
     "ASTRA_AGY_EFFORT": "high",
-    "ASTRA_MUSE_REASONING": "ultra",
     # Generous per-call ceilings so the top models are not killed mid-thought.
     "ASTRA_CLI_TIMEOUT": "900",
     "ASTRA_CONJECTURE_TIMEOUT": "900",

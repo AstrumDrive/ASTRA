@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.architecture_contract import audit_production_architecture
-from core.preflight import PROVIDERS, _cli_available, cli_auth_state, load_project_env
+from core.preflight import cli_auth_state, load_project_env
 from core.remote_executor import execute_remote_code
 
 
@@ -141,21 +141,7 @@ def main() -> int:
         "`venv\\Scripts\\python -m pip install python-flint`",
         required=False,
     ))
-    muse_trial = os.environ.get("ASTRA_ARCHITECTURE_PROFILE", "").lower() == "muse-trial"
-    commands = REQUIRED_COMMANDS + (("muse",) if muse_trial else ())
-    for command in commands:
-        if command == "muse":
-            available = _cli_available(PROVIDERS["muse_cli"])
-            checks.append(
-                item(
-                    "cli:muse",
-                    available,
-                    "Debian/WSL Muse Code available"
-                    if available
-                    else "Muse Code unavailable in the configured WSL distribution",
-                )
-            )
-            continue
+    for command in REQUIRED_COMMANDS:
         location = shutil.which(command)
         checks.append(item(f"cli:{command}", location is not None, location or "not on PATH"))
         if command in MIN_CLI_VERSIONS and location:
@@ -248,7 +234,6 @@ def main() -> int:
         "note": (
             "This doctor verifies executables and configuration without spending model quota. "
             "Authenticate codex, claude and agy interactively before the smoke cycle."
-            + (" Muse Code is also required by the active Muse trial." if muse_trial else "")
         ),
     }
     if args.json:

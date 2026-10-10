@@ -53,7 +53,7 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             "core.engine_router.available_cas", return_value=cas_none
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_fail
-        ), patch("astra_doctor._cli_available", return_value=True), patch(
+        ), patch(
             "astra_doctor.cli_auth_state", return_value=("ok", "logged in")
         ):
             checks = _run_doctor()
@@ -84,7 +84,7 @@ class AstraDoctorWslAwarenessTests(unittest.TestCase):
             "core.engine_router.available_cas", return_value=cas_ok
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_pass
-        ), patch("astra_doctor._cli_available", return_value=True), patch(
+        ), patch(
             "astra_doctor.cli_auth_state", return_value=("ok", "logged in")
         ):
             checks = _run_doctor()
@@ -117,7 +117,7 @@ class CliVersionTests(unittest.TestCase):
             "core.engine_router.available_cas", return_value={}
         ), patch(
             "astra_doctor.audit_production_architecture", return_value=arch_pass
-        ), patch("astra_doctor._cli_available", return_value=True), patch(
+        ), patch(
             "shutil.which", side_effect=lambda name: f"C:/fake/bin/{name}.exe"
         ), patch("astra_doctor.cli_version", side_effect=fake_version), patch(
             "astra_doctor.cli_auth_state", side_effect=fake_auth
