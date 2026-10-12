@@ -70,8 +70,12 @@ async def cluster_rpc(request: dict, timeout: int = 60) -> dict:
             creationflags=_NT_NO_WINDOW,
         )
 
+    from core.remote_transport import run_with_transport_retry, transport_message
+
     try:
-        completed = await asyncio.to_thread(_run)
+        completed, attempts, transport_failed = await run_with_transport_retry(
+            _run, lambda c: (c.returncode, c.stdout, c.stderr)
+        )
     except subprocess.TimeoutExpired:
         return {
             "error": f"Cluster RPC timed out after {timeout}s.",
@@ -81,6 +85,14 @@ async def cluster_rpc(request: dict, timeout: int = 60) -> dict:
         return {"error": "ssh executable was not found.", "exit_code": -11}
     except Exception as exc:
         return {"error": f"Cluster RPC failed: {type(exc).__name__}: {exc}", "exit_code": -12}
+    if transport_failed:
+        return {
+            "error": transport_message(completed.stderr, attempts),
+            "stdout": completed.stdout,
+            "exit_code": completed.returncode,
+            "transport_error": True,
+            "transport_attempts": attempts,
+        }
     if completed.returncode != 0:
         return {
             "error": completed.stderr or f"ssh exited with code {completed.returncode}",
@@ -134,7 +146,7 @@ async def execute_cluster_code(
             "cluster_status": status.get("status"),
             "remote_host": status.get("remote_host"),
         }
-    return {
+    failed = {
         "stdout": status.get("stdout", ""),
         "stderr": status.get("error") or status.get("stderr_tail") or "Cluster job failed.",
         "exit_code": int(status.get("exit_code", -15)),
@@ -143,3 +155,7 @@ async def execute_cluster_code(
         "cluster_status": status.get("status"),
         "remote_host": status.get("remote_host"),
     }
+    if status.get("transport_error"):
+        failed["transport_error"] = True
+        failed["transport_attempts"] = status.get("transport_attempts")
+    return failed

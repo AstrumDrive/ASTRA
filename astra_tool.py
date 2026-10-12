@@ -1449,6 +1449,32 @@ async def _do_cycle_impl(req: dict) -> dict:
         except Exception:
             pass
 
+    # Verify the oracle before building on it: a cycle bound for ASTRUM checks
+    # the SSH path first. On 2026-10-07 an outage turned 27 cycles into
+    # CODE_ERROR after each had paid for conjecture, translation and review.
+    oracle_mode = os.environ.get("ASTRA_ORACLE_MODE", "local").strip().strip("'\"").lower()
+    probe_enabled = (
+        os.environ.get("ASTRA_REMOTE_PREFLIGHT", "1").strip().strip("'\"").lower()
+        not in ("0", "off", "false")
+    )
+    if oracle_mode == "remote" and probe_enabled:
+        from core.remote_executor import probe_remote_transport
+
+        probe = await probe_remote_transport()
+        if not probe.get("ok"):
+            return {
+                "status": "TOOL_ERROR",
+                "phase": "oracle_preflight",
+                "error": probe.get("error"),
+                "transport_error": True,
+                "transport_attempts": probe.get("attempts"),
+                "resume_available": True,
+                "resume_hint": (
+                    "No model phase ran and nothing was spent. Check astra_status, "
+                    "then resubmit the same request, or run it with oracle='local'."
+                ),
+            }
+
     # --- Observabilidad: cronometro por fase + hitos al archivo de progreso.
     t_start = time.monotonic()
     execution_history = []
@@ -1705,6 +1731,22 @@ async def _do_cycle_impl(req: dict) -> dict:
             failed_phase=phase,
         )
         _progress("failed", phase=phase, timings=timings)
+        return out
+
+    def _transport_failure(exec_result):
+        # ASTRUM was unreachable after the transport retries: an operational
+        # failure, never a CODE_ERROR. The reviewed validator is returned so
+        # the paid-for work survives the outage.
+        out = _fail(exec_result.get("stderr") or "ASTRUM unreachable over SSH.",
+                    "execute", conjecture_text=conjecture)
+        out["transport_error"] = True
+        out["transport_attempts"] = exec_result.get("transport_attempts")
+        out["code"] = code
+        out["resume_hint"] = (
+            "The reviewed validator is in 'code'. When astra_status reports "
+            "ASTRUM reachable, run it with astra_execute (oracle='astrum'), or "
+            "resubmit the same request."
+        )
         return out
 
     review_history = []
@@ -2353,6 +2395,11 @@ async def _do_cycle_impl(req: dict) -> dict:
         execution=exec_result,
         execution_history=execution_history,
     )
+    if exec_result.get("transport_error"):
+        # The validator never ran: there is nothing for the analyst to read
+        # and nothing for the retry loop to repair. Keep the reviewed code so
+        # the caller can rerun it with astra_execute once ASTRUM is back.
+        return _transport_failure(exec_result)
     _progress("analyze", timings=timings)
     if _phase_starved("ANALYST"):
         # 1.1.6: the ANALYST minimum (90 s) was defined in 1.1.1 but never
@@ -2544,6 +2591,10 @@ async def _do_cycle_impl(req: dict) -> dict:
         exec_result["code_review"] = code_review
         exec_result["verdict"] = _verdict(exec_result.get("stdout", ""))
         exec_result["guard"] = assess_verdict(code, exec_result)
+        if exec_result.get("transport_error"):
+            _save_cycle_checkpoint("execution_complete", execution=exec_result,
+                                   execution_history=execution_history)
+            return _transport_failure(exec_result)
         if _phase_starved("ANALYST"):
             _save_cycle_checkpoint("execution_complete", execution=exec_result)
             return _fail(_starved_error("the retry analysis", "ANALYST"), "analyst",

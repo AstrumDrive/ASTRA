@@ -98,7 +98,11 @@ async def execute_remote_code(
                 creationflags=_NT_NO_WINDOW,
             )
 
-        result = await asyncio.to_thread(_run_remote)
+        from core.remote_transport import run_with_transport_retry, transport_message
+
+        result, attempts, transport_failed = await run_with_transport_retry(
+            _run_remote, lambda r: (r.returncode, r.stdout, r.stderr)
+        )
     except subprocess.TimeoutExpired as exc:
         from core.timeout_recovery import output_text
         return {
@@ -123,6 +127,15 @@ async def execute_remote_code(
             "engine": "remote",
         }
 
+    if transport_failed:
+        return {
+            "stdout": result.stdout,
+            "stderr": transport_message(result.stderr, attempts),
+            "exit_code": result.returncode,
+            "engine": "remote",
+            "transport_error": True,
+            "transport_attempts": attempts,
+        }
     if result.returncode != 0:
         return {
             "stdout": result.stdout,
@@ -228,3 +241,44 @@ raise SystemExit(result.returncode)
     response = await execute_remote_code(wrapper, timeout=timeout + 15)
     response["engine"] = "registry"
     return response
+
+
+async def probe_remote_transport() -> dict:
+    """Open one SSH session to ASTRUM and run `true`, with the same
+    pre-session retries as real calls. A cycle bound for ASTRUM calls this
+    before paying for any model phase: an outage then costs seconds instead
+    of a full conjecture, translation and review."""
+    host = os.environ.get("ASTRA_REMOTE_HOST", "").strip()
+    if not host:
+        return {"ok": False, "attempts": 0, "error": "ASTRA_REMOTE_HOST is not configured."}
+    connect_timeout = int(os.environ.get("ASTRA_REMOTE_CONNECT_TIMEOUT", "15"))
+    ssh_bin = os.environ.get("ASTRA_REMOTE_SSH_BIN", "").strip() or "ssh"
+    cmd = [
+        ssh_bin, "-T", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={connect_timeout}",
+        *_split_ssh_options(os.environ.get("ASTRA_REMOTE_SSH_OPTIONS", "")),
+        host, "true",
+    ]
+
+    def _run():
+        return subprocess.run(
+            cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+            timeout=connect_timeout + 20, creationflags=_NT_NO_WINDOW,
+        )
+
+    from core.remote_transport import run_with_transport_retry, transport_message
+
+    try:
+        result, attempts, transport_failed = await run_with_transport_retry(
+            _run, lambda r: (r.returncode, r.stdout, r.stderr)
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "attempts": 1, "error": "ASTRUM SSH probe timed out."}
+    except Exception as exc:
+        return {"ok": False, "attempts": 1, "error": f"ASTRUM SSH probe failed: {exc}"}
+    if transport_failed:
+        return {"ok": False, "attempts": attempts,
+                "error": transport_message(result.stderr, attempts)}
+    if result.returncode != 0:
+        return {"ok": False, "attempts": attempts,
+                "error": (result.stderr or f"ssh exited with code {result.returncode}").strip()}
+    return {"ok": True, "attempts": attempts}

@@ -9,6 +9,33 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.8 (2026-10-11)
+
+In the last 80 cycles, 27 of the 28 CODE_ERROR results never ran their
+validator. All 27 came from one SSH outage to ASTRUM on 7 October: ssh exited
+255 during the banner exchange. Each cycle had already paid for conjecture,
+translation and review: a median of 265 s per cycle, 2.5 hours in total,
+and real quota.
+The retry loop then asked the models to repair a validator that had nothing
+wrong with it. This release treats an unreachable ASTRUM as an operational
+failure.
+
+- Transport retries (`core/remote_transport.py`). A failure before an SSH
+  session exists is retried twice, after 10 s and then 30 s, on every ASTRUM
+  call. Such a failure is exit 255 with no stdout and a pre-session
+  diagnostic (banner exchange, connect timeout or refusal, unresolved host).
+  Nothing remote has started at that point, so a retry cannot duplicate a
+  job. A connection dropped mid-session is never retried. Configure with
+  `ASTRA_REMOTE_TRANSPORT_RETRIES` and `ASTRA_REMOTE_TRANSPORT_BACKOFF`.
+- Oracle preflight. A cycle bound for ASTRUM (`oracle='astrum'`) opens one
+  SSH session before any model phase. If it fails, the cycle returns
+  TOOL_ERROR at phase `oracle_preflight` within seconds, at no quota cost.
+  `ASTRA_REMOTE_PREFLIGHT=0` disables it. Local and auto cycles do not probe.
+- An outage during execution ends the cycle as TOOL_ERROR at phase `execute`
+  with `transport_error`, never as CODE_ERROR. The analyst and the repair
+  loop are skipped. The reviewed validator is returned in `code` so it can
+  be rerun with `astra_execute` once ASTRUM is back.
+
 ## 1.1.7 (2026-10-09)
 
 Two Kondo cycles stopped at review because floats cannot certify complex
