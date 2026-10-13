@@ -966,11 +966,20 @@ def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> in
 # synchronously; an interactive MAX cycle still gets top models + no
 # degradation + generous per-call ceilings, but bounded by the client wall.
 _MAX_MODE_ENV = {
-    # 2026-09-25: GPT-6 Astra, Opus 5.5 (see core/architecture_contract.py).
-    "ASTRA_CODEX_MODELS": "gpt-6-astra",
-    "ASTRA_CLAUDE_MODELS": "claude-opus-5-5",
-    "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5",
-    "ASTRA_AGY_MODELS": "gemini-3.1-pro-high",
+    # 2026-10-12: GPT-6.1 Sol at "ultra" for every Codex phase, Opus 5.5 at
+    # "max" for the code author (writing code is not where Fable earns its
+    # cost), Gemini 3.8 Flash at "high", the most agy offers. The phase
+    # ladders are pinned too: they win over the CLI-wide ones, so a .env that
+    # sets ASTRA_ANALYST_MODELS would otherwise leak into a MAX cycle.
+    "ASTRA_CODEX_MODELS": "gpt-6.1-sol@ultra",
+    "ASTRA_CONJECTURE_MODELS": "gpt-6.1-sol@ultra",
+    "ASTRA_REVIEWER_MODELS": "gpt-6.1-sol@ultra",
+    "ASTRA_ANALYST_MODELS": "gpt-6.1-sol@ultra",
+    "ASTRA_SYNTH_MODELS": "",
+    "ASTRA_CLAUDE_MODELS": "claude-opus-5-5@max",
+    "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5@max",
+    "ASTRA_AGY_MODELS": "gemini-3.8-flash@high",
+    "ASTRA_NAVIGATOR_MODELS": "",
     "ASTRA_CODEX_REASONING": "xhigh",
     "ASTRA_AGY_EFFORT": "high",
     # Generous per-call ceilings so the top models are not killed mid-thought.

@@ -37,9 +37,9 @@ The production role map is:
 
 | Role | Backend |
 |---|---|
-| Conjecture, synthesis, code review, final analysis | Codex CLI 0.157 or newer — `gpt-6-luna`, `xhigh` (`gpt-6-astra` fallback and MAX-mode ceiling) |
-| Optional second proposal, cross-critique and post-cycle research navigation (profile `full`; off in the default `no-ensemble` profile since 2026-09-30) | Antigravity `agy` CLI — `gemini-3.1-pro-high` primary, `gemini-3.8-flash-high` fallback, effort `high` |
-| Formal translation and code revision | Claude Code CLI 2.1.280 or newer — `claude-opus-5-5` (`sonnet` quota fallback) |
+| Conjecture, synthesis, code review, final analysis | Codex CLI 0.160 or newer — `gpt-6.1-sol`: `ultra` to propose and interpret, `max` to review, `xhigh` to synthesize (`gpt-6-luna` quota fallback; MAX mode pins `ultra` everywhere) |
+| Optional second proposal, cross-critique and post-cycle research navigation (profile `full`; off in the default `no-ensemble` profile since 2026-09-30) | Antigravity `agy` CLI — `gemini-3.8-flash`, effort `high` (agy no longer offers a Gemini Pro) |
+| Formal translation and code revision | Claude Code CLI 2.1.280 or newer — `claude-opus-5-5` at effort `high` (`sonnet` quota fallback; `max` in MAX mode) |
 
 Authorized subscription identities can be isolated and switched explicitly per
 provider without storing credentials in Git. See

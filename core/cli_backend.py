@@ -88,7 +88,37 @@ def _claude_bin() -> str:
     return shim or "claude"
 
 
+_EFFORTS = {
+    # What each CLI accepts for --effort / model_reasoning_effort (checked
+    # 2026-10-12 against claude 2.1.282, codex-cli 0.160.0 and agy 1.3.1).
+    "claude": {"low", "medium", "high", "xhigh", "max"},
+    "codex": {"low", "medium", "high", "xhigh", "max", "ultra"},
+    "agy": {"low", "medium", "high", "xhigh", "max"},
+}
+
+
+def split_model_effort(token: str | None) -> tuple[str | None, str | None]:
+    """A ladder rung may carry its own reasoning effort: 'gpt-6.1-sol@ultra',
+    'claude-fable-5-1@max'. Returns (model, effort); either may be None.
+    'default@high' keeps the CLI's default model with that effort."""
+    if not token:
+        return None, None
+    model, _, effort = str(token).partition("@")
+    model = model.strip() or None
+    if model and model.lower() == "default":
+        model = None
+    return model, (effort.strip().lower() or None)
+
+
+def _effort_for(kind: str, rung_effort: str | None, env_var: str, default: str = "") -> str:
+    """The rung's effort wins over the CLI-wide variable. An effort the CLI does
+    not accept is dropped rather than sent, so a typo cannot kill a phase."""
+    effort = rung_effort or (os.environ.get(env_var, default) or "").strip().strip("'\"").lower()
+    return effort if effort in _EFFORTS[kind] else ""
+
+
 def _claude_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> dict:
+    model, rung_effort = split_model_effort(model)
     # Prompt por STDIN (pipe), NO como argumento: los prompts de ASTRA superan el
     # limite de ~32KB de la linea de comandos de Windows y claude devolvia vacio.
     # Claude Code is AGENTIC: every ASTRA phase supplies all allowed context through
@@ -109,6 +139,10 @@ def _claude_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> dic
     argv = [_claude_bin(), "-p", "--output-format", "json", *tools, *isolate]
     if model:
         argv += ["--model", model]
+    # 1.1.9: Claude Code takes --effort; unset keeps the CLI default.
+    effort = _effort_for("claude", rung_effort, "ASTRA_CLAUDE_EFFORT")
+    if effort:
+        argv += ["--effort", effort]
     # stdin_file: _invoke_once conecta el promptfile directo al stdin del exe
     # (bytes crudos utf-8 del disco, sin shell intermedia que los corrompa).
     return {"argv": argv, "stdin_file": promptfile}
@@ -130,6 +164,7 @@ _PS_UTF8_PREAMBLE = (
 
 
 def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
+    model, rung_effort = split_model_effort(model)
     m = f" -m {model}" if model else ""
     # Reasoning effort = la palanca de INTELIGENCIA de los modelos GPT de razonamiento
     # (low/medium/high). OJO: --ignore-user-config DESCARTA el model_reasoning_effort del
@@ -141,7 +176,7 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # ASTRA_CODEX_REASONING='' respeta el default interno de codex (no pasa -c).
     # 1.1.6: the default matches the architecture contract (xhigh), so an
     # unset variable no longer runs Codex below the audited effort.
-    effort = (os.environ.get("ASTRA_CODEX_REASONING", "xhigh") or "").strip().strip("'\"")
+    effort = _effort_for("codex", rung_effort, "ASTRA_CODEX_REASONING", "xhigh")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
     # 2026-08-09: el server MCP puede arrancar con un PATH sin el dir de codex
     # (instalador nativo en AppData\Local\Programs\OpenAI\Codex\bin) -> el pipeline
@@ -173,6 +208,7 @@ def _codex_builder(
     if os.name == "nt":
         return _ps_codex(promptfile, model, out, ws)
 
+    model, rung_effort = split_model_effort(model)
     cbin = (
         (os.environ.get("ASTRA_CODEX_BIN") or "").strip().strip("'\"")
         or shutil.which("codex")
@@ -187,9 +223,7 @@ def _codex_builder(
     ]
     if model:
         argv += ["-m", model]
-    effort = (
-        os.environ.get("ASTRA_CODEX_REASONING", "xhigh") or ""
-    ).strip().strip("'\"")
+    effort = _effort_for("codex", rung_effort, "ASTRA_CODEX_REASONING", "xhigh")
     if effort:
         argv += ["-c", f'model_reasoning_effort="{effort}"']
     argv += ["-C", ws, "-o", out, "-"]
@@ -238,28 +272,18 @@ def _agy_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
         prompt = f.read()
     abin = (os.environ.get("ASTRA_AGY_BIN") or "").strip().strip("'\"") \
         or shutil.which("agy") or "agy"
-    # Antigravity exposes an explicit reasoning-effort control in addition to
-    # the model name.  Production defaults to the highest supported level so
-    # `gemini-3.1-pro-high` is not accidentally invoked with a weaker session
-    # effort.  Keep the accepted set closed: a typo must not become an opaque
-    # CLI failure several minutes into a cycle.
-    effort = (
-        os.environ.get("ASTRA_AGY_EFFORT", "high")
-        .strip()
-        .strip("'\"")
-        .lower()
-    )
-    if effort not in {"low", "medium", "high"}:
-        effort = "high"
-    argv = [
-        abin,
-        "--print",
-        prompt,
-        "--mode",
-        "plan",
-        "--effort",
-        effort,
-    ]
+    # Antigravity takes the effort either inside the model id
+    # ('gemini-3.8-flash-high') or as --effort with the base id
+    # ('gemini-3.8-flash' + --effort high); passing both is refused by the CLI
+    # ("conflicts with --effort"). 2026-10-12: gemini-3.1-pro-high was retired
+    # from agy and every agy phase failed on it as a non-quota error.
+    model, rung_effort = split_model_effort(model)
+    argv = [abin, "--print", prompt, "--mode", "plan"]
+    effort_in_id = bool(model) and model.lower().rsplit("-", 1)[-1] in {"low", "medium", "high"}
+    if not effort_in_id:
+        effort = _effort_for("agy", rung_effort, "ASTRA_AGY_EFFORT", "high")
+        if effort:
+            argv += ["--effort", effort]
     if model:
         argv += ["--model", model]
     return argv

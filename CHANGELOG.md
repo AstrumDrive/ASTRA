@@ -9,6 +9,42 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.9 (2026-10-12)
+
+Every model rung can now carry its reasoning effort, so each task gets the
+model and the amount of inference it needs. The ladders were checked against
+the CLIs on the day: Codex offers GPT-6.1 Sol (effort up to `ultra`), Claude
+Code takes `--effort` and runs Fable 5.1, and agy no longer offers any Gemini
+Pro. Gemini 3.1 Pro, the first agy rung, had been retired: every agy phase
+failed on it at once, and because that is not a quota error the ladder never
+fell back. Not measured on the research corpus; adopted for in-house use and
+measured as it runs, hence a patch release.
+
+- `model@effort` rungs (`gpt-6.1-sol@ultra`, `claude-fable-5-1@max`,
+  `gemini-3.8-flash@high`) for every CLI. The rung's effort wins over the
+  CLI-wide variable. An effort the CLI refuses is dropped, never sent. Claude
+  Code gets `--effort` for the first time (`ASTRA_CLAUDE_EFFORT` or the
+  rung). agy gets `--effort` only when the model id does not already carry
+  one, because the CLI refuses both together.
+- Contract primaries: `gpt-6.1-sol`, `claude-opus-5-5`, `gemini-3.8-flash`.
+  The contract compares model names and ignores the effort.
+- MAX mode: GPT-6.1 Sol at `ultra` for every Codex phase, Opus 5.5 at `max`
+  for the code author, Gemini 3.8 Flash at `high`. MAX now also pins the
+  phase ladders, which otherwise win over the CLI-wide ones.
+- In-house production ladders (`.env.example`): every Codex phase at
+  `ultra` except review at `max`, writing code on Opus at `high`, with quota
+  fallbacks to GPT-6 Luna and Sonnet.
+- agy isolation. Run agy for ASTRA from its own home (account registry,
+  provider `agy`, `home` = an empty directory such as `~/.agy-astra`; on
+  Windows ASTRA sets `USERPROFILE`). From the user's home, agy loads the
+  Antigravity IDE's MCP servers, among them ASTRA itself, and waits about two
+  minutes for each batch that never connects. One word took 244 s that way and
+  9 s from the isolated home, on the same account (the token lives in the OS
+  keyring). This is the slowness measured on 30 September (246 s per call)
+  that moved production off the ensemble.
+- In-house production returns to the `full` profile: Codex and Gemini propose
+  together, Codex synthesizes, and Gemini navigates after each cycle.
+
 ## 1.1.8 (2026-10-11)
 
 In the last 80 cycles, 27 of the 28 CODE_ERROR results never ran their

@@ -42,10 +42,10 @@ class Apply(unittest.TestCase):
     def test_requested_pins_top_models_effort_and_timeouts(self):
         with patch.dict(os.environ, {}, clear=False):
             self.assertTrue(apply_max_mode({"max_mode": True}))
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5")
-            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5")
-            self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.1-pro-high")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6.1-sol@ultra")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@max")
+            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5@max")
+            self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.8-flash@high")
             self.assertEqual(os.environ["ASTRA_CODEX_REASONING"], "xhigh")
             # per-call ceilings raised well above the defaults (codex 240)
             self.assertGreaterEqual(int(os.environ["ASTRA_CLI_TIMEOUT"]), 900)
@@ -74,8 +74,8 @@ class Apply(unittest.TestCase):
         with patch.dict(os.environ, {"ASTRA_CODEX_MODELS": "gpt-5.5",
                                      "ASTRA_CLAUDE_MODELS": "sonnet"}, clear=False):
             apply_max_mode({"max_mode": True})
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6.1-sol@ultra")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@max")
 
     def test_every_declared_key_is_applied(self):
         with patch.dict(os.environ, {}, clear=False):
@@ -96,8 +96,8 @@ class RestoreRoundTrip(unittest.TestCase):
             os.environ.pop("ASTRA_AGY_MODELS", None)
             before = dict(os.environ)
             snapshot = apply_max_mode({"max_mode": True})
-            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6-astra")
-            self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.1-pro-high")
+            self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6.1-sol@ultra")
+            self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.8-flash@high")
             restore_max_mode(snapshot)
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-5.5")
             self.assertNotIn("ASTRA_AGY_MODELS", os.environ)

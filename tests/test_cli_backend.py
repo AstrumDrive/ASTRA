@@ -73,13 +73,20 @@ class CliBackendTests(unittest.TestCase):
                 os.environ.pop("ASTRA_AGY_EFFORT", None)
                 argv = _agy_argv(
                     prompt_path,
-                    "gemini-3.1-pro-high",
+                    "gemini-3.8-flash",
                     "",
                     "",
                 )
+                suffixed = _agy_argv(prompt_path, "gemini-3.8-flash-high", "", "")
+                rung = _agy_argv(prompt_path, "gemini-3.8-flash@low", "", "")
             effort_index = argv.index("--effort")
             self.assertEqual(argv[effort_index + 1], "high")
-            self.assertIn("gemini-3.1-pro-high", argv)
+            self.assertIn("gemini-3.8-flash", argv)
+            # An effort already in the id must not be repeated: agy refuses
+            # "--model gemini-3.8-flash-high --effort high" as a conflict.
+            self.assertNotIn("--effort", suffixed)
+            self.assertEqual(rung[rung.index("--effort") + 1], "low")
+            self.assertEqual(rung[rung.index("--model") + 1], "gemini-3.8-flash")
         finally:
             os.remove(prompt_path)
 

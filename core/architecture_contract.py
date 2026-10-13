@@ -24,17 +24,22 @@ QUOTA_RELIEF_ARCHITECTURE_ID = "astra-quota-relief-v1"
 # every earlier entry is documented, not silent (same precedent as 4->5, 5->6).
 CACHE_SCHEMA_VERSION = "7"
 
-# 2026-09-25: each primary was probed with a one-word call on the accounts
-# ASTRA actually uses before being pinned. GPT-6 Luna is Nelson's choice for
-# the everyday Codex rung (GPT-6 Astra stays the MAX-mode ceiling); Codex older
-# than 0.157 refuses the GPT-6 Luna/Sol ids on a ChatGPT account with a 400.
-# Claude Opus 5.5 needs Claude Code >= 2.1.280; agy still lists Gemini 3.1 Pro
-# as its only Pro tier. The doctor checks both CLI versions.
+# 2026-10-12: each primary was checked on the accounts ASTRA actually uses
+# (codex app-server model/list, agy models, a one-word claude call). GPT-6.1
+# Sol is the Codex account's default and accepts effort up to "ultra"; agy no
+# longer offers any Gemini Pro (3.1 Pro was retired), only Gemini 3.8 Flash
+# with effort up to "high". A rung may carry its effort after "@"
+# ("gpt-6.1-sol@ultra"); the contract compares the model name only.
+# (2026-09-25 pins: gpt-6-luna, claude-opus-5-5, gemini-3.1-pro-high.)
 EXPECTED_PRIMARY_MODELS = {
-    "codex_cli": "gpt-6-luna",
+    "codex_cli": "gpt-6.1-sol",
     "claude_cli": "claude-opus-5-5",
-    "agy_cli": "gemini-3.1-pro-high",
+    "agy_cli": "gemini-3.8-flash",
 }
+
+
+def _model_name(rung: str) -> str:
+    return rung.split("@", 1)[0]
 
 _ROOT = Path(__file__).resolve().parent.parent
 _DEV_ROOT = _ROOT.parent
@@ -343,7 +348,7 @@ def audit_production_architecture(
         ladder = manifest["models"][provider]
         add(
             f"{provider}_primary_model",
-            bool(ladder) and ladder[0] == primary,
+            bool(ladder) and _model_name(ladder[0]) == primary,
             ladder[0] if ladder else "",
             primary,
         )
@@ -368,7 +373,7 @@ def audit_production_architecture(
         ladder = manifest["models"]["effective"][role]
         add(
             f"{role}_effective_model",
-            bool(ladder) and ladder[0] == primary,
+            bool(ladder) and _model_name(ladder[0]) == primary,
             ladder[0] if ladder else "",
             primary,
         )
