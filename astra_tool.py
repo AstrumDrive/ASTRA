@@ -677,13 +677,35 @@ def _apply_guard(analysis: dict, exec_result: dict) -> dict:
     # 2026-09-30 efficiency audit measures the model without this net.
     if (os.environ.get("ASTRA_VERDICT_GUARD") or "1").strip().strip("'\"").lower() in {"0", "false", "off", "no"}:
         return analysis
-    if analysis.get("status") == "VALIDATED" and g.get("verdict_suspect"):
+    status = analysis.get("status")
+    if status == "VALIDATED" and g.get("verdict_suspect"):
         analysis = dict(analysis)
         analysis["status"] = "WEAK_PASS"
         analysis["reasoning"] = ((analysis.get("reasoning") or "") +
                                  " | AUDITOR determinista: " +
                                  "; ".join(g.get("reasons") or []) +
                                  " -> PASS no creible tal cual.").strip(" |")
+    elif (
+        # 1.1.11 (from ASTRA 2.0, 1a99f89): the analyst must propose
+        # corrected_code with a CODE_ERROR. One without it, over a run that
+        # printed VERDICT: PASS and that the deterministic audit finds clean,
+        # is a stderr warning read as a failure, not an actionable code error.
+        # Left standing it triggered a repair patch, and a malformed patch then
+        # destroyed a reviewer-approved, passing validator (2.0, 2026-08-18).
+        status == "CODE_ERROR"
+        and str((exec_result or {}).get("verdict") or "").upper() == "PASS"
+        and not g.get("verdict_suspect")
+        and not analysis.get("corrected_code")
+        and not analysis.get("non_decidable")
+    ):
+        analysis = dict(analysis)
+        analysis["status"] = "VALIDATED"
+        analysis["reconciled_from"] = "CODE_ERROR"
+        analysis["reasoning"] = ((analysis.get("reasoning") or "") +
+                                 " | AUDITOR determinista: VERDICT PASS, guard "
+                                 "limpio y sin correccion propuesta -> el "
+                                 "CODE_ERROR del analista no es accionable; "
+                                 "reconciliado a VALIDATED.").strip(" |")
     return analysis
 
 
@@ -2475,13 +2497,17 @@ async def _do_cycle_impl(req: dict) -> dict:
                     "post_execution_weak_pass",
                 )
                 if patch_error:
-                    out = _fail(
-                        patch_error,
-                        "translator_retry",
-                        conjecture_text=conjecture,
-                    )
-                    out["validator_model_patch_history"] = model_patch_history
-                    return out
+                    # 1.1.11 (from ASTRA 2.0, 1a99f89): a malformed or failed
+                    # patch must not destroy the validator that already ran.
+                    # Keep it and finalize on the honest WEAK_PASS.
+                    analysis = dict(analysis)
+                    analysis["patch_abandoned"] = patch_error
+                    analysis["reasoning"] = (
+                        (analysis.get("reasoning") or "")
+                        + " | PATCH abandonado: " + str(patch_error)
+                        + " -> se conserva el ultimo validador revisado."
+                    ).strip(" |")
+                    break
             else:
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR")
