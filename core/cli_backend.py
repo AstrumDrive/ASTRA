@@ -36,6 +36,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -571,6 +572,14 @@ def _cli_temp_root(workspace: str) -> str:
     return root
 
 
+def _launch_attempts() -> int:
+    """Cuantas veces reintentar un lanzamiento que falla de forma transitoria."""
+    try:
+        return int(str(os.environ.get("ASTRA_CLI_LAUNCH_ATTEMPTS", "3")).strip().strip("'\""))
+    except ValueError:
+        return 3
+
+
 def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
                  ws: str, env: dict, timeout: int) -> CliResult:
     """Un intento contra un CLI con un modelo concreto (o el default)."""
@@ -592,25 +601,40 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         cmd = built
     else:
         cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", built]
-    try:
-        if stdin_file:
-            stdin_handle = open(stdin_file, "rb")
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdin=stdin_handle, text=True, encoding="utf-8",
-            errors="replace", env=env,
-            start_new_session=os.name != "nt",
-            creationflags=_NT_NO_WINDOW,
-        )
-    except OSError as e:
-        return CliResult(False, error=f"lanzamiento fallo: {e}")
-    finally:
-        # Popen ya duplico el handle en el hijo (o fallo): el nuestro sobra.
-        if stdin_handle is not subprocess.DEVNULL:
-            try:
-                stdin_handle.close()
-            except Exception:
-                pass
+    # 1.1.11 (from ASTRA 2.0, bcffa0a): a launch can fail TRANSIENTLY on
+    # Windows (the Codex sandbox re-arming gives [WinError 5], an antivirus
+    # holding a fresh binary gives a sharing violation). Retry a few times
+    # with backoff; FileNotFoundError is terminal, a retry cannot install a
+    # missing command. ASTRA_CLI_LAUNCH_ATTEMPTS, default 3.
+    proc = None
+    launch_attempts = max(1, _launch_attempts())
+    for attempt in range(launch_attempts):
+        try:
+            if stdin_file:
+                stdin_handle = open(stdin_file, "rb")
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                stdin=stdin_handle, text=True, encoding="utf-8",
+                errors="replace", env=env,
+                start_new_session=os.name != "nt",
+                creationflags=_NT_NO_WINDOW,
+            )
+        except FileNotFoundError as e:
+            return CliResult(False, error=f"lanzamiento fallo (no instalado): {e}")
+        except OSError as e:
+            if attempt == launch_attempts - 1:
+                return CliResult(False, error=f"lanzamiento fallo: {e}")
+            time.sleep(1.5 * (attempt + 1))
+            continue
+        finally:
+            # Popen ya duplico el handle en el hijo (o fallo): el nuestro sobra.
+            if stdin_handle is not subprocess.DEVNULL:
+                try:
+                    stdin_handle.close()
+                except Exception:
+                    pass
+                stdin_handle = subprocess.DEVNULL
+        break
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
