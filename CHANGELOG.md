@@ -9,6 +9,48 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.11 (2026-10-13)
+
+The ASTRA 2.0 line stopped on 7 September with twelve cycle-engine fixes that
+production never received. A content-level comparison found them
+(`docs/architecture/ASTRA2_INVENTORY_20261013.md`). This release ports them,
+each with its 2.0 test adapted or a new one. Not measured on the research
+corpus, hence a patch release.
+
+- A1. The request and every local oracle capture are decoded as UTF-8: Python,
+  CAS, WSL, Lean, SciCode and both SSH transports. Python children run with
+  `PYTHONUTF8`. On Windows a `∀` or an accent used to arrive corrupted.
+- A2. One retry on the next model rung after a timeout, for every phase,
+  sized to what the cycle can still grant. `call_cli` only descended on quota,
+  so GPT-6.1 Sol at `ultra` timing out never let GPT-6 Luna answer.
+- A3, A4. Lean runs a declared `main`, so a kernel-checked proof prints its
+  verdict; the `sorry`/`admit`/`axiom` scan ignores comments. Verified on
+  ASTRUM: a valid proof whose comment says "no sorry" printed
+  `VERDICT: PASS`, and a false theorem failed.
+- A5. The WSL engine probe waits 60 s for a cold boot instead of 10 s, which
+  had reported an installed Sage as missing.
+- A6. A transient CLI launch failure (WinError 5, sharing violation) is
+  retried up to `ASTRA_CLI_LAUNCH_ATTEMPTS` (3); a missing command is
+  terminal.
+- A7. A failed patch on a WEAK_PASS keeps the validator and finalizes
+  WEAK_PASS instead of TOOL_ERROR. A CODE_ERROR without `corrected_code` over
+  a clean `VERDICT: PASS` is reconciled to VALIDATED, keeping the raw label
+  (never for NON_DECIDABLE).
+- A8. Reviewer rules 17-18: the burden is the decisive question, not a
+  redundant or stronger companion, and rule 17 never opens the gate.
+- A9. The conjecture reaches the validator author inside a
+  `<<<CONJECTURE ... CONJECTURE>>>` fence, as data; author rule 8.
+- A10. Prose is told apart from a broken script (`not_code_at_all`) and
+  regenerated from a clean slate. `file://` plan-artifact pointers are
+  stripped from CLI answers, and announced. Not ported: 2.0's 58000-token
+  Claude thinking cap, sized on the August Opus before `--effort` existed.
+- A11. Passing validators complete naturally, without `sys.exit(0)`, which
+  Sage reports as a nonzero exit (author contract clause 7).
+- A12. Dimensional check (`# ASTRA_UNITS`, `# ASTRA_DIMENSION`, checked with
+  pint) in the verdict guard, behind `ASTRA_DIMENSIONAL_GUARD`. The default
+  `record` audits without touching the verdict, so it can be measured; `1`
+  enforces it as 2.0 did.
+
 ## 1.1.10 (2026-10-12)
 
 With 1.1.9 in place, agy answered in seconds from its isolated home, but
