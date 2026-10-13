@@ -56,6 +56,38 @@ from core.atomic_write import replace_with_retry
 from core.cycle_job_result import final_fields, last_json_object
 
 _ACTIVE_CYCLE_CHECKPOINT = None
+# 1.1.15: set by the running cycle to a callable returning, per role, the CLI,
+# the planned model@effort and the model that actually answered; written into
+# every heartbeat so the progress window can show it.
+_PROGRESS_MODELS = None
+
+_PROVIDER_KIND = {"claude_cli": "claude", "codex_cli": "codex", "agy_cli": "agy", "gemini_cli": "gemini"}
+# CLI-wide effort used when a rung does not carry its own (see core/cli_backend).
+_EFFORT_ENV = {"codex": ("ASTRA_CODEX_REASONING", "xhigh"), "agy": ("ASTRA_AGY_EFFORT", "high"),
+               "claude": ("ASTRA_CLAUDE_EFFORT", "")}
+
+
+def rung_label(kind, ladder=None) -> str:
+    """'model@effort' of the first rung a call of this CLI will try."""
+    from core.cli_backend import split_model_effort
+
+    raw = (ladder or os.environ.get(f"ASTRA_{str(kind).upper()}_MODELS") or "").strip().strip("'\"")
+    model, effort = split_model_effort(raw.split(",")[0].strip() if raw else "")
+    if not effort:
+        var, default = _EFFORT_ENV.get(kind, ("", ""))
+        effort = ((os.environ.get(var, default) if var else "") or "").strip().strip("'\"") or "default"
+    return f"{model or 'default'}@{effort}"
+
+
+def agent_models(agent) -> dict | None:
+    kind = getattr(agent, "cli_kind", None)
+    if not kind:
+        return None
+    record = {"cli": kind, "planned": rung_label(kind, getattr(agent, "cli_models", None))}
+    used = getattr(agent, "cli_last_model", None)
+    if used:
+        record["used"] = used
+    return record
 
 
 def _verdict(stdout: str) -> str:
@@ -209,6 +241,11 @@ def _progress(stage, **extra):
         payload = {"pid": os.getpid(), "stage": stage, "ts": time.time(), **extra}
         if checkpoint:
             payload["checkpoint"] = checkpoint
+        if _PROGRESS_MODELS is not None:
+            try:
+                payload["models"] = _PROGRESS_MODELS()
+            except Exception:
+                pass
         with open(p, "w", encoding="utf-8") as f:
             json.dump(payload, f)
     except Exception:
@@ -1674,6 +1711,27 @@ async def _do_cycle_impl(req: dict) -> dict:
         ("analyst", analyst),
         ("navigator", navigator),
     ]
+
+    def _model_snapshot():
+        snap = {}
+        for role, agent in agents:
+            record = agent_models(agent)
+            if record:
+                snap[role] = record
+        if len(conj_providers) > 1:
+            kinds = [_PROVIDER_KIND.get(p, p) for p in conj_providers]
+            snap["conjecture"] = {
+                "cli": "+".join(kinds),
+                "planned": " + ".join(f"{k} {rung_label(k)}" for k in kinds),
+            }
+            used = [f"{a.cli_kind} {a.cli_last_model}" for _, a in ensemble_agents
+                    if getattr(a, "cli_last_model", None)]
+            if used:
+                snap["conjecture"]["used"] = " + ".join(used)
+        return snap
+
+    global _PROGRESS_MODELS
+    _PROGRESS_MODELS = _model_snapshot
     quality_escalations = []
     # C2: one entry per model-reviewer rejection (classes, repeat, action).
     # Defined before _fail, which stamps it on every failure result.
@@ -2953,8 +3011,9 @@ async def _do_cycle(req: dict) -> dict:
     finally:
         restore_max_mode(max_snapshot)
         slot.release()
-        global _ACTIVE_CYCLE_CHECKPOINT
+        global _ACTIVE_CYCLE_CHECKPOINT, _PROGRESS_MODELS
         _ACTIVE_CYCLE_CHECKPOINT = None
+        _PROGRESS_MODELS = None
 
 
 def _read_request(stdin_buffer) -> dict:

@@ -9,6 +9,19 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.15 (2026-10-13)
+
+The progress window shows which model, at which effort, serves each stage.
+
+- Every heartbeat (`workspace/progress/cycle_<pid>.json`) carries `models`:
+  per role, the CLI, the planned `model@effort` (the rung's own effort, or the
+  CLI-wide one) and the model that actually answered. With two proposers the
+  conjecture lists both.
+- `scripts/astra_progress.py --follow` prints a "Models" block under
+  "Phases": one line per stage, the current one marked "<- now", and
+  "-> answered by ... (fallback)" when a quota or timeout made a lower rung
+  answer.
+
 ## 1.1.14 (2026-10-13)
 
 Two full cycles may now run at once, so two chats can work without waiting

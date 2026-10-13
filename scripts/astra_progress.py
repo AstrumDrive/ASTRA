@@ -221,6 +221,31 @@ def _one_line(text, n: int) -> str:
     return text if len(text) <= n else text[: n - 3] + "..."
 
 
+# Heartbeat role -> the phase it serves in PHASES (1.1.15: model per stage).
+ROLE_PHASE = (("conjecture", "conjecture"), ("translator", "translate"), ("reviewer", "review"),
+              ("analyst", "analyze"), ("navigator", "navigate"))
+
+
+def models_lines(models: dict, current_phase: str = None, terminal: bool = False) -> list:
+    """One line per stage: CLI, planned model@effort, and the model that
+    actually answered when it differs (a quota or timeout fallback)."""
+    if not models:
+        return []
+    out = ["Models    :"]
+    for role, phase in ROLE_PHASE:
+        rec = models.get(role)
+        if not rec:
+            continue
+        used = rec.get("used")
+        planned = str(rec.get("planned") or "-")
+        note = ""
+        if used and used.split(" ")[-1] not in planned:
+            note = f"   -> answered by {used} (fallback)"
+        mark = "  <- now" if phase == current_phase and not terminal else ""
+        out.append(f"  {phase:<10} {str(rec.get('cli') or '-'):<10} {planned}{note}{mark}")
+    return out
+
+
 def follow_view(pid: int, medians: dict, progress_dir: str = None,
                 checkpoint_dir: str = None, now: float = None,
                 expected_checkpoint: str = None, cache: dict = None) -> tuple:
@@ -318,6 +343,7 @@ def follow_view(pid: int, medians: dict, progress_dir: str = None,
         else:
             marks.append(f"{p} -")
     lines.append("Phases    : " + " | ".join(marks))
+    lines.extend(models_lines(heartbeat.get("models") or {}, est["phase"], est["terminal"]))
     hint = "" if est["terminal"] else "   (Ctrl+C closes this window; the cycle keeps running)"
     lines.append(f"Last beat : {_fmt_dur(est['beat_age_s'])} ago{hint}")
     return ("\n".join(lines), est["terminal"])
