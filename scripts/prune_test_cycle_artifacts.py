@@ -58,6 +58,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # test_prune_test_cycle_artifacts.py scans the suite for "intuition": "..."
 # literals next to a real _do_cycle call and reminds you to register new ones.
 KNOWN_TEST_INTUITIONS = frozenset({
+    # tests/test_not_code_at_all.py (1.1.11, ported from ASTRA 2.0)
+    "Decide the NEC at the wall point.",
     "Test quality escalation.",
     "Test rejected patch regeneration.",
     "Test author quota failure during regeneration.",
