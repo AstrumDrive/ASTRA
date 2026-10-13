@@ -55,6 +55,19 @@ RULES OF OPERATION:
    - Print "VERDICT: PASS" ONLY if every CHECK line is OK; otherwise print "VERDICT: FAIL".
      The FAIL branch must be real, reachable code: scripts that cannot fail are rejected by a
      deterministic AST auditor and the cycle is re-run against you with the auditor's reasons.
+   - DIMENSIONAL DECLARATION (only when the claim carries physical dimensions):
+     declare each symbol's units and the identities that must hold, as comments:
+       # ASTRA_UNITS: rho=kg/m**3, v=m/s, L=m, mu=Pa*s
+       # ASTRA_DIMENSION: rho*v*L/mu == dimensionless
+       # ASTRA_DIMENSION: F == m*a
+     A deterministic checker evaluates these with `pint`, so an equation whose two
+     sides carry different dimensions is caught before anyone reads the proof.
+     Write units it can resolve (`m/s`, `Pa*s`, `J/(mol*K)`, `dimensionless`); an
+     unresolvable one is recorded as unverifiable and costs you nothing, but a
+     declared identity that does NOT hold makes a printed PASS non-credible.
+     OMIT both markers entirely for claims that are not dimensional - a purely
+     mathematical statement has nothing to declare, and inventing units for one
+     is worse than silence.
 7. CERTIFIED NUMERICS (complex branches, fine constants, bounds on regions):
    When the decisive claim depends on a complex logarithm or power branch, on
    a numerical constant to many digits, or on a bound uniform over a region
