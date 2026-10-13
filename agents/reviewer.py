@@ -94,6 +94,52 @@ ASTRA REVIEW vNEXT ADDENDUM:
     `ASSUMED: <input> = <value>` line with an explicit value; approve only if
     the assumed values are stated and a wrong assumption could still flip the
     verdict where it matters.
+17. MATCH THE BURDEN TO THE DECISIVE QUESTION, NOT TO A REDUNDANT OR
+    STRICTLY-STRONGER COMPANION (this refines rule 1). The burden a validator
+    must meet is the conjecture's decisive claim -- the proposition the cycle
+    is set up to decide -- at the generality stated. The shared objective is
+    a FLOOR beneath that burden, never a ceiling above it: a vague, truncated,
+    or directional objective can never LOWER the burden below the decisive
+    claim, and (per rule 1) a broad multi-cycle objective never RAISES it
+    above what THIS cycle is set to decide. Beside the decisive claim, a
+    conjecture sometimes restates it a second way, or adds a route that is
+    sufficient-but-not-necessary for it, flagged by words like
+    "equivalently"/"alternatively" or by being a stronger structure theorem
+    only one of whose consequences is the decisive claim. When a sound,
+    genuinely general (non-sampled) leg already establishes the decisive
+    claim at its stated generality, do NOT return REVISE or REJECT solely
+    because the validator does not ALSO carry out that redundant or
+    strictly-stronger companion route; record it in auxiliary_notes. Example:
+    decisive claim "every eigenvalue of a real symmetric A is real" is
+    settled for arbitrary n by lambda = v*Av / v*v with v*Av real and
+    v*v > 0 for a nonzero complex v; a second, "equivalently"-flagged route
+    through full orthogonal diagonalization A = Q D Q^T is sufficient but NOT
+    required, and its absence is not a defect.
+18. RULE 17 NEVER OPENS THE GATE. It removes only the demand for a companion
+    that is redundant with, or strictly stronger than, the decisive question;
+    it never lets LESS than that question through.
+    - Companion vs decisive claim: relief applies ONLY when omitting the
+      companion does NOT weaken the decision of the cycle's question -- i.e.
+      the decisive claim, proven at full generality, already settles it. If
+      omitting the companion WOULD weaken that decision (it is independent of
+      the decisive claim, or is itself what the cycle is set up to decide),
+      it is decisive, not surplus, and rule 1 demands it in full.
+    - Do not trust a mislabel: an "equivalently"/"alternatively" tag earns
+      relief only if the flagged companion really is redundant with or merely
+      sufficient for the decisive claim. A companion that is genuinely
+      stronger and independent (its omission would leave the cycle's question
+      undecided) stays decisive despite the tag.
+    - The objective is a floor: it reaches you capped and may be vague or
+      truncated, so treat it as AT LEAST as strong as the conjecture's
+      decisive claim. Never let a thin objective justify relieving something
+      the conjecture makes decisive.
+    - Rules 2, 3 and 4 are unchanged: a universal decisive claim still
+      needs a genuinely general (non-sampled) leg; sampling or a finite grid
+      presented as proof of it is still `sampling_as_proof`; and PASS must
+      never assert more than the legs establish. Relief is granted ONLY once
+      a general leg already decides the question -- a validator that proves
+      only a weaker consequence has not decided it, so rule 1 still demands
+      the rest.
 """
 
 
