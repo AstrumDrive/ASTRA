@@ -823,6 +823,24 @@ class ASTRAIntelligence:
                         status = "CODE_ERROR"
                         parsed["status"] = status
 
+        # The vetted verdict helper (core/certified, decide()) said the
+        # decisive legs did not decide, or that a cross-check disagreed with
+        # them: neither is a verdict on the claim, whatever the prose says.
+        from core.certified import decision_from_stdout
+
+        _decision = decision_from_stdout(exec_result.get("stdout"))
+        if (
+            parsed is not None
+            and _decision in {"UNDECIDED", "CORROBORATION_MISMATCH"}
+            and status in {"VALIDATED", "REFUTED"}
+        ):
+            parsed["status"] = status = "CODE_ERROR"
+            parsed["original_claim_verdict"] = "INCONCLUSIVE"
+            parsed["reasoning"] = (
+                f"[verdict helper: DECISION {_decision}; no scientific verdict] "
+                + str(parsed.get("reasoning") or "")
+            ).strip()
+
         # A crashed run never establishes a theorem -- except that a declared
         # non-decidable validator exits 3 by protocol: keep the analyst's parsed
         # status so core/non_decidable.py can apply its rules (a VALIDATED there

@@ -34,6 +34,28 @@ def _string_constants(tree):
             yield node.value
 
 
+def _literal_true_legs(tree) -> list:
+    """Names of leg()/run_leg() calls whose value is a literal True (or a
+    lambda returning one) and whose role is not literally corroborative."""
+    found = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in ("leg", "run_leg")):
+            continue
+        kwargs = {k.arg: k.value for k in node.keywords if k.arg}
+        value = node.args[1] if len(node.args) > 1 else kwargs.get("value", kwargs.get("fn"))
+        role = node.args[3] if node.func.id == "leg" and len(node.args) > 3 else (
+            node.args[2] if node.func.id == "run_leg" and len(node.args) > 2 else kwargs.get("role"))
+        if isinstance(role, ast.Constant) and role.value == "corroborative":
+            continue
+        if isinstance(value, ast.Lambda):
+            value = value.body
+        if isinstance(value, ast.Constant) and value.value is True:
+            name = node.args[0] if node.args else kwargs.get("name")
+            found.append(repr(name.value) if isinstance(name, ast.Constant) else "<leg>")
+    return found
+
+
 def assess_verdict(code: str, exec_result: dict) -> dict:
     """Audita un resultado de ejecucion. Devuelve un dict con
     verdict_suspect (bool), reasons (list[str]) y metricas informativas."""
@@ -67,6 +89,21 @@ def assess_verdict(code: str, exec_result: dict) -> dict:
 
     out["asserts"] = sum(isinstance(n, ast.Assert) for n in ast.walk(tree))
     out["comparisons"] = sum(isinstance(n, ast.Compare) for n in ast.walk(tree))
+
+    # Veredicto emitido por el helper verificado (core/certified, decide()):
+    # el camino a FAIL vive en el helper, no en el texto del validador, y las
+    # comprobaciones suelen ser llamadas certificadas, no comparaciones. Lo
+    # que se audita aqui es que ninguna rama decisiva sea un True literal.
+    from core.certified import decision_from_stdout
+
+    if (exec_result or {}).get("certified_prelude") and decision_from_stdout(stdout) == "PASS":
+        literal = _literal_true_legs(tree)
+        if literal:
+            out["verdict_suspect"] = True
+            out["reasons"].append(
+                "rama decisiva con valor True literal en leg()/run_leg(): "
+                + ", ".join(literal))
+        return out
 
     if not any("FAIL" in s for s in _string_constants(tree)):
         out["verdict_suspect"] = True

@@ -82,6 +82,20 @@ RULES OF OPERATION:
    the tail analytically and declare it with `analytic_tail(...)`; the verdict
    is then conditional on that lemma. The marker works on the Python engine
    only (in Sage use ComplexBallField directly).
+8. VERDICT FROM LEGS (decisive vs corroborative): when a script has both
+   proof legs and cross-checks (quadrature, sampling, float evaluation of a
+   proved formula), a single `all(checks)` lets a finite-precision sample
+   print FAIL, and the reviewer rejects it. Put `# ASTRA_CERTIFIED: verdict`
+   near the top (pure Python; `arb` already includes it) and record every
+   leg with `leg(name, value, detail, role="decisive"|"corroborative")`, or
+   `run_leg(name, fn, role)` to turn an `Undecided` into None, then call
+   `decide()` once at the end instead of printing VERDICT yourself. Value
+   True: the leg establishes its part; False: the leg ESTABLISHES that the
+   claim fails (a certified counterexample, an exact mismatch); None: it could
+   not decide. Never pass a literal True. Sampling, quadrature and float legs
+   are corroborative: `decide()` prints FAIL only for a decisive False, ends
+   without a verdict when a decisive leg is None, and reports a corroborative
+   disagreement as an operational mismatch, never as FAIL.
 """
 
 

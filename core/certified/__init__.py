@@ -26,6 +26,10 @@ looks like obfuscated malware has no place on a collaborator's machine.
 Guards: the marker only works on the Python engine (Sage has its own
 ComplexBallField); a validator may not define or assign the helper names,
 because the reviewer trusts them as vetted.
+
+``# ASTRA_CERTIFIED: verdict`` (9 October 2026) loads only the pure-Python
+leg/decide helper (verdict_prelude.py): decisive legs decide, corroborative
+legs can never print FAIL. ``arb`` always includes it.
 """
 from __future__ import annotations
 
@@ -34,13 +38,22 @@ import hashlib
 import re
 from pathlib import Path
 
-MARKER = re.compile(r"^#[ \t]*ASTRA_CERTIFIED:[ \t]*arb[ \t]*$", re.I | re.M)
+MARKER = re.compile(r"^#[ \t]*ASTRA_CERTIFIED:[ \t]*(arb|verdict)[ \t]*$", re.I | re.M)
 _ANY_MARKER = re.compile(r"^[ \t]*#[ \t]*ASTRA_CERTIFIED:[ \t]*(\S*)", re.I | re.M)
 _TAIL = re.compile(r"^\s*ANALYTIC_TAIL\s*:\s*(.+?)\s*$", re.M)
-_PRELUDE_PATH = Path(__file__).with_name("arb_prelude.py")
+_DECISION = re.compile(r"^DECISION:\s*(PASS|FAIL|UNDECIDED|CORROBORATION_MISMATCH)\b", re.M)
+_HERE = Path(__file__).parent
+
+# `verdict` is the pure-Python leg/decide helper (verdict_prelude.py, 9 October
+# 2026); `arb` adds the python-flint ball arithmetic and always includes it.
+KINDS = {
+    "verdict": ("verdict_prelude.py",),
+    "arb": ("verdict_prelude.py", "arb_prelude.py"),
+}
 
 # The names the reviewer may trust as vetted; a validator must not rebind them.
-PRELUDE_API = (
+VERDICT_API = ("leg", "run_leg", "decide", "ASTRA_VERDICT_VERSION")
+PRELUDE_API = VERDICT_API + (
     "Undecided", "set_precision", "ball", "cball", "upper_float", "abs_upper_float",
     "is_certainly_lt", "is_certainly_le", "is_certainly_gt", "is_certainly_ge",
     "is_certainly_nonzero", "certify", "unique_integer", "branch_index", "polar_box",
@@ -49,17 +62,27 @@ PRELUDE_API = (
 )
 
 
-def prelude_source() -> str:
-    return _PRELUDE_PATH.read_text(encoding="utf-8")
+def prelude_source(kind: str = "arb") -> str:
+    return "\n\n".join(
+        (_HERE / name).read_text(encoding="utf-8").rstrip("\n") for name in KINDS[kind]
+    ) + "\n"
 
 
-def prelude_info() -> dict:
-    source = prelude_source()
-    version = re.search(r'^ASTRA_CERTIFIED_VERSION = "([^"]+)"', source, re.M)
+def prelude_info(kind: str = "arb") -> dict:
+    source = prelude_source(kind)
+    versions = re.findall(r'^ASTRA_(?:CERTIFIED|VERDICT)_VERSION = "([^"]+)"', source, re.M)
     return {
-        "version": version.group(1) if version else "unknown",
+        "kind": kind,
+        "version": "+".join(versions) or "unknown",
         "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
     }
+
+
+def decision_from_stdout(stdout: str) -> str:
+    """The verdict helper's DECISION (PASS/FAIL/UNDECIDED/
+    CORROBORATION_MISMATCH), or "" when the validator did not use it."""
+    found = _DECISION.findall(str(stdout or ""))
+    return found[-1] if found else ""
 
 
 def requested(code: str) -> bool:
@@ -94,10 +117,10 @@ def shadowed_names(code: str) -> list:
 VALIDATOR_FILENAME = "validator.py"
 
 
-def _wrap(code: str) -> str:
+def _wrap(code: str, kind: str) -> str:
     name = repr(VALIDATOR_FILENAME)
     return "\n".join([
-        prelude_source().rstrip("\n"),
+        prelude_source(kind).rstrip("\n"),
         "",
         "",
         f"# ---- the validator, unchanged; tracebacks cite {VALIDATOR_FILENAME} lines ----",
@@ -122,14 +145,17 @@ def expand_certified(code: str, engine: str) -> tuple:
     if not requested(code):
         return code, None, None
     kinds = {m.group(1).lower() for m in _ANY_MARKER.finditer(code)}
-    if kinds != {"arb"}:
+    unknown = kinds - set(KINDS)
+    if unknown:
         return code, None, (
-            "ASTRA_CERTIFIED: unknown kind " + ", ".join(sorted(kinds - {"arb"}) or ["''"])
-            + "; the only certified prelude is `# ASTRA_CERTIFIED: arb`."
+            "ASTRA_CERTIFIED: unknown kind " + ", ".join(sorted(unknown) or ["''"])
+            + "; use `# ASTRA_CERTIFIED: verdict` (leg/decide) or "
+            "`# ASTRA_CERTIFIED: arb` (ball arithmetic plus leg/decide)."
         )
+    kind = "arb" if "arb" in kinds else "verdict"
     if engine != "python":
         return code, None, (
-            f"ASTRA_CERTIFIED: arb runs on the Python engine only (this validator "
+            f"ASTRA_CERTIFIED: {kind} runs on the Python engine only (this validator "
             f"routes to {engine}). In Sage use ComplexBallField/RealBallField directly."
         )
     if not MARKER.search(code):
@@ -141,7 +167,7 @@ def expand_certified(code: str, engine: str) -> tuple:
             + ", ".join(clash)
             + "; call the prelude's functions instead of redefining them."
         )
-    return _wrap(code), prelude_info(), None
+    return _wrap(code, kind), prelude_info(kind), None
 
 
 def parse_analytic_tails(stdout: str) -> list:

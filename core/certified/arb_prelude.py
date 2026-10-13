@@ -21,8 +21,8 @@ Rules the reviewer may rely on (tests/test_certified_arb.py checks each one):
   and declare it with ``analytic_tail(...)``; the verdict is then conditional
   on that lemma and ASTRA reports it as such.
 """
-from __future__ import annotations
-
+# No `from __future__` import: the preludes are concatenated (verdict first),
+# and such an import is only legal at the top of a file.
 import math as _math
 import sys as _sys
 
