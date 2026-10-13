@@ -178,6 +178,10 @@ class ASTRAIntelligence:
         self.cli_last_model = None  # modelo CLI que respondio la ultima llamada (escalera)
         self.cli_last_account_profile = None  # perfil de credenciales que atendio la fase
         self.cli_warnings = []      # avisos de cuota/fallback, expuestos en el JSON del ciclo
+        # 1.1.11: seconds the cycle can still grant this phase, or None. Set by
+        # astra_tool._prepare_agent; enables one retry on the next model rung
+        # after a timeout (call_cli itself only descends on quota errors).
+        self.timeout_retry_budget = None
         self.cli_cost_usd = 0.0     # coste proxy acumulado (lo reporta el CLI de claude;
                                     # codex/agy devuelven 0) — telemetria de cuota, no cargo
 
@@ -243,6 +247,36 @@ class ASTRAIntelligence:
         if not self.api_key:
             logger.warning(f"No API KEY found for {self.provider}. Operating in SIMULATED mode.")
 
+    def _next_rung_after_timeout(self, error: str | None) -> bool:
+        """After a timed-out call, drop the rung that timed out and say whether
+        one retry is worth making on the next.
+
+        call_cli descends the ladder only on quota errors: a strongest rung
+        that keeps timing out (GPT-6.1 Sol at "ultra" since 1.1.9) never gives
+        the configured fallback a turn. ASTRA 2.0 measured this in
+        translator_repair: 0 of 48 recorded Opus timeouts ever reached Sonnet.
+        The rung stays dropped for the rest of the cycle; it is likely to time
+        out again. No retry without a next rung, or when the cycle cannot fund
+        a useful call."""
+        if "timeout tras" not in str(error or "") or self.timeout_retry_budget is None:
+            return False
+        rungs = [t.strip() for t in str(self.cli_models or "").split(",") if t.strip()]
+        if len(rungs) < 2:
+            return False
+        try:
+            seconds = int(self.timeout_retry_budget() or 0)
+        except Exception:
+            seconds = 0
+        if seconds <= 0:
+            return False
+        self.cli_models = ",".join(rungs[1:])
+        self.cli_timeout = seconds
+        self.cli_warnings.append(
+            f"AVISO TIMEOUT: '{rungs[0]}' agoto su tiempo; reintento unico con "
+            f"'{rungs[1]}' ({seconds}s)."
+        )
+        return True
+
     async def _call_api(self, system_prompt: str, user_prompt: str) -> str:
         """Internal router to call the specific provider API."""
         if not self.api_key or not self.client:
@@ -284,6 +318,17 @@ class ASTRAIntelligence:
                     # Hubo fallback por cuota: dejar rastro en el log y en el ciclo
                     logger.warning(res.warning)
                     self.cli_warnings.append(res.warning)
+                if not res.ok and self._next_rung_after_timeout(res.error):
+                    # 1.1.11 (from ASTRA 2.0, 085d07e): one bounded retry on the
+                    # next rung, sized to what the cycle can still grant.
+                    res = await asyncio.to_thread(call_cli, self.cli_kind, combined,
+                                                  models=self.cli_models,
+                                                  timeout=self.cli_timeout)
+                    if res.model_used:
+                        self.cli_last_model = res.model_used
+                    self.cli_cost_usd += float(getattr(res, "cost_usd", 0.0) or 0.0)
+                    if res.warning:
+                        self.cli_warnings.append(res.warning)
                 if not res.ok:
                     # Tope de cuota / fallo -> semantica API_ERROR (el loop lo salta/reintenta)
                     return f"API_ERROR: {res.error}"

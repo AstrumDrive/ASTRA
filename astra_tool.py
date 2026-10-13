@@ -1600,6 +1600,11 @@ async def _do_cycle_impl(req: dict) -> dict:
 
     def _prepare_agent(agent, phase, reserve=None):
         agent.cli_timeout = _phase_timeout(phase, reserve)
+        # 1.1.11: what a retry on the next model rung may use after a timeout,
+        # computed when the retry happens; 0 when the phase is starved.
+        agent.timeout_retry_budget = lambda: (
+            0 if _phase_starved(phase, reserve) else _phase_timeout(phase, reserve)
+        )
         return agent.cli_timeout
 
     def _phase_starved(phase, reserve=None):
