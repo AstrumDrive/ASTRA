@@ -53,6 +53,8 @@ def _wsl_which(command: str) -> bool:
             [*_wsl_prefix(), "which", command],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             creationflags=_NT_NO_WINDOW,
         )
@@ -69,6 +71,8 @@ def _wsl_test(flag: str, path: str) -> bool:
             [*_wsl_prefix(), "test", flag, path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             creationflags=_NT_NO_WINDOW,
         )
@@ -124,7 +128,7 @@ def wsl_probe_state(distro: str | None = None) -> dict:
     try:
         result = subprocess.run(
             [*prefix, "true"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
             creationflags=_NT_NO_WINDOW,
         )
     except subprocess.TimeoutExpired:
@@ -196,7 +200,7 @@ def _strip_engine_marker(code: str) -> str:
 
 def _run(cmd: list[str], timeout: int) -> dict:
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
                                 creationflags=_NT_NO_WINDOW)
         return {"stdout": result.stdout, "stderr": result.stderr, "exit_code": result.returncode}
     except subprocess.TimeoutExpired as exc:

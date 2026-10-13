@@ -66,6 +66,8 @@ async def cluster_rpc(request: dict, timeout: int = 60) -> dict:
             input=json.dumps(request),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=max(1, int(timeout)) + connect_timeout,
             creationflags=_NT_NO_WINDOW,
         )

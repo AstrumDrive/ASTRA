@@ -94,6 +94,8 @@ async def execute_remote_code(
                 input=payload,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout + connect_timeout + 10,
                 creationflags=_NT_NO_WINDOW,
             )
@@ -261,7 +263,7 @@ async def probe_remote_transport() -> dict:
 
     def _run():
         return subprocess.run(
-            cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
             timeout=connect_timeout + 20, creationflags=_NT_NO_WINDOW,
         )
 

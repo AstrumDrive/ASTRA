@@ -109,11 +109,19 @@ async def _execute_python_code(code: str, workspace_dir: str = "workspace", time
 
     try:
         def _run_script():
+            # 1.1.11 (from ASTRA 2.0, 865ec03): pin both ends to UTF-8. The
+            # validator emits UTF-8 (PYTHONUTF8) and its output is decoded as
+            # UTF-8; with the Windows locale, Greek or maths symbols became
+            # mojibake or lone surrogates that crash a later prompt encode.
+            child_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
             return subprocess.run(
                 [sys.executable, filepath],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
+                env=child_env,
             )
 
         try:

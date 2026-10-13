@@ -2910,9 +2910,20 @@ async def _do_cycle(req: dict) -> dict:
         _ACTIVE_CYCLE_CHECKPOINT = None
 
 
+def _read_request(stdin_buffer) -> dict:
+    """Parse the JSON request as UTF-8, whatever the launcher's locale.
+
+    1.1.11 (from ASTRA 2.0, 865ec03): a child started without
+    PYTHONIOENCODING reads sys.stdin as cp1252 with surrogateescape on Windows,
+    so UTF-8 bytes 0x81/0x9D in non-ASCII content became lone surrogates that
+    crashed the next prompt encode. Decoding the raw bytes here cannot yield one.
+    """
+    return json.loads(stdin_buffer.read().decode("utf-8", errors="replace"))
+
+
 def main() -> None:
     try:
-        req = json.load(sys.stdin)
+        req = _read_request(sys.stdin.buffer)
     except Exception as e:
         print(json.dumps({"error": f"JSON de entrada invalido: {e}"}))
         return

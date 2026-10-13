@@ -169,7 +169,12 @@ def evaluate_scicode_code(
                 cwd=Path(__file__).resolve().parent.parent,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
+                # 1.1.11 (from ASTRA 2.0, 588bdf6): the harness is a Windows
+                # Python child; make it emit UTF-8 as well as decoding it so.
+                env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
             )
         except subprocess.TimeoutExpired:
             return {"status": "TIMEOUT", "timeout_s": timeout}

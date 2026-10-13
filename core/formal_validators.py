@@ -99,6 +99,8 @@ def _evaluate_lean4_local_wsl(
             command,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
         return {
@@ -187,6 +189,8 @@ def _evaluate_lean4_local(source: str, timeout: int) -> dict[str, Any]:
             cwd=project,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
         return {
