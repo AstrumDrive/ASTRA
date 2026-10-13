@@ -9,6 +9,22 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.10 (2026-10-12)
+
+With 1.1.9 in place, agy answered in seconds from its isolated home, but
+inside ASTRA it still returned nothing. On a one-line question, `--mode plan`
+(agy 1.3.1) tried a terminal command; headless mode auto-denied it and agy
+printed no text. Default mode answers, but it wrote files anywhere on disk in
+a test, so it cannot simply replace plan mode.
+
+- An agy home whose `.gemini/antigravity-cli/settings.json` hard-denies every
+  tool now runs in default mode. The deny list is `write_file(*)`,
+  `read_file(*)`, `command(*)`, `unsandboxed(*)`, `read_url(*)`,
+  `execute_url(*)` and `mcp(*)`. With it, the same file-writing prompt was
+  refused and a plain question was answered in 15 s.
+- Any other home keeps `--mode plan`, so an installation that has not been
+  locked down is never given write access.
+
 ## 1.1.9 (2026-10-12)
 
 Every model rung can now carry its reasoning effort, so each task gets the

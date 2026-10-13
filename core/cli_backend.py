@@ -292,6 +292,43 @@ def _agy_argv(promptfile: str, model: str | None, _out: str, _ws: str) -> list:
 _BUILDERS = {"claude": _claude_argv, "codex": _codex_builder, "gemini": _ps_gemini,
              "agy": _agy_argv}
 
+# Hard-deny rules that make an agy home text-only (Antigravity permission
+# syntax, antigravity.google/docs/permissions; deny beats ask and allow).
+AGY_TEXT_ONLY_DENY = (
+    "write_file(*)", "read_file(*)", "command(*)", "unsandboxed(*)",
+    "read_url(*)", "execute_url(*)", "mcp(*)",
+)
+
+
+def _agy_locked_down(env: dict) -> bool:
+    """True when the agy home in `env` denies every tool in its settings.
+
+    `--mode plan` kept agy read-only, but on 2026-10-12 (agy 1.3.1) plan mode
+    tried a terminal command even for a one-line question; headless mode
+    auto-denies it and agy printed nothing, so every agy phase returned empty.
+    Default mode answers, but there agy wrote files anywhere on disk. A home
+    whose settings hard-deny every tool gets default mode; any other home
+    keeps plan mode."""
+    home = env.get("USERPROFILE") if os.name == "nt" else env.get("HOME")
+    if not home:
+        return False
+    settings = os.path.join(home, ".gemini", "antigravity-cli", "settings.json")
+    try:
+        with open(settings, encoding="utf-8") as fh:
+            deny = set(((json.load(fh) or {}).get("permissions") or {}).get("deny") or [])
+    except (OSError, ValueError, AttributeError):
+        return False
+    return all(rule in deny for rule in AGY_TEXT_ONLY_DENY)
+
+
+def _without_plan_mode(argv: list) -> list:
+    out = list(argv)
+    for i in range(len(out) - 1):
+        if out[i] == "--mode" and out[i + 1] == "plan":
+            del out[i:i + 2]
+            break
+    return out
+
 
 def _parse_claude(stdout: str, _outfile: str) -> tuple[str, float]:
     s = (stdout or "").strip()
@@ -538,6 +575,8 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
                  ws: str, env: dict, timeout: int) -> CliResult:
     """Un intento contra un CLI con un modelo concreto (o el default)."""
     built = _BUILDERS[kind](promptfile, model, outfile, ws)
+    if kind == "agy" and isinstance(built, list) and _agy_locked_down(env):
+        built = _without_plan_mode(built)
     # Formatos de builder:
     #  - dict {"argv": [...], "stdin_file": ruta}: exe nativo DIRECTO con el prompt
     #    conectado a stdin (claude: prompts >32KB no caben en argv y PowerShell
