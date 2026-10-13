@@ -22,6 +22,13 @@ ENGINE_MARKER = re.compile(
 _NT_NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
+# 1.1.11 (from ASTRA 2.0, 8f2d0c1): a cold WSL distro can take 30-60 s to
+# answer its first command while it boots the VM. A 10 s probe reported an
+# installed Sage as missing and the validator became an operational error
+# ("sage is not available"). Warm WSL still answers at once.
+_WSL_PROBE_TIMEOUT = 60
+
+
 def _is_windows() -> bool:
     return sys.platform == "win32"
 
@@ -55,7 +62,7 @@ def _wsl_which(command: str) -> bool:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=10,
+            timeout=_WSL_PROBE_TIMEOUT,
             creationflags=_NT_NO_WINDOW,
         )
         return result.returncode == 0 and bool(result.stdout.strip())
@@ -73,7 +80,7 @@ def _wsl_test(flag: str, path: str) -> bool:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=10,
+            timeout=_WSL_PROBE_TIMEOUT,
             creationflags=_NT_NO_WINDOW,
         )
         return result.returncode == 0
