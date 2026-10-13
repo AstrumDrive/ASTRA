@@ -37,7 +37,7 @@ TERMINAL_STATES = {"succeeded", "failed", "timed_out", "cancelled", "interrupted
 ACTIVE_STATES = {"starting", "running"}
 CLIENT_RE = re.compile(r"[^a-z0-9_.-]+")
 ENGINE_RE = re.compile(
-    r"^\s*#\s*ASTRA_ENGINE:\s*(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs)\s*$",
+    r"^\s*#\s*ASTRA_ENGINE:\s*(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs|blender)\s*$",
     re.I | re.M,
 )
 
@@ -139,6 +139,7 @@ def _default_cpu(engine: str) -> int:
         "sage": 4,
         "sci": 4,
         "pkgs": 4,
+        "blender": 4,
         "python": 2,
     }.get(engine, 2)
 

@@ -60,7 +60,7 @@ async def _execute_python_code(code: str, workspace_dir: str = "workspace", time
     if mode == "auto":
         mode = (
             "remote"
-            if engine in {"lean4", "sci", "pkgs"}
+            if engine in {"lean4", "sci", "pkgs", "blender"}
             and os.environ.get("ASTRA_REMOTE_HOST", "").strip()
             else _decide_oracle(code)
         )
@@ -75,7 +75,7 @@ async def _execute_python_code(code: str, workspace_dir: str = "workspace", time
             oracle=lean_oracle,
             timeout=timeout,
         )
-    if engine in {"sci", "pkgs"}:
+    if engine in {"sci", "pkgs", "blender"}:
         if mode != "remote":
             return {
                 "stdout": "",

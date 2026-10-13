@@ -12,7 +12,7 @@ import uuid
 
 ENGINE_MARKER = re.compile(
     r"^\s*#\s*ASTRA_ENGINE:\s*"
-    r"(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs)\s*$",
+    r"(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs|blender)\s*$",
     re.I | re.M,
 )
 

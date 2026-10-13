@@ -11,6 +11,12 @@ covered by this file. Dates are the day the change reached `main`.
 
 ## Unreleased
 
+- ASTRUM engine `blender`: headless Blender 4.2.23 LTS (official build,
+  SHA-256 checked) under `~/opt`, for renders and animations through the job
+  queue (`# ASTRA_ENGINE: blender`). Runs with `-b --factory-startup
+  --python-exit-code 1`; managed and ASTRUM-only like `sci` and `pkgs` in the
+  client router, the remote worker and the queue (4 CPU slots by default).
+
 - Verdict from legs: `# ASTRA_CERTIFIED: verdict` (pure Python; `arb`
   includes it) loads the vetted `leg`/`run_leg`/`decide()` helper
   (`core/certified/verdict_prelude.py`). FAIL comes only from a decisive leg

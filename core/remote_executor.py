@@ -148,7 +148,7 @@ async def execute_remote_code(
     return response
 
 
-_MANAGED_ENGINES = {"sci", "pkgs"}
+_MANAGED_ENGINES = {"sci", "pkgs", "blender"}
 
 
 async def execute_remote_engine(
