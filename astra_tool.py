@@ -2093,9 +2093,12 @@ async def _do_cycle_impl(req: dict) -> dict:
                 str(item).lower()
                 for item in (review.get("defect_labels") or [])
             }
+            # 1.1.11 (from ASTRA 2.0, 39d7a7d): prose is not a broken script.
+            not_code = "not_code_at_all" in defect_labels
             requires_regeneration = (
                 status == "REJECT"
                 or "syntax_error" in defect_labels
+                or not_code
                 # C2 strategy switch: a different route needs a fresh validator,
                 # not a bounded patch of the rejected wiring.
                 or (decision is not None and decision["action"] == "strategy_switch")
@@ -2177,13 +2180,21 @@ async def _do_cycle_impl(req: dict) -> dict:
                         return current_code, review, regenerated
                     current_code = regenerated
             else:
+                # A reply that is not a script has nothing worth preserving:
+                # quoting it back as "your previous code, fix line 1" is an
+                # impossible task (2.0 measured a whole output budget burned on
+                # it). Give a clean slate and the reason for it.
+                from agents.translator import NOT_CODE_RETRY_INSTRUCTIONS
+
                 t0 = time.monotonic()
                 _prepare_agent(trans, "TRANSLATOR")
                 regenerated = await trans.translate_to_code(
                     translation_input,
                     is_correction=True,
-                    previous_error=patch_instructions,
-                    previous_code=current_code,
+                    previous_error=(
+                        NOT_CODE_RETRY_INSTRUCTIONS if not_code else patch_instructions
+                    ),
+                    previous_code=None if not_code else current_code,
                 )
                 _mark("translate", t0)
                 if (

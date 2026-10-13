@@ -572,6 +572,36 @@ def _cli_temp_root(workspace: str) -> str:
     return root
 
 
+# agy in `--mode plan` (any home that is not locked down, see
+# _agy_locked_down) can end its answer with a markdown link to a `file://`
+# plan artifact and an approval request; 2.0 found it in 72% of sampled
+# deliberations. The wording varies and switches language; the link does not.
+_AGY_ARTIFACT_LINE = re.compile(r"^.*\]\(\s*file://[^)]*\).*$", re.MULTILINE)
+_AGY_APPROVAL_TAIL = re.compile(
+    r"(?:^|\n)[^\n]{0,120}?(pending your approval|awaiting your approval|"
+    r"pendiente de tu aprobaci[oó]n)[^\n]*", re.IGNORECASE)
+
+
+def strip_plan_artifacts(text: str) -> tuple[str, str]:
+    """Drop plan-mode artifact pointers from a CLI answer. Returns
+    `(clean_text, note)`; `note` says what went, and `clean_text` is empty
+    when the reply was nothing but a pointer."""
+    if not text or "file://" not in text:
+        return text, ""
+    dropped = _AGY_ARTIFACT_LINE.findall(text)
+    if not dropped:
+        return text, ""
+    clean = _AGY_ARTIFACT_LINE.sub("", text)
+    clean = _AGY_APPROVAL_TAIL.sub("", clean)
+    clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    clean = re.sub(r"(?:\n\s*-{3,}\s*)+$", "", clean).strip()
+    note = (
+        f"plan-mode artifact removed from the reply ({len(dropped)} line(s)): "
+        + " | ".join(line.strip()[:120] for line in dropped[:2])
+    )
+    return clean, note
+
+
 def _launch_attempts() -> int:
     """Cuantas veces reintentar un lanzamiento que falla de forma transitoria."""
     try:
@@ -692,7 +722,17 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
         tail = (proc.stdout or "")[-300:]
         return CliResult(False, error=f"respuesta vacia (posible tope de cuota). {tail.strip()}")
 
-    return CliResult(True, text=text, cost_usd=cost)
+    # 1.1.11 (from ASTRA 2.0, 39d7a7d): strip a plan-mode artifact pointer at
+    # the SOURCE, before this text can become another agent's instructions.
+    # Announced in the warning, never silent; a reply that was ONLY a pointer
+    # is a failed call (the answer sits in a file ASTRA cannot read).
+    text, artifact_note = strip_plan_artifacts(text)
+    if not text.strip():
+        return CliResult(False, error=(
+            "la respuesta era SOLO un puntero a un artefacto de plan-mode: el "
+            "modelo dejo su contenido en un fichero que ASTRA no puede leer. "
+            f"{artifact_note}"))
+    return CliResult(True, text=text, cost_usd=cost, warning=artifact_note)
 
 
 def call_cli(kind: str, prompt: str, timeout: int | None = None,
@@ -818,8 +858,10 @@ def call_cli(kind: str, prompt: str, timeout: int | None = None,
                 res.model_used = label
                 if fallidos:
                     caidos = "; ".join(f"'{l}' -> {e[:140]}" for l, e in fallidos)
-                    res.warning = (f"AVISO CUOTA [{kind}]: {caidos}. "
-                                   f"La fase la respondio el fallback '{label}'.")
+                    quota = (f"AVISO CUOTA [{kind}]: {caidos}. "
+                             f"La fase la respondio el fallback '{label}'.")
+                    # The artifact sanitiser may already have left a note here.
+                    res.warning = f"{quota} {res.warning}".strip() if res.warning else quota
                 return res
             fallidos.append((label, res.error))
             if not _is_quota_error(res.error):
