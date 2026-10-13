@@ -88,6 +88,11 @@ class PlannedTransition:
     new_status: str
     reason: str
     decision_id: str | None = None
+    # Where the closed method family still holds, when that is known. The
+    # reason forbids a retry; the boundary tells the next proposal where to
+    # aim ("convexity remains viable for alpha >= 0.731"), which is the part
+    # a later branch can actually use.
+    boundary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -641,6 +646,8 @@ def apply_decision_plan(store: CampaignStore, plan: DecisionPlan) -> int:
             }
             if transition.decision_id is not None:
                 payload["decision_id"] = transition.decision_id
+            if transition.boundary is not None:
+                payload["boundary"] = transition.boundary[:2000]
             store.append_event(
                 event_type="BRANCH_STATUS_CHANGED",
                 payload=payload,

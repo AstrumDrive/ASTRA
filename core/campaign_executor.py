@@ -77,6 +77,7 @@ from core.campaign_portfolio import (
     portfolio_to_records,
 )
 from core.campaign_store import CampaignStore
+from core.review_outcome import reviewer_withheld_approval
 
 
 class CampaignExecutorError(RuntimeError):
@@ -107,27 +108,11 @@ class EpisodeRunReport:
     checkpoint_path: str | None = None
 
 
-def reviewer_withheld_approval(result: Mapping[str, Any]) -> bool:
-    """True when review ran and declined, as opposed to review breaking.
-
-    The two look alike in a cycle result and mean opposite things. A reviewer
-    that returns REVISE or REJECT has done its job: the pipeline completed and
-    the gate refused to certify a validator. A reviewer that times out or hits a
-    quota error is an operational failure and must stay one.
-
-    Measured live 2026-08-16, first real campaign episode: the reviewer refused
-    a validator whose two "independent" legs solved the same semialgebraic
-    condition, and whose universal R-scaling claim rested on two radii. That is
-    rigour, and it was being recorded as a broken tool.
-    """
-    phase = str(result.get("phase") or "").lower()
-    if not phase.startswith("review"):
-        return False
-    error = str(result.get("error") or "")
-    if error.startswith("API_ERROR:") or "timeout tras" in error:
-        return False
-    review = result.get("code_review") or {}
-    return str(review.get("status") or "").upper() in {"REVISE", "REJECT"}
+# `reviewer_withheld_approval` moved to core/review_outcome.py on 2026-08-28 so
+# the trajectory metrics could reuse it instead of reimplementing it -- the third
+# time this distinction was needed in a different layer. It is imported above, so
+# existing importers and tests/test_reviewer_rejection_is_not_breakage.py keep
+# working unchanged.
 
 
 def map_cycle_outcome(result: Mapping[str, Any]) -> OutcomeAxes:
@@ -229,6 +214,15 @@ def build_portfolio_context(state: CampaignState) -> dict[str, Any]:
             item.value for item in campaign.allowed_evidence_classes
         ],
         "forbidden_method_families": list(state.exhausted_method_families()),
+        # The families alone say only "not this". The notes say why each one
+        # closed and, where it is known, the regime in which it still holds,
+        # so a proposal can aim at the surviving region instead of
+        # rediscovering the same edge. Kept alongside the bare list rather
+        # than replacing it: the hard gate consumes the list and must not
+        # start depending on prose.
+        "exhausted_method_notes": [
+            dict(note) for note in state.exhausted_method_notes()
+        ],
     }
 
 

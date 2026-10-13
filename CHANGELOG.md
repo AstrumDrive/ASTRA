@@ -9,6 +9,25 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.12 (2026-10-13)
+
+The campaign layer is reconciled with ASTRA 2.0, which is now archived as a
+laboratory. Production copied the layer from 2.0 on 22 August (`a40fefd`).
+After that, each line changed it separately, in different places, so the
+patches applied without conflicts. The layer stays off by default
+(`ASTRA_CAMPAIGN_TOOLS`).
+
+- From 2.0 `80f3334`: a closed branch keeps what it learned. Exhausted method
+  families carry notes saying why each one closed and the regime where it
+  still holds, and the portfolio context passes them to the next proposal.
+  Every approximation must state its bound (`ApproximationSpec`).
+- From 2.0 `4f0faaa`: the reviewer-declined versus broken distinction moves
+  to `core/review_outcome.py`, and the trajectory metrics reuse it. A review
+  that refused to certify is not counted as a broken tool.
+- From 2.0: campaign trajectory metrics (`core/campaign_trajectory_metrics.py`).
+- Kept from production: NON_DECIDABLE in the campaign executor (`7798526`) and
+  the job runner that survives a reader holding `job.json` open (`ddffa8d`).
+
 ## 1.1.11 (2026-10-13)
 
 The ASTRA 2.0 line stopped on 7 September with twelve cycle-engine fixes that

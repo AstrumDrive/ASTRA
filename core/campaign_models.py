@@ -163,10 +163,23 @@ def _require_schema_version(data: Mapping[str, Any], expected: str) -> None:
 
 
 def _require_exact_keys(
-    data: Mapping[str, Any], required: set[str], record: str
+    data: Mapping[str, Any],
+    required: set[str],
+    record: str,
+    optional: set[str] | None = None,
 ) -> None:
+    """Reject typos and drift, while allowing declared later additions.
+
+    Strictness on unknown keys is the point of this check: a misspelt field
+    would otherwise be silently dropped. But a field added after records were
+    already written cannot be required, or every existing ledger becomes
+    unreadable -- two campaigns are persisted under workspace/campaigns as of
+    2026-08-30. Naming those fields in ``optional`` keeps unknown keys fatal
+    while letting a reader accept a record written before the field existed.
+    """
+    allowed = required | (optional or set())
     missing = sorted(required - set(data))
-    unknown = sorted(set(data) - required)
+    unknown = sorted(set(data) - allowed)
     if missing or unknown:
         raise CampaignModelError(
             f"{record} fields invalid: missing={missing}, unknown={unknown}"
@@ -227,6 +240,11 @@ class ClaimType(str, Enum):
     NUMERICAL_PREDICTION = "NUMERICAL_PREDICTION"
     ALGORITHMIC_GUARANTEE = "ALGORITHMIC_GUARANTEE"
     SCOPED_EMPIRICAL = "SCOPED_EMPIRICAL"
+    # "f ≈ g" asserts nothing without a regime, an order, and an error bound.
+    # Kept a distinct type rather than a NUMERICAL_PREDICTION with prose,
+    # because the missing bound is what makes it actionable: see
+    # ApproximationSpec and Claim's APPROXIMATION invariant.
+    APPROXIMATION = "APPROXIMATION"
 
 
 class EvidenceKind(str, Enum):
@@ -620,6 +638,82 @@ class EvidencePlan:
         }
 
 
+@dataclass(frozen=True)
+class ApproximationSpec:
+    """What an "approximately equal" claim has to pin down to mean anything.
+
+    An approximation with no stated regime and no error bound is not a weaker
+    claim than an equality -- it is not a claim at all, because no observation
+    can contradict it. Requiring the regime and the order makes the statement
+    falsifiable; leaving ``error_bound`` optional and *recording its absence*
+    is the useful half.
+
+    A missing bound is not a defect to reject. It is a mathematics problem the
+    physics just generated, and Claim turns it into an entry in
+    ``unresolved_obligations`` so the campaign can schedule it like any other
+    open goal rather than losing it in prose.
+    """
+
+    exact: str
+    approximate: str
+    regime: str
+    order: str
+    error_bound: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("exact", "approximate", "regime", "order"):
+            object.__setattr__(
+                self,
+                field_name,
+                ensure_portable_text(
+                    f"approximation.{field_name}", getattr(self, field_name)
+                ),
+            )
+        if self.error_bound is not None:
+            object.__setattr__(
+                self,
+                "error_bound",
+                ensure_portable_text("approximation.error_bound", self.error_bound),
+            )
+
+    @property
+    def is_rigorous(self) -> bool:
+        """True when the approximation carries a stated error bound."""
+        return self.error_bound is not None
+
+    def open_obligation(self) -> str:
+        """The mathematics problem implied by a missing error bound."""
+        return (
+            f"Establish a rigorous error bound for {self.approximate} as an "
+            f"approximation of {self.exact} in the regime {self.regime} "
+            f"at order {self.order}"
+        )
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "ApproximationSpec":
+        _require_exact_keys(
+            dict(data),
+            {"exact", "approximate", "regime", "order", "error_bound"},
+            "ApproximationSpec",
+        )
+        return cls(
+            exact=data["exact"],
+            approximate=data["approximate"],
+            regime=data["regime"],
+            order=data["order"],
+            error_bound=data["error_bound"],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "exact": self.exact,
+            "approximate": self.approximate,
+            "regime": self.regime,
+            "order": self.order,
+            "error_bound": self.error_bound,
+        }
+
+
 # ---------------------------------------------------------------------------
 # Campaign
 # ---------------------------------------------------------------------------
@@ -779,6 +873,17 @@ class Branch:
     parent_episode_id: str | None = None
     status: BranchStatus = BranchStatus.PROPOSED
     decision_history: tuple[str, ...] = ()
+    # Why this branch stopped, and where its method family still holds.
+    #
+    # `closure_reason` is not new information -- BRANCH_STATUS_CHANGED has
+    # always carried a reason into the ledger -- but the state reducer
+    # discarded it, so nothing downstream could read it without replaying
+    # events. `closure_boundary` is new, and is the part worth keeping:
+    # "convexity fails for alpha < 0.731" forbids a retry, while "convexity
+    # remains viable for alpha >= 0.731" tells the next proposal where to
+    # aim. Without it, `exhausted_method_families` can only say no.
+    closure_reason: str | None = None
+    closure_boundary: str | None = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -832,16 +937,48 @@ class Branch:
         for decision_id in history:
             validate_record_id(decision_id, "decision")
         object.__setattr__(self, "decision_history", history)
+        for field_name in ("closure_reason", "closure_boundary"):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            object.__setattr__(
+                self, field_name, ensure_portable_text(field_name, value)
+            )
+        if self.closure_boundary is not None and self.closure_reason is None:
+            raise CampaignModelError(
+                "closure_boundary requires closure_reason: a boundary without "
+                "the failure it bounds cannot be interpreted"
+            )
 
     def with_status(
-        self, new_status: BranchStatus, *, decision_id: str | None = None
+        self,
+        new_status: BranchStatus,
+        *,
+        decision_id: str | None = None,
+        closure_reason: str | None = None,
+        closure_boundary: str | None = None,
     ) -> "Branch":
         assert_branch_transition(self.status, new_status)
         history = self.decision_history
         if decision_id is not None:
             validate_record_id(decision_id, "decision")
             history = (*history, decision_id)
-        return replace(self, status=new_status, decision_history=history)
+        return replace(
+            self,
+            status=new_status,
+            decision_history=history,
+            # A later transition must not erase what an earlier closure
+            # recorded: SUSPENDED carries a reason, and a branch resumed and
+            # closed again would otherwise lose the first one.
+            closure_reason=(
+                closure_reason if closure_reason is not None else self.closure_reason
+            ),
+            closure_boundary=(
+                closure_boundary
+                if closure_boundary is not None
+                else self.closure_boundary
+            ),
+        )
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Branch":
@@ -870,6 +1007,7 @@ class Branch:
                 "decision_history",
             },
             "Branch",
+            optional={"closure_reason", "closure_boundary"},
         )
         return cls(
             branch_id=data["branch_id"],
@@ -889,6 +1027,8 @@ class Branch:
             parent_episode_id=data["parent_episode_id"],
             status=_parse_enum(BranchStatus, data["status"], "branch status"),
             decision_history=tuple(data["decision_history"]),
+            closure_reason=data.get("closure_reason"),
+            closure_boundary=data.get("closure_boundary"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -911,6 +1051,8 @@ class Branch:
             "parent_episode_id": self.parent_episode_id,
             "status": self.status.value,
             "decision_history": list(self.decision_history),
+            "closure_reason": self.closure_reason,
+            "closure_boundary": self.closure_boundary,
         }
 
 
@@ -1127,6 +1269,7 @@ class Claim:
     tolerance: str | None = None
     units: str | None = None
     unresolved_obligations: tuple[str, ...] = ()
+    approximation: "ApproximationSpec | None" = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -1170,29 +1313,57 @@ class Claim:
             raise CampaignModelError(
                 "A NUMERICAL_PREDICTION claim requires explicit tolerance and units"
             )
-        object.__setattr__(
-            self,
+        obligations = _string_tuple(
+            self.unresolved_obligations,
             "unresolved_obligations",
-            _string_tuple(
-                self.unresolved_obligations,
-                "unresolved_obligations",
-                allow_empty=True,
-            ),
+            allow_empty=True,
         )
+        if self.approximation is not None and not isinstance(
+            self.approximation, ApproximationSpec
+        ):
+            raise CampaignModelError("approximation must be an ApproximationSpec")
+        if self.claim_type is ClaimType.APPROXIMATION:
+            if self.approximation is None:
+                raise CampaignModelError(
+                    "An APPROXIMATION claim requires an ApproximationSpec: "
+                    "without a regime and an order, no observation can "
+                    "contradict it"
+                )
+            # The point of the type. An approximation with no error bound is
+            # admissible -- most start that way -- but it does not get to stay
+            # silently unbounded: the bound becomes an open goal the campaign
+            # can schedule, which is how a physical statement generates a
+            # mathematical one.
+            if not self.approximation.is_rigorous:
+                obligation = self.approximation.open_obligation()
+                if obligation not in obligations:
+                    obligations = (*obligations, obligation)
+        elif self.approximation is not None:
+            raise CampaignModelError(
+                "Only an APPROXIMATION claim may carry an ApproximationSpec"
+            )
+        object.__setattr__(self, "unresolved_obligations", obligations)
 
     def fingerprint(self) -> str:
         """Canonical structured fingerprint; never a bare text hash."""
-        return canonical_sha256(
-            {
-                "statement": self.statement,
-                "domain": self.domain,
-                "quantifiers": list(self.quantifiers),
-                "assumptions": list(self.assumptions),
-                "tolerance": self.tolerance,
-                "units": self.units,
-                "scope": self.scope,
-            }
-        )
+        payload: dict[str, Any] = {
+            "statement": self.statement,
+            "domain": self.domain,
+            "quantifiers": list(self.quantifiers),
+            "assumptions": list(self.assumptions),
+            "tolerance": self.tolerance,
+            "units": self.units,
+            "scope": self.scope,
+        }
+        # Two approximations of the same quantity in different regimes are
+        # different claims, so the spec has to be fingerprinted. The key is
+        # added only when a spec exists: claims written before this field
+        # keep a byte-identical fingerprint, and `from_dict` verifies the
+        # declared fingerprint against a recomputation, so an unconditional
+        # key would make every persisted claim unreadable.
+        if self.approximation is not None:
+            payload["approximation"] = self.approximation.to_dict()
+        return canonical_sha256(payload)
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Claim":
@@ -1218,6 +1389,7 @@ class Claim:
                 "unresolved_obligations",
             },
             "Claim",
+            optional={"approximation"},
         )
         claim = cls(
             claim_id=data["claim_id"],
@@ -1233,6 +1405,11 @@ class Claim:
             tolerance=data["tolerance"],
             units=data["units"],
             unresolved_obligations=tuple(data["unresolved_obligations"]),
+            approximation=(
+                ApproximationSpec.from_dict(data["approximation"])
+                if data.get("approximation") is not None
+                else None
+            ),
         )
         if declared_fingerprint is not None and (
             declared_fingerprint != claim.fingerprint()
@@ -1258,6 +1435,11 @@ class Claim:
             "tolerance": self.tolerance,
             "units": self.units,
             "unresolved_obligations": list(self.unresolved_obligations),
+            "approximation": (
+                self.approximation.to_dict()
+                if self.approximation is not None
+                else None
+            ),
             "fingerprint": self.fingerprint(),
         }
 

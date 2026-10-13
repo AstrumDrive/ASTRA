@@ -15,6 +15,7 @@ from statistics import mean
 from typing import Any, Iterable
 
 from core.diversity_metrics import compute_diversity_metrics
+from core.review_outcome import reviewer_withheld_approval
 
 
 OPERATIONAL_STATUSES = {
@@ -262,6 +263,26 @@ def compute_trajectory_metrics(record: dict[str, Any]) -> dict[str, Any]:
     credible = [cycle_has_credible_evidence(cycle) for cycle in cycles]
     independent = [cycle_has_independent_evidence(cycle) for cycle in cycles]
     statuses = [_status(cycle.get("result") or cycle) for cycle in cycles]
+    # A gate that declines is not a tool that broke. A reviewer returning
+    # REVISE/REJECT completed its job and refused to certify; it surfaces as
+    # TOOL_ERROR at the cycle level and, until 2026-08-28, was counted here as
+    # operational breakage. That inflated the exact figure G4's remaining
+    # bullets are blocked on: RUN3's H3 pilot reported 0.833 where only 0.556
+    # was genuine, and the post-A2 run reported 0.889 where only 0.222 was --
+    # turning "the infrastructure is too broken to compare architectures" into
+    # the diagnosis, when the evidence actually said "the reviewer declines a
+    # lot", which is a different problem with a different remedy (and the one
+    # ASTRA2_H1_STANDARD_20260812.md had already named as the real historical
+    # bottleneck). See core/review_outcome.py for why the predicate lives in a
+    # shared module now.
+    declines = [
+        reviewer_withheld_approval(cycle.get("result") or cycle)
+        for cycle in cycles
+    ]
+    operational = [
+        status in OPERATIONAL_STATUSES and not declined
+        for status, declined in zip(statuses, declines)
+    ]
     hypothesis_by_cycle = [
         (
             _text_hash(str((cycle.get("result") or {}).get("conjecture") or ""))
@@ -378,7 +399,14 @@ def compute_trajectory_metrics(record: dict[str, Any]) -> dict[str, Any]:
         "recovery_rate_after_negative_evidence": _rate(
             recoveries, recovery_opportunities
         ),
-        "operational_failure_rate": _rate(
+        "operational_failure_rate": _rate(sum(operational), len(cycles)),
+        # Reported alongside rather than folded in, so correcting the rate
+        # above does not make the declines invisible: they are a real signal
+        # about the reviewer, just not an operational one.
+        "reviewer_decline_rate": _rate(sum(declines), len(cycles)),
+        # The pre-2026-08-28 definition, kept so runs measured under it stay
+        # comparable and the correction is auditable rather than silent.
+        "operational_failure_rate_with_declines": _rate(
             sum(status in OPERATIONAL_STATUSES for status in statuses),
             len(cycles),
         ),
@@ -490,6 +518,7 @@ def summarize_trajectory_records(
         "independent_evidence_rate",
         "recovery_rate_after_negative_evidence",
         "operational_failure_rate",
+        "reviewer_decline_rate",
         "cross_perspective_traceability_proxy",
         "credible_evidence_per_model_call",
         "wall_time_seconds",

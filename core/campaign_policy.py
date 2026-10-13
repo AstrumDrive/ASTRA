@@ -107,6 +107,34 @@ class CampaignState:
             )
         )
 
+    def exhausted_method_notes(self) -> tuple[dict[str, Any], ...]:
+        """What each closed branch learned, not merely that it closed.
+
+        ``exhausted_method_families`` answers the hard gate's question -- may
+        this family be proposed again -- and a bare "no" is all a gate needs.
+        It is not all a proposer needs. A branch that died because convexity
+        fails below alpha = 0.731 has established something reusable: the
+        method is still sound above it. Passing only the family name throws
+        that away and invites the next branch to rediscover the same edge.
+
+        Ordered by branch id so a prompt built from this is reproducible.
+        """
+        notes: list[dict[str, Any]] = []
+        for branch_id in sorted(self.branches):
+            branch = self.branches[branch_id]
+            if branch.status not in _EXHAUSTED_BRANCH_STATUSES:
+                continue
+            notes.append(
+                {
+                    "branch_id": branch.branch_id,
+                    "method_family": branch.method_family,
+                    "status": branch.status.value,
+                    "reason": branch.closure_reason,
+                    "boundary": branch.closure_boundary,
+                }
+            )
+        return tuple(notes)
+
     def scientific_refutations(self, claim_id: str) -> tuple[str, ...]:
         """Evidence ids that scientifically refute ``claim_id``.
 
@@ -337,7 +365,7 @@ def _apply_branch_status_changed(
     _require_payload_keys(
         event.payload,
         {"branch_id", "status"},
-        {"decision_id", "reason"},
+        {"decision_id", "reason", "boundary"},
         "BRANCH_STATUS_CHANGED",
     )
     branch_id = event.payload["branch_id"]
@@ -366,9 +394,32 @@ def _apply_branch_status_changed(
         raise CampaignPolicyError(
             f"BRANCH_STATUS_CHANGED references unknown decision: {decision_id!r}"
         )
+    # BRANCH_STATUS_CHANGED has always carried a reason into the ledger, and
+    # the reducer used to drop it, so the derived state could not answer "why
+    # was this closed" without replaying events -- which is why negative
+    # prompting could only pass bare family names. Carried through now, but
+    # only for terminal statuses: a reason attached to an activation is not a
+    # closure, and calling it one would put activation prose into the
+    # forbidden-family notes.
+    closure_reason = None
+    closure_boundary = None
+    if new_status in _EXHAUSTED_BRANCH_STATUSES:
+        raw_reason = event.payload.get("reason")
+        if isinstance(raw_reason, str) and raw_reason.strip():
+            closure_reason = raw_reason.strip()
+        raw_boundary = event.payload.get("boundary")
+        if (
+            closure_reason is not None
+            and isinstance(raw_boundary, str)
+            and raw_boundary.strip()
+        ):
+            closure_boundary = raw_boundary.strip()
     try:
         state.branches[branch_id] = branch.with_status(
-            new_status, decision_id=decision_id
+            new_status,
+            decision_id=decision_id,
+            closure_reason=closure_reason,
+            closure_boundary=closure_boundary,
         )
     except ValueError as exc:
         raise CampaignPolicyError(str(exc)) from exc
