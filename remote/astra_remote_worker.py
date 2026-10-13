@@ -14,7 +14,7 @@ import uuid
 
 ENGINE_MARKER = re.compile(
     r"^\s*#\s*ASTRA_ENGINE:\s*"
-    r"(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs)\s*$",
+    r"(python|sympy|sage|maxima|cadabra|lean|lean4|sci|pkgs|blender)\s*$",
     re.I | re.M,
 )
 
@@ -113,6 +113,7 @@ def run_code(code: str, workdir: str, timeout: int) -> dict:
         "lean4": ".lean",
         "sci": ".py",
         "pkgs": ".py",
+        "blender": ".py",
     }[engine]
     filepath = os.path.join(workdir, f"astra_remote_{engine}_{uuid.uuid4().hex[:8]}{suffix}")
 

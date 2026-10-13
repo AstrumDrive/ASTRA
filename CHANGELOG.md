@@ -9,6 +9,29 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.13 (2026-10-13)
+
+Merges two changes another session published to the company repository the
+same day, on top of 1.1.12. Not measured on the research corpus.
+
+- ASTRUM engine `blender`: headless Blender 4.2.23 LTS (official build,
+  SHA-256 checked) under `~/opt`, for renders and animations through the job
+  queue (`# ASTRA_ENGINE: blender`). Runs with `-b --factory-startup
+  --python-exit-code 1`; managed and ASTRUM-only like `sci` and `pkgs` in the
+  client router, the remote worker and the queue (4 CPU slots by default).
+
+- Verdict from legs: `# ASTRA_CERTIFIED: verdict` (pure Python; `arb`
+  includes it) loads the vetted `leg`/`run_leg`/`decide()` helper
+  (`core/certified/verdict_prelude.py`). FAIL comes only from a decisive leg
+  that is False; an undecided decisive leg (exit 5) or a corroborative
+  disagreement (exit 6, CORROBORATION_MISMATCH) ends without a verdict, so
+  quadrature and sampling can no longer refute an asymptotic claim. The
+  verdict guard accepts the helper's FAIL path and flags a decisive leg
+  with a literal True; the analyst cannot return VALIDATED or REFUTED on
+  UNDECIDED or CORROBORATION_MISMATCH; author rule 8 (the conjecture fence of 1.1.11 becomes rule 9), reviewer rule 11
+  audits roles instead of the aggregation. Motivated by three review
+  rejections of 9 October for one `all(checks)` mixing proof and sampling.
+
 ## 1.1.12 (2026-10-13)
 
 The campaign layer is reconciled with ASTRA 2.0, which is now archived as a
@@ -58,7 +81,7 @@ corpus, hence a patch release.
 - A8. Reviewer rules 17-18: the burden is the decisive question, not a
   redundant or stronger companion, and rule 17 never opens the gate.
 - A9. The conjecture reaches the validator author inside a
-  `<<<CONJECTURE ... CONJECTURE>>>` fence, as data; author rule 8.
+  `<<<CONJECTURE ... CONJECTURE>>>` fence, as data; author rule 9 since 1.1.13.
 - A10. Prose is told apart from a broken script (`not_code_at_all`) and
   regenerated from a clean slate. `file://` plan-artifact pointers are
   stripped from CLI answers, and announced. Not ported: 2.0's 58000-token

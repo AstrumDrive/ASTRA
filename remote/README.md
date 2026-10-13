@@ -61,6 +61,12 @@ Engines live in separate managed environments and may not appear in the login
 shell PATH. ASTRA exposes the same registry through the `astra_engines` MCP
 tool. `# ASTRA_ENGINE: pkgs` selects company packages and
 `# ASTRA_ENGINE: sci` selects the specialized scientific environment.
+`# ASTRA_ENGINE: blender` runs a Python (`bpy`) script in headless Blender 4.2
+LTS for renders and animations: `-b --factory-startup --python-exit-code 1`,
+so saved user preferences and add-ons are ignored and a failing script exits
+nonzero; arguments after the script reach it after `--`. It is a managed,
+ASTRUM-only engine like `sci` and `pkgs`, and `# ASTRA_CERTIFIED` does not
+apply to it. A render is an illustration, not evidence.
 
 ## Shared scheduler
 

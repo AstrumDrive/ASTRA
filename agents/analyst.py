@@ -43,6 +43,13 @@ RULES OF OPERATION:
      supports P only conditionally on that lemma. Say so in
      original_claim_reasoning, keep the lemma among deferred_items, and never
      report the tail as certified.
+   - A `DECISION:` line comes from ASTRA's vetted verdict helper (decide()).
+     `DECISION: FAIL` names the decisive legs that refuted the claim.
+     `DECISION: UNDECIDED` (exit 5) and `DECISION: CORROBORATION_MISMATCH`
+     (exit 6) are not verdicts: the decisive legs did not decide, or a
+     cross-check disagreed with them. Return CODE_ERROR with a correction
+     (higher precision, finer subdivision, or the defect in the leg that
+     disagrees), never VALIDATED or REFUTED.
    - Compare the result with the shared objective and state what remains unresolved.
    - Keep the atomic claim separate from the shared final objective. Also return:
      * `goal_coverage`: `COMPLETE`, `PARTIAL`, or `UNKNOWN`;

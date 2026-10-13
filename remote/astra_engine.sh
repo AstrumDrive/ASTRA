@@ -23,6 +23,7 @@ declare -A ENGINES=(
   [lean]="$H/astra-worker/lean_verify.sh"             # Lean4 + mathlib4 compilado
   [pkgs]="$H/miniforge3/envs/pkgs/bin/python"         # paquetes propios de la organización
   [wolfram]="$H/opt/Wolfram/Executables/wolframscript" # Mathematica 12 (install de usuario)
+  [blender]="$H/opt/blender-4.2.23-linux-x64/blender"  # Blender 4.2 LTS oficial (sha256 verificado)
 )
 declare -A DESC=(
   [oracle]="numérico/simbólico general + GPU (sympy, z3, qutip, torch, cupy, jax)"
@@ -34,11 +35,12 @@ declare -A DESC=(
   [lean]="verificación formal contra mathlib4 (solo lectura, sin lake)"
   [pkgs]="paquetes propios (ver ~/pkgs/README.md) — GR: GR_python+grthermo, pyWarpFactory, TELAR, warp_nn, natario, metric-engine | fundamentos: protoespacio | materia condensada: QuantumTransportEOM, mobius_rsoc | fluidos: rectification"
   [wolfram]="Mathematica 12.0 — simbólico pesado (Integrate/DSolve/Simplify), subkernels paralelos sin límite de licencia (.wl/.m)"
+  [blender]="Blender 4.2 LTS sin pantalla — renders 3D y animaciones (script Python con bpy; Cycles en la GPU)"
 )
 
 if [ "${1:-list}" = "list" ]; then
   echo "Motores disponibles en $(hostname):"
-  for k in oracle sci sage cadabra cadabra-py maxima lean pkgs wolfram; do
+  for k in oracle sci sage cadabra cadabra-py maxima lean pkgs wolfram blender; do
     b="${ENGINES[$k]}"
     if [ -x "$b" ]; then s="OK "; else s="NO "; fi
     printf "  [%s] %-11s %s\n" "$s" "$k" "${DESC[$k]}"
@@ -62,5 +64,13 @@ fi
 # que sigan quedan disponibles en el script vía $ScriptCommandLine.
 if [ "$ENGINE" = "wolfram" ]; then
   exec "$BIN" -file "$@"
+fi
+# blender: sin pantalla (-b), sin las preferencias ni complementos guardados del
+# usuario (--factory-startup, resultados reproducibles) y con código de salida
+# distinto de cero si el script de Python falla. Los args tras el fichero llegan
+# al script después de "--" (sys.argv[sys.argv.index("--") + 1:]).
+if [ "$ENGINE" = "blender" ]; then
+  SCRIPT="$1"; shift
+  exec "$BIN" -b --factory-startup --python-exit-code 1 --python "$SCRIPT" -- "$@"
 fi
 exec "$BIN" "$@"

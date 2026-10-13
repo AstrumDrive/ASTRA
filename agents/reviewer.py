@@ -68,6 +68,17 @@ AUDIT RULES:
    sector and precision match the claim; and any region the claim needs
    beyond r_max is declared with `analytic_tail(...)` rather than silently
    assumed. Floats and mpmath samples beside such a leg are cross-checks.
+   With `# ASTRA_CERTIFIED: verdict` (or `arb`) the verdict comes from the
+   vetted `leg(...)`/`run_leg(...)`/`decide()`: FAIL only for a decisive leg
+   that is False, no verdict when a decisive leg is None, and a corroborative
+   disagreement reported as an operational mismatch, never as FAIL. Do not
+   ask to change that aggregation; audit the ROLES instead: sampling,
+   quadrature and float legs must be corroborative, decisive legs must be
+   genuine proofs or certified refutations, and no decisive value may be a
+   literal. When a script WITHOUT the helper lets a corroborative or sampled
+   check reach VERDICT: FAIL, the concrete instruction is: use
+   `# ASTRA_CERTIFIED: verdict` and `decide()` with those checks marked
+   corroborative.
 """
 
 

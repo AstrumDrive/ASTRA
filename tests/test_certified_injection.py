@@ -45,7 +45,8 @@ class Expansion(unittest.TestCase):
         self.assertIn("compile(_astra_validator, 'validator.py', \"exec\")", expanded)
         self.assertEqual(info, prelude_info())
         self.assertRegex(info["sha256"], r"^[0-9a-f]{64}$")
-        self.assertEqual(info["version"], "arb-1")
+        self.assertEqual(info["version"], "verdict-1+arb-1")      # arb includes verdict
+        self.assertEqual(info["kind"], "arb")
 
     def test_nothing_that_looks_obfuscated(self):
         # A workstation antivirus deleted the base64 version on launch.
@@ -88,10 +89,11 @@ class Expansion(unittest.TestCase):
 
     @unittest.skipUnless(HAVE_FLINT, "python-flint is not installed")
     def test_api_list_matches_the_prelude(self):
-        import core.certified.arb_prelude as prelude  # noqa: F401  (needs flint)
+        import core.certified.arb_prelude as arb_prelude  # needs flint
+        import core.certified.verdict_prelude as verdict_prelude
         for name in PRELUDE_API:
             with self.subTest(name=name):
-                self.assertTrue(hasattr(prelude, name))
+                self.assertTrue(hasattr(arb_prelude, name) or hasattr(verdict_prelude, name))
 
     def test_analytic_tails_are_parsed_once_each(self):
         stdout = ("CERTIFIED_PRELUDE: arb-1\nANALYTIC_TAIL: |R| <= 2/|z|^2 for |z| >= 40\n"

@@ -276,3 +276,21 @@ Primera entrega: C0 + C1.
   registra `certified_prelude` (versión y hash). Solo motor Python: en local
   hace falta python-flint (en `requirements.txt`; el doctor lo avisa) y el
   Python de los validadores de ASTRUM ya trae la 0.9.0.
+- **Veredicto por ramas: decisivas y corroborativas** (`core/certified/verdict_prelude.py`,
+  2026-10-09). El mismo día, tres validadores que el revisor aceptaba en lo
+  demás volvieron atrás por una sola línea `all(checks.values())`, que dejaba a
+  una cuadratura o a un muestreo imprimir FAIL sobre una afirmación
+  asintótica. Pasó en la ronda 0 del ciclo de Kondo de la mañana, en el caso
+  sintético verdadero y en la ronda 2 de Kondo (a), donde el revisor ya daba
+  por buenas las partes decisivas. `# ASTRA_CERTIFIED: verdict` (Python puro;
+  `arb` lo incluye) carga `leg(nombre, valor, detalle, role)`, `run_leg` y
+  `decide()`: el valor solo puede ser True, False o None. FAIL solo sale de una
+  rama decisiva en False. Una decisiva en None termina sin veredicto (salida
+  5, `DECISION: UNDECIDED`). Una corroborativa que discrepa termina sin
+  veredicto (salida 6, `DECISION: CORROBORATION_MISMATCH`), nunca en FAIL. El
+  auditor determinista acepta el FAIL del helper cuando el resultado registra
+  el módulo, y marca una rama decisiva con True literal. El analista no puede
+  devolver VALIDATED ni REFUTED ante UNDECIDED o CORROBORATION_MISMATCH. El
+  revisor no pide cambiar esa agregación; audita los roles, y si un validador
+  sin el helper deja que algo muestreado llegue a FAIL, la instrucción
+  concreta es usar `decide()`.
