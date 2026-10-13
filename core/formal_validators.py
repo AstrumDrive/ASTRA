@@ -30,8 +30,130 @@ def clean_lean4_source(source: str) -> str:
     return _ENGINE_MARKER.sub("", source or "").lstrip()
 
 
+# `_FORBIDDEN` is a raw text scan, so before this fix it fired on the *word*
+# sorry/admit/axiom anywhere in the file -- including inside `--` line
+# comments and `/- -/` (or `/-- -/` doc) block comments. `lean_nat_add_comm`
+# measured this directly on 2026-08-31 (quality_20260831_125334.json,
+# post-timeout-fix): a sound proof was REJECTED before Lean ever ran because
+# its doc comments said "no `sorry`" and "axiom set via the standard command"
+# -- prose *about* the absence of these constructs, not a use of them. Nested
+# block comments are tracked with a depth counter (Lean allows `/- /- -/ -/`)
+# and `"..."` string contents are passed through untouched but not scanned
+# for comment delimiters, so a stray `--` or `/-` inside a string literal
+# can't be used to smuggle real code past the gate by making it look like a
+# comment.
+def _strip_lean_comments(source: str) -> str:
+    out: list[str] = []
+    i = 0
+    n = len(source)
+    depth = 0
+    in_string = False
+    while i < n:
+        c = source[i]
+        if depth > 0:
+            if source.startswith("/-", i):
+                depth += 1
+                i += 2
+            elif source.startswith("-/", i):
+                depth -= 1
+                i += 2
+            else:
+                i += 1
+            continue
+        if in_string:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(source[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            out.append(c)
+            i += 1
+            continue
+        if source.startswith("/-", i):
+            depth = 1
+            i += 2
+            continue
+        if source.startswith("--", i):
+            j = source.find("\n", i)
+            if j == -1:
+                break
+            out.append("\n")
+            i = j + 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _forbidden_tokens(source: str) -> list[str]:
-    return sorted({match.group(0).lower() for match in _FORBIDDEN.finditer(source)})
+    code_only = _strip_lean_comments(source)
+    return sorted({match.group(0).lower() for match in _FORBIDDEN.finditer(code_only)})
+
+
+# `lean <file>` elaborates the file and stops: a `def main : IO Unit` is
+# type-checked but never evaluated, so a script ending in
+# `IO.println "VERDICT: PASS"` compiles cleanly and prints nothing at all.
+#
+# That silence is what made `lean_nat_add_comm` the only deterministic
+# CODE_ERROR in the quality suite -- 6 failures in 6 complete runs, while
+# every other operational failure churned. ASTRA got the mathematics right
+# each time: `original_claim_verdict` was SUPPORTED and the kernel accepted
+# the proof, but the case asks the script to print a verdict and the runner
+# never gave `main` a chance to run.
+#
+# Measured 2026-08-29 against the pinned Lean 4.30.0 / Mathlib project:
+#
+#   valid theorem + main, no --run  -> exit 0, stdout empty
+#   valid theorem + main, --run     -> exit 0, stdout "VERDICT: PASS"
+#   FALSE theorem + main, --run     -> exit 1, type mismatch, no PASS printed
+#   valid theorem, no main, --run   -> exit 1, "unknown declaration 'main'"
+#
+# The third line is why this is not a loosening of the gate: Lean elaborates
+# the whole file before the interpreter starts, so a proof that does not
+# compile fails first and `main` never executes. The case's own stated
+# failure mode -- "Printing PASS without compiling a theorem" -- stays
+# impossible, and `_FORBIDDEN` still rejects `sorry`/`admit`/`axiom`
+# independently.
+#
+# The fourth line is why this is conditional: an unconditional `--run` would
+# break every artifact that proves a theorem without printing anything.
+_LEAN_MAIN = re.compile(
+    r"^\s*(?:@\[[^\]]*\]\s*)*"
+    r"(?:private\s+|protected\s+|unsafe\s+|partial\s+|noncomputable\s+)*"
+    r"def\s+main\b",
+    re.M,
+)
+_LEAN_MISSING_MAIN = "unknown declaration 'main'"
+
+
+def lean4_declares_main(source: str) -> bool:
+    """True when the artifact defines a `main` that `--run` could evaluate."""
+    return bool(_LEAN_MAIN.search(source or ""))
+
+
+def lean4_argv_tail(source: str, path: str) -> list[str]:
+    """`lean` arguments for `source`, evaluating `main` when one is declared."""
+    if lean4_declares_main(source):
+        return ["lean", "--run", path]
+    return ["lean", path]
+
+
+def _lean4_missing_main(stdout: str, stderr: str) -> bool:
+    """True when `--run` failed only because there is no `main` to run.
+
+    The declaration scan is a regex over source text, so it can be fooled by a
+    `main` inside a comment or string, or by one nested in a namespace. When
+    that happens the run is retried without `--run`, which makes this change
+    incapable of turning a currently-passing artifact into a failure: the
+    worst case is exactly the previous behaviour.
+    """
+    return _LEAN_MISSING_MAIN in (stdout or "") or _LEAN_MISSING_MAIN in (stderr or "")
 
 
 def _unavailable(detail: str, oracle: str) -> dict[str, Any]:
@@ -81,20 +203,11 @@ def _evaluate_lean4_local_wsl(
             handle.write(source)
         from core.engine_router import _win_to_wsl_path
 
+        argv_tail = lean4_argv_tail(source, _win_to_wsl_path(str(path)))
         command = ["wsl"]
         if distro:
             command.extend(["-d", distro])
-        command.extend(
-            [
-                "--cd",
-                project,
-                "--",
-                lake,
-                "env",
-                "lean",
-                _win_to_wsl_path(str(path)),
-            ]
-        )
+        command.extend(["--cd", project, "--", lake, "env", *argv_tail])
         result = subprocess.run(
             command,
             capture_output=True,
@@ -103,6 +216,19 @@ def _evaluate_lean4_local_wsl(
             errors="replace",
             timeout=timeout,
         )
+        if (
+            result.returncode != 0
+            and "--run" in argv_tail
+            and _lean4_missing_main(result.stdout, result.stderr)
+        ):
+            result = subprocess.run(
+                [item for item in command if item != "--run"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
         return {
             "status": "PASS" if result.returncode == 0 else "FAIL",
             "stdout": result.stdout[-8000:],
@@ -184,8 +310,9 @@ def _evaluate_lean4_local(source: str, timeout: int) -> dict[str, Any]:
     try:
         with handle:
             handle.write(source)
+        argv_tail = lean4_argv_tail(source, str(path))
         result = subprocess.run(
-            [lake, "env", "lean", str(path)],
+            [lake, "env", *argv_tail],
             cwd=project,
             capture_output=True,
             text=True,
@@ -193,6 +320,20 @@ def _evaluate_lean4_local(source: str, timeout: int) -> dict[str, Any]:
             errors="replace",
             timeout=timeout,
         )
+        if (
+            result.returncode != 0
+            and "--run" in argv_tail
+            and _lean4_missing_main(result.stdout, result.stderr)
+        ):
+            result = subprocess.run(
+                [lake, "env", "lean", str(path)],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
         return {
             "status": "PASS" if result.returncode == 0 else "FAIL",
             "stdout": result.stdout[-8000:],
@@ -229,6 +370,9 @@ async def _evaluate_lean4_remote(source: str, timeout: int) -> dict[str, Any]:
         "~/miniforge3/envs/astra-bench/bin/git",
     )
     source_b64 = base64.b64encode(source.encode("utf-8")).decode("ascii")
+    # Decided here rather than remotely so both oracles run the identical
+    # argv for the same artifact; the remote half only replays the decision.
+    run_flag = ["--run"] if lean4_declares_main(source) else []
     remote_code = f"""
 import base64, json, os, subprocess, tempfile
 project = os.path.abspath(os.path.expanduser({project!r}))
@@ -269,14 +413,27 @@ else:
             }}
         else:
             try:
+                run_flag = {run_flag!r}
                 result = subprocess.run(
-                    [lake_bin, "env", "lean", path],
+                    [lake_bin, "env", "lean"] + run_flag + [path],
                     cwd=project,
                     env=env,
                     capture_output=True,
                     text=True,
                     timeout={int(timeout)},
                 )
+                if result.returncode != 0 and run_flag and (
+                    {_LEAN_MISSING_MAIN!r} in (result.stdout or "")
+                    or {_LEAN_MISSING_MAIN!r} in (result.stderr or "")
+                ):
+                    result = subprocess.run(
+                        [lake_bin, "env", "lean", path],
+                        cwd=project,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout={int(timeout)},
+                    )
                 version = subprocess.run(
                     [lake_bin, "env", "lean", "--version"],
                     cwd=project,
