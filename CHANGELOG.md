@@ -9,6 +9,21 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.14 (2026-10-13)
+
+Two full cycles may now run at once, so two chats can work without waiting
+on each other. The slots already existed: machine-wide locks in
+`core/runtime_resources.acquire_cycle_slot`, sized by
+`ASTRA_MAX_CONCURRENT_CYCLES`. Only the contract pinned them to one.
+
+- The contract check `deliberative_cycle_serialization` accepts 1 to
+  `MAX_SHARED_ACCOUNT_CYCLES` (2) full cycles on one model-account set, and
+  still fails above that. A third cycle waits for a slot
+  (`wait_for_cycle_slot_seconds`) or returns BUSY, as before.
+- Both cycles draw on the same Codex, Claude and Gemini subscriptions, so
+  quota burns about twice as fast; each falls back down its own ladder when
+  a quota runs out. `.env.example` keeps 1 for collaborators.
+
 ## 1.1.13 (2026-10-13)
 
 Merges two changes another session published to the company repository the

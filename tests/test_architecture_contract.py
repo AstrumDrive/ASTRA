@@ -186,9 +186,16 @@ class ArchitectureContractTests(unittest.TestCase):
         self.assertEqual(audit["status"], "FAIL")
         self.assertIn("agy_effort", audit["required_failures"])
 
-    def test_parallel_full_cycles_fail_shared_account_contract(self):
+    def test_two_parallel_full_cycles_pass_shared_account_contract(self):
+        # 1.1.14: up to two full cycles may share one model-account set.
         env = self.canonical_environment()
         env["ASTRA_MAX_CONCURRENT_CYCLES"] = "2"
+        audit = audit_production_architecture(env, check_binaries=False)
+        self.assertNotIn("deliberative_cycle_serialization", audit["required_failures"])
+
+    def test_more_parallel_full_cycles_than_the_ceiling_fail(self):
+        env = self.canonical_environment()
+        env["ASTRA_MAX_CONCURRENT_CYCLES"] = "3"
         audit = audit_production_architecture(env, check_binaries=False)
         self.assertEqual(audit["status"], "FAIL")
         self.assertIn(

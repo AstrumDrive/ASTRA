@@ -38,6 +38,10 @@ EXPECTED_PRIMARY_MODELS = {
 }
 
 
+# Full deliberative cycles allowed at once on one model-account set (1.1.14).
+MAX_SHARED_ACCOUNT_CYCLES = 2
+
+
 def _model_name(rung: str) -> str:
     return rung.split("@", 1)[0]
 
@@ -408,11 +412,16 @@ def audit_production_architecture(
         manifest["controls"]["validator_repair_vnext"],
         True,
     )
+    # 1.1.14: full cycles share one model-account set, so their number stays
+    # bounded, but no longer pinned to 1. Up to MAX_SHARED_ACCOUNT_CYCLES run at
+    # once (machine-wide slots in core/runtime_resources.acquire_cycle_slot);
+    # beyond that quota burn and latency stop being predictable.
+    cycles = manifest["controls"]["max_concurrent_cycles"]
     add(
         "deliberative_cycle_serialization",
-        manifest["controls"]["max_concurrent_cycles"] == 1,
-        manifest["controls"]["max_concurrent_cycles"],
-        1,
+        isinstance(cycles, int) and 1 <= cycles <= MAX_SHARED_ACCOUNT_CYCLES,
+        cycles,
+        f"1..{MAX_SHARED_ACCOUNT_CYCLES}",
     )
 
     if check_binaries:
