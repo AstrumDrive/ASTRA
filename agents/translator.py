@@ -155,6 +155,13 @@ ASTRA VALIDATOR-REPAIR vNEXT CONTRACT:
    `INPUT POLICY: assume`, the user approved placeholder values: declare each
    one in an `ASSUMED: <input> = <value> -- <reason>` line and proceed to a
    PASS/FAIL verdict instead of declaring non-decidability.
+7. On the SUCCESS path, after printing "VERDICT: PASS", let the script COMPLETE
+   NATURALLY. Never call `sys.exit(0)` (or `exit(0)`) to end a passing run. In
+   SageMath especially, the runner reports an explicitly raised SystemExit as a
+   NONZERO exit, so a `sys.exit(0)` turns a printed VERDICT: PASS into a spurious
+   operational error. Operational failures still exit nonzero per clause 1, and a
+   NON-DECIDABLE run still exits with code 3 per clause 6; this applies only to
+   the passing path.
 """
 
 
