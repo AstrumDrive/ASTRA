@@ -9,6 +9,20 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## Unreleased
+
+- Verdict from legs: `# ASTRA_CERTIFIED: verdict` (pure Python; `arb`
+  includes it) loads the vetted `leg`/`run_leg`/`decide()` helper
+  (`core/certified/verdict_prelude.py`). FAIL comes only from a decisive leg
+  that is False; an undecided decisive leg (exit 5) or a corroborative
+  disagreement (exit 6, CORROBORATION_MISMATCH) ends without a verdict, so
+  quadrature and sampling can no longer refute an asymptotic claim. The
+  verdict guard accepts the helper's FAIL path and flags a decisive leg
+  with a literal True; the analyst cannot return VALIDATED or REFUTED on
+  UNDECIDED or CORROBORATION_MISMATCH; author rule 8, reviewer rule 11
+  audits roles instead of the aggregation. Motivated by three review
+  rejections of 9 October for one `all(checks)` mixing proof and sampling.
+
 ## 1.1.7 (2026-10-09)
 
 Two Kondo cycles stopped at review because floats cannot certify complex
