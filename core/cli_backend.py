@@ -38,7 +38,7 @@ import subprocess
 import tempfile
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Directorio de trabajo para el -C de codex (dir del proyecto/workspace).
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +65,7 @@ class CliResult:
     model_used: str = ""      # modelo que respondio ('default' = el configurado del CLI)
     warning: str = ""         # aviso cuando la respuesta vino de un modelo fallback
     account_profile: str = "" # perfil local de credenciales usado por este proceso
+    usage: dict = field(default_factory=dict)  # 1.1.16: tokens of this call (codex, claude)
 
 
 def _claude_bin() -> str:
@@ -191,7 +192,7 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     return (f'{_PS_UTF8_PREAMBLE}'
             f'Get-Content -Raw -Encoding UTF8 -LiteralPath "{promptfile}" | '
             f'& "{cbin}" exec --dangerously-bypass-approvals-and-sandbox --ignore-user-config '
-            f'--skip-git-repo-check{m}{r} -C "{ws}" -o "{out}" -')
+            f'--skip-git-repo-check --json{m}{r} -C "{ws}" -o "{out}" -')
 
 
 def _codex_builder(
@@ -221,6 +222,7 @@ def _codex_builder(
         "--dangerously-bypass-approvals-and-sandbox",
         "--ignore-user-config",
         "--skip-git-repo-check",
+        "--json",
     ]
     if model:
         argv += ["-m", model]
@@ -351,6 +353,45 @@ def _parse_claude(stdout: str, _outfile: str) -> tuple[str, float]:
     if data.get("is_error"):
         raise RuntimeError(data.get("result", "claude is_error=true"))
     return data.get("result", ""), float(data.get("total_cost_usd", 0.0) or 0.0)
+
+
+def usage_from(kind: str, stdout: str) -> dict:
+    """Tokens one call used, from the CLI's own report (1.1.16).
+
+    codex exec --json ends each turn with {"type":"turn.completed","usage":
+    {input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens}};
+    claude -p --output-format json carries "usage" {input_tokens,
+    cache_read_input_tokens, cache_creation_input_tokens, output_tokens}.
+    agy reports nothing. Returns {} when there is nothing to read."""
+    out = {"input": 0, "cached": 0, "output": 0, "reasoning": 0}
+    found = False
+    text = stdout or ""
+    if kind == "codex":
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("{") or "turn.completed" not in line:
+                continue
+            try:
+                usage = (json.loads(line).get("usage") or {})
+            except ValueError:
+                continue
+            found = True
+            out["input"] += int(usage.get("input_tokens") or 0)
+            out["cached"] += int(usage.get("cached_input_tokens") or 0)
+            out["output"] += int(usage.get("output_tokens") or 0)
+            out["reasoning"] += int(usage.get("reasoning_output_tokens") or 0)
+    elif kind == "claude":
+        for cand in (text.strip().splitlines()[-1:] or [""]):
+            try:
+                usage = (json.loads(cand).get("usage") or {})
+            except ValueError:
+                continue
+            found = bool(usage)
+            cached = int(usage.get("cache_read_input_tokens") or 0)
+            out["input"] = int(usage.get("input_tokens") or 0) + cached + int(usage.get("cache_creation_input_tokens") or 0)
+            out["cached"] = cached
+            out["output"] = int(usage.get("output_tokens") or 0)
+    return out if found else {}
 
 
 def _parse_codex(_stdout: str, outfile: str) -> tuple[str, float]:
@@ -732,7 +773,8 @@ def _invoke_once(kind: str, promptfile: str, outfile: str, model: str | None,
             "la respuesta era SOLO un puntero a un artefacto de plan-mode: el "
             "modelo dejo su contenido en un fichero que ASTRA no puede leer. "
             f"{artifact_note}"))
-    return CliResult(True, text=text, cost_usd=cost, warning=artifact_note)
+    return CliResult(True, text=text, cost_usd=cost, warning=artifact_note,
+                     usage=usage_from(kind, proc.stdout))
 
 
 def call_cli(kind: str, prompt: str, timeout: int | None = None,

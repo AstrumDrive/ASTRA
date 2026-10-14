@@ -664,6 +664,23 @@ def _cli_meta(agents):
     return warnings, models, costs, accounts
 
 
+def _cli_usage(agents) -> dict:
+    """Tokens per role and in total (1.1.16). Roles that share a name (the
+    two proposers) are summed; agy reports nothing and is left out."""
+    per_role = {}
+    for name, ag in agents:
+        usage = getattr(ag, "cli_usage", None) or {}
+        if not usage.get("calls"):
+            continue
+        row = per_role.setdefault(name, {"calls": 0, "input": 0, "cached": 0, "output": 0, "reasoning": 0})
+        for key in row:
+            row[key] += int(usage.get(key) or 0)
+    if not per_role:
+        return {}
+    total = {key: sum(r[key] for r in per_role.values()) for key in ("calls", "input", "cached", "output", "reasoning")}
+    return {**per_role, "total": total}
+
+
 def _escalate_agent_models(agent):
     """Escalada POR CALIDAD de la escalera de modelos de un agente.
 
@@ -1820,6 +1837,9 @@ async def _do_cycle_impl(req: dict) -> dict:
         if cli_costs:
             out["cli_cost_usd"] = {**cli_costs,
                                    "total": round(sum(cli_costs.values()), 4)}
+        usage = _cli_usage(agents + ensemble_agents)
+        if usage:
+            out["cli_usage"] = usage
         if cli_accounts:
             out["cli_account_profiles"] = cli_accounts
         if quality_escalations:
@@ -2917,6 +2937,10 @@ async def _do_cycle_impl(req: dict) -> dict:
         # reportan y van a 0). Telemetria para la auditoria de cuota, NO cargo real.
         out["cli_cost_usd"] = {**cli_costs,
                                "total": round(sum(cli_costs.values()), 4)}
+    cli_usage = _cli_usage(agents + ensemble_agents)
+    if cli_usage:
+        # 1.1.16: tokens per role (codex and claude report them; agy does not).
+        out["cli_usage"] = cli_usage
     if cli_accounts:
         out["cli_account_profiles"] = cli_accounts
     if quality_escalations:

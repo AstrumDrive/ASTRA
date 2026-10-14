@@ -144,6 +144,8 @@ def cycle_record(ckpt: dict) -> dict:
         "budget_total_s": budget.get("total_seconds"),
         "budget_remaining_s": budget.get("remaining_seconds"),
         "max_mode": bool(ckpt.get("max_mode")),
+        # 1.1.16: tokens per role and in total (codex and claude; agy reports none).
+        "tokens": ((ckpt.get("result") or {}).get("cli_usage") or {}) if isinstance(ckpt.get("result"), dict) else {},
         "strict_contract": _strict_from(ckpt),
         "goal_key": goal_full,            # identity: full text, never a snippet
         "goal": _snippet(goal_full, 90),  # display only

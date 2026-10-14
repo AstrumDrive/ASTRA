@@ -182,6 +182,9 @@ class ASTRAIntelligence:
         # astra_tool._prepare_agent; enables one retry on the next model rung
         # after a timeout (call_cli itself only descends on quota errors).
         self.timeout_retry_budget = None
+        # 1.1.16: tokens this agent used across its calls (codex and claude
+        # report them; agy does not), and how many calls answered.
+        self.cli_usage = {"calls": 0, "input": 0, "cached": 0, "output": 0, "reasoning": 0}
         self.cli_cost_usd = 0.0     # coste proxy acumulado (lo reporta el CLI de claude;
                                     # codex/agy devuelven 0) — telemetria de cuota, no cargo
 
@@ -246,6 +249,14 @@ class ASTRAIntelligence:
 
         if not self.api_key:
             logger.warning(f"No API KEY found for {self.provider}. Operating in SIMULATED mode.")
+
+    def _add_usage(self, res) -> None:
+        usage = getattr(res, "usage", None) or {}
+        if not usage:
+            return
+        self.cli_usage["calls"] += 1
+        for key in ("input", "cached", "output", "reasoning"):
+            self.cli_usage[key] += int(usage.get(key) or 0)
 
     def _next_rung_after_timeout(self, error: str | None) -> bool:
         """After a timed-out call, drop the rung that timed out and say whether
@@ -314,6 +325,7 @@ class ASTRAIntelligence:
                 if getattr(res, "account_profile", None):
                     self.cli_last_account_profile = res.account_profile
                 self.cli_cost_usd += float(getattr(res, "cost_usd", 0.0) or 0.0)
+                self._add_usage(res)
                 if res.warning:
                     # Hubo fallback por cuota: dejar rastro en el log y en el ciclo
                     logger.warning(res.warning)
@@ -327,6 +339,7 @@ class ASTRAIntelligence:
                     if res.model_used:
                         self.cli_last_model = res.model_used
                     self.cli_cost_usd += float(getattr(res, "cost_usd", 0.0) or 0.0)
+                    self._add_usage(res)
                     if res.warning:
                         self.cli_warnings.append(res.warning)
                 if not res.ok:
