@@ -9,6 +9,17 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.17 (2026-10-13)
+
+Codex calls carry less fixed context.
+
+- `ASTRA_CODEX_LEAN=1` starts every Codex call with its agent tools and
+  environment notes switched off (`CODEX_LEAN_OVERRIDES` in
+  `core/cli_backend.py`): shell, patching, plan, web search, image viewing,
+  permission and environment instructions, project docs. ASTRA only asks
+  Codex for text. A one-word call went from 17.5k input tokens (5.2k
+  uncached) to 10.3k (2.4k uncached). Off by default.
+
 ## 1.1.16 (2026-10-13)
 
 Tokens are counted per role, and strong models plan while lighter ones write

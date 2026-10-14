@@ -165,6 +165,34 @@ _PS_UTF8_PREAMBLE = (
 )
 
 
+# 1.1.17: ASTRA asks Codex for text only, so the agent tools (shell, patching,
+# web search, image viewing) and the environment and permission notes it would
+# otherwise load are dead weight. With ASTRA_CODEX_LEAN=1 they are switched off:
+# a one-word call measured 17.5k input tokens (5.2k uncached) by default and
+# 10.3k (2.4k uncached) lean, Codex 0.160, 2026-10-13. Keys Codex does not know
+# are ignored, so the list is safe across versions.
+CODEX_LEAN_OVERRIDES = (
+    "tools.web_search=false",
+    "tools.view_image=false",
+    'web_search="disabled"',
+    "include_apply_patch_tool=false",
+    "include_plan_tool=false",
+    "features.apply_patch_freeform=false",
+    "features.view_image_tool=false",
+    "features.web_search_request=false",
+    "features.unified_exec=false",
+    "features.shell_tool=false",
+    "include_permissions_instructions=false",
+    "include_environment_context=false",
+    "project_doc_max_bytes=0",
+)
+
+
+def codex_lean_overrides() -> tuple:
+    flag = (os.environ.get("ASTRA_CODEX_LEAN") or "0").strip().strip("'\"").lower()
+    return CODEX_LEAN_OVERRIDES if flag in {"1", "true", "yes", "on"} else ()
+
+
 def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     model, rung_effort = split_model_effort(model)
     m = f" -m {model}" if model else ""
@@ -180,6 +208,7 @@ def _ps_codex(promptfile: str, model: str | None, out: str, ws: str) -> str:
     # unset variable no longer runs Codex below the audited effort.
     effort = _effort_for("codex", rung_effort, "ASTRA_CODEX_REASONING", "xhigh")
     r = f" -c 'model_reasoning_effort=\\\"{effort}\\\"'" if effort else ""
+    r += "".join(" -c '%s'" % o.replace('"', '\\"') for o in codex_lean_overrides())
     # 2026-08-09: el server MCP puede arrancar con un PATH sin el dir de codex
     # (instalador nativo en AppData\Local\Programs\OpenAI\Codex\bin) -> el pipeline
     # moria con CommandNotFound en la fase reviewer. Se honra ASTRA_CODEX_BIN
@@ -229,6 +258,8 @@ def _codex_builder(
     effort = _effort_for("codex", rung_effort, "ASTRA_CODEX_REASONING", "xhigh")
     if effort:
         argv += ["-c", f'model_reasoning_effort="{effort}"']
+    for override in codex_lean_overrides():
+        argv += ["-c", override]
     argv += ["-C", ws, "-o", out, "-"]
     return {"argv": argv, "stdin_file": promptfile}
 
