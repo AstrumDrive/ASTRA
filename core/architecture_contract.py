@@ -38,6 +38,9 @@ EXPECTED_PRIMARY_MODELS = {
 }
 
 
+# Claude models allowed as the first rung of the validator planner (1.1.16).
+PLANNER_TOP_MODELS = {"claude-opus-5-5", "claude-fable-5-1"}
+
 # Full deliberative cycles allowed at once on one model-account set (1.1.14).
 MAX_SHARED_ACCOUNT_CYCLES = 2
 
@@ -194,6 +197,8 @@ def production_manifest(
                 "reviewer": effective("reviewer", roles["reviewer"]),
                 "analyst": effective("analyst", roles["analyst"]),
                 "navigator": effective("navigator", roles["navigator"]),
+                # 1.1.16: the validator planner (ASTRA_AUTHOR_SPLIT=1).
+                "planner": _csv(source, "ASTRA_PLANNER_MODELS"),
             },
         },
         "effort": {
@@ -249,6 +254,7 @@ def production_manifest(
                 source,
                 "ASTRA_REQUIRED_LOCAL_ENGINES",
             ),
+            "author_split": _enabled(source, "ASTRA_AUTHOR_SPLIT", "0"),
             "max_concurrent_cycles": _integer(
                 source,
                 "ASTRA_MAX_CONCURRENT_CYCLES",
@@ -366,7 +372,7 @@ def audit_production_architecture(
         ),
         "author": (
             "sonnet"
-            if profile == "quota-optimized"
+            if profile == "quota-optimized" or manifest["controls"]["author_split"]
             else EXPECTED_PRIMARY_MODELS["claude_cli"]
         ),
         "reviewer": EXPECTED_PRIMARY_MODELS["codex_cli"],
@@ -380,6 +386,15 @@ def audit_production_architecture(
             bool(ladder) and _model_name(ladder[0]) == primary,
             ladder[0] if ladder else "",
             primary,
+        )
+    if manifest["controls"]["author_split"]:
+        # The cheaper author is only sound behind a top-tier plan.
+        planner = manifest["models"]["effective"].get("planner") or []
+        add(
+            "planner_effective_model",
+            bool(planner) and _model_name(planner[0]) in PLANNER_TOP_MODELS,
+            planner[0] if planner else "",
+            " or ".join(sorted(PLANNER_TOP_MODELS)),
         )
     add(
         "codex_reasoning",

@@ -9,6 +9,24 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.16 (2026-10-13)
+
+Tokens are counted per role, and strong models plan while lighter ones write
+and re-check.
+
+- Every answered CLI call records its tokens (input, cached, output,
+  reasoning): Codex through `exec --json`, Claude from its JSON `usage`.
+  Agy reports none. Results carry `cli_usage` per role plus `total`, and
+  each telemetry row carries `tokens`.
+- `ASTRA_AUTHOR_SPLIT=1` adds a "plan" phase before code authoring: the
+  planner ladder (`ASTRA_PLANNER_MODELS`, contract requires Opus or Fable
+  first) writes a numbered validation plan of at most 450 words, which is
+  appended to the author's input. The author ladder may then start at
+  Sonnet. A failed plan is a warning, not a failed cycle. Off by default.
+- `ASTRA_REVIEWER_FOLLOWUP_MODELS`: the second and later model reviews in a
+  cycle use this ladder; the first review keeps `ASTRA_REVIEWER_MODELS`.
+- The progress window shows the "plan" phase when it runs.
+
 ## 1.1.15 (2026-10-13)
 
 The progress window shows which model, at which effort, serves each stage.

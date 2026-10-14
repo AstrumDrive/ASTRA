@@ -991,7 +991,7 @@ def _reserve_seconds(phase: str, default: int) -> int:
 
 def _phase_downstream_reserve(phase: str) -> int:
     """Seconds held back for whatever must still run after ``phase``."""
-    return _reserve_seconds(phase, {"REVIEWER": 280, "TRANSLATOR_REPAIR": 160}.get(phase, 0))
+    return _reserve_seconds(phase, {"REVIEWER": 280, "TRANSLATOR_REPAIR": 160, "PLANNER": 600}.get(phase, 0))
 
 
 def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> int:
@@ -1712,6 +1712,15 @@ async def _do_cycle_impl(req: dict) -> dict:
     trans = ASTRAIntelligence(provider=pmap["translator"],
                               cli_models=_phase_models("TRANSLATOR"),
                               cli_timeout=_phase_timeout("TRANSLATOR"))
+    # 1.1.16: with ASTRA_AUTHOR_SPLIT=1 the strongest model plans the validator
+    # (ASTRA_PLANNER_MODELS) and the translator ladder, cheapest first, writes it.
+    author_split = (
+        os.environ.get("ASTRA_AUTHOR_SPLIT", "0").strip().strip("'\"").lower()
+        in ("1", "true", "on", "yes")
+    )
+    planner = ASTRAIntelligence(provider=pmap["translator"],
+                                cli_models=_phase_models("PLANNER"),
+                                cli_timeout=_phase_timeout("PLANNER")) if author_split else None
     analyst = ASTRAIntelligence(provider=pmap["analyst"],
                                 cli_models=_phase_models("ANALYST"),
                                 cli_timeout=_phase_timeout("ANALYST"))
@@ -1723,6 +1732,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                                   cli_timeout=_phase_timeout("NAVIGATOR"))
     agents = [
         ("conjecture", conj),
+        *([("planner", planner)] if planner is not None else []),
         ("translator", trans),
         ("reviewer", reviewer),
         ("analyst", analyst),
@@ -1934,6 +1944,19 @@ async def _do_cycle_impl(req: dict) -> dict:
             )
         return patched_code, None
 
+    # 1.1.16: the first model review is the decisive audit and keeps the
+    # reviewer's own ladder; later reviews check a bounded fix and may use the
+    # lighter ASTRA_REVIEWER_FOLLOWUP_MODELS ladder. Unset keeps one ladder.
+    reviewer_first_models = reviewer.cli_models
+    reviewer_followup_models = _phase_models("REVIEWER_FOLLOWUP")
+
+    def _reviewer_ladder_for_round():
+        done = sum(1 for r in review_history if r.get("source") == "model_reviewer")
+        reviewer.cli_models = (
+            reviewer_followup_models if (reviewer_followup_models and done >= 1)
+            else reviewer_first_models
+        )
+
     async def _review_or_revise(current_code, conjecture_text, translation_input):
         """Codex audits; Claude remains the sole generative code author."""
         review_failure_phase.clear()
@@ -2052,6 +2075,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                 if preflight.get("status") != "APPROVED":
                     review = preflight_as_review(preflight)
                 else:
+                    _reviewer_ladder_for_round()
                     _prepare_agent(reviewer, "REVIEWER", review_reserve)
                     review = await reviewer.review_validation_code(
                         shared_goal=shared_goal,
@@ -2061,6 +2085,7 @@ async def _do_cycle_impl(req: dict) -> dict:
                     )
                     review["source"] = "model_reviewer"
             else:
+                _reviewer_ladder_for_round()
                 _prepare_agent(reviewer, "REVIEWER", review_reserve)
                 review = await reviewer.review_validation_code(
                     shared_goal=shared_goal,
@@ -2416,6 +2441,21 @@ async def _do_cycle_impl(req: dict) -> dict:
             "On a timeout, preserve the claim and change the computational strategy; "
             "an incomplete attempt cannot establish the original claim."
         )
+    if planner is not None and not _phase_starved("PLANNER"):
+        _progress("plan", timings=timings)
+        t0 = time.monotonic()
+        _prepare_agent(planner, "PLANNER")
+        plan = await planner.plan_validation(translation_input)
+        _mark("plan", t0)
+        if isinstance(plan, str) and plan.strip() and not plan.startswith("API_ERROR:"):
+            from agents.translator import PLAN_BLOCK_HEADER
+
+            translation_input += f"\n\n{PLAN_BLOCK_HEADER}:\n{plan.strip()}"
+            checkpoint_state["validation_plan"] = plan.strip()
+        else:
+            # The plan is an aid, not a gate: without it the author still has
+            # the claim, the definitions and the conjecture.
+            planner.cli_warnings.append(f"PLAN omitido: {str(plan)[:200]}")
     _progress("translate", timings=timings)
     t0 = time.monotonic()
     _prepare_agent(trans, "TRANSLATOR")

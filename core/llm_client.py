@@ -430,6 +430,16 @@ class ASTRAIntelligence:
             )
         return response
 
+    async def plan_validation(self, translation_input: str) -> str:
+        """1.1.16: a short validation plan, no code, for a lighter author."""
+        from agents.translator import VALIDATION_PLANNER_PROMPT
+
+        logger.info(f"[{self.provider.upper()}] Planning the validator...")
+        response = await self._call_api(VALIDATION_PLANNER_PROMPT, f"Request:\n{translation_input}")
+        if response == "SIMULATED_RESPONSE":
+            return "1. PROPOSITION: simulated\n4. DECISIVE LEGS: simulated\n5. FAIL ROUTE: simulated"
+        return response
+
     async def translate_to_code(
         self,
         conjecture: str,

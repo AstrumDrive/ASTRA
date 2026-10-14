@@ -38,10 +38,11 @@ PROGRESS_DIR = os.path.join(ROOT, "workspace", "progress")
 CKPT_DIR = os.path.join(ROOT, "workspace", "cycle_checkpoints")
 
 # --follow: phase order and the heartbeat stages that belong to each phase.
-PHASES = ("structure", "conjecture", "translate", "review", "execute", "analyze", "navigate")
+PHASES = ("structure", "conjecture", "plan", "translate", "review", "execute", "analyze", "navigate")
 STAGE_TO_PHASE = {
     "start": "conjecture", "structure": "structure", "conjecture": "conjecture",
     "conjecture_reused": "translate",     # resume_checkpoint: the conjecture is already paid for
+    "plan": "plan",                       # 1.1.16: validator planner (ASTRA_AUTHOR_SPLIT=1)
     "translate": "translate", "translate_retry_minimal": "translate",
     "review": "review", "review_revision": "review", "model_patch": "review",
     "review_regeneration": "review", "quality_escalation": "review",
@@ -51,7 +52,7 @@ STAGE_TO_PHASE = {
 TERMINAL_STAGES = {"done", "failed"}
 # Fallback medians (seconds) when the checkpoint pool has no finished cycles:
 # rounded from the 2026-09 production pool.
-DEFAULT_MEDIANS = {"structure": 120.0, "conjecture": 350.0, "translate": 300.0,
+DEFAULT_MEDIANS = {"structure": 120.0, "conjecture": 350.0, "plan": 90.0, "translate": 300.0,
                    "review": 300.0, "execute": 60.0, "analyze": 200.0, "navigate": 40.0}
 
 
@@ -163,7 +164,7 @@ def estimate_progress(heartbeat: dict, checkpoint: dict, medians: dict, now: flo
     if stage in TERMINAL_STAGES:
         elapsed = float(timings.get("total") or elapsed)
     phase = STAGE_TO_PHASE.get(stage)
-    order = [p for p in PHASES if p != "structure" or "structure" in timings or phase == "structure"]
+    order = [p for p in PHASES if p not in ("structure", "plan") or p in timings or phase == p]
     if medians.get("navigate", 0) <= 0:
         order = [p for p in order if p != "navigate"]
     remaining = 0.0
@@ -222,7 +223,7 @@ def _one_line(text, n: int) -> str:
 
 
 # Heartbeat role -> the phase it serves in PHASES (1.1.15: model per stage).
-ROLE_PHASE = (("conjecture", "conjecture"), ("translator", "translate"), ("reviewer", "review"),
+ROLE_PHASE = (("conjecture", "conjecture"), ("planner", "plan"), ("translator", "translate"), ("reviewer", "review"),
               ("analyst", "analyze"), ("navigator", "navigate"))
 
 
