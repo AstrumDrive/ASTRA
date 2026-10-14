@@ -9,6 +9,17 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.18 (2026-10-13)
+
+The conjecture phase is shorter when the request is already well posed.
+
+- With `ASTRA_CONJECTURE_SKIP_CRITIQUE_WHEN_POSED=1`, a request of at least
+  200 characters that carries a line starting with "Claim:" (the form
+  AGENTS.md asks for) skips the cross-critique round: both proposers still
+  propose and the synthesizer merges both proposals, without the two
+  critique calls. The deliberation trace records `critique_skipped`.
+  Vague requests keep the full round. Off by default.
+
 ## 1.1.17 (2026-10-13)
 
 Codex calls carry less fixed context.

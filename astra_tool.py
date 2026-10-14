@@ -1250,6 +1250,21 @@ def _cycle_cache_payload(req, shared_goal, providers_resolved):
     }
 
 
+_POSED_CLAIM = re.compile(r"(?im)^\s*claim\s*:")
+
+
+def _request_is_posed(intuition: str) -> bool:
+    """1.1.18: a request that already states its definitions and one explicit
+    "Claim:" line (the form AGENTS.md asks for) gains little from the
+    proposers criticising each other; the merge still sees both proposals.
+    ASTRA_CONJECTURE_SKIP_CRITIQUE_WHEN_POSED=1 enables the shortcut."""
+    flag = str(os.environ.get("ASTRA_CONJECTURE_SKIP_CRITIQUE_WHEN_POSED", "0") or "0")
+    if flag.strip().strip("'\"").lower() not in {"1", "true", "yes", "on"}:
+        return False
+    text = str(intuition or "")
+    return len(text) >= 200 and bool(_POSED_CLAIM.search(text))
+
+
 async def _ensemble_conjecture(
     providers,
     axiomatic_base,
@@ -1315,8 +1330,12 @@ async def _ensemble_conjecture(
             "Tu propia propuesta fue:\n%s\n\nAhora critica adversarialmente la(s) "
             "propuesta(s) RIVAL(es):\n\n%s" % (t_i, rivals))
 
-    crits = await asyncio.gather(*[_crit(i) for i in range(len(surv))],
-                                 return_exceptions=True)
+    critique_skipped = _request_is_posed(intuition)
+    if critique_skipped:
+        crits = []
+    else:
+        crits = await asyncio.gather(*[_crit(i) for i in range(len(surv))],
+                                     return_exceptions=True)
     synth_timeout = (
         timeout_for_phase("SYNTH")
         if timeout_for_phase
@@ -1345,10 +1364,12 @@ async def _ensemble_conjecture(
                 "provider": surv[i][0],
                 "text": (_clean_text(crits[i]) or "")[:4000],
             }
-            for i in range(len(surv))
+            for i in range(len(crits))
         ],
         "synthesis_provider": synth_provider,
     }
+    if critique_skipped:
+        deliberation["critique_skipped"] = "posed_request"
     return merged, used, deliberation
 
 
