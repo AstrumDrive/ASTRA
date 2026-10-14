@@ -9,6 +9,21 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.21 (2026-10-14)
+
+The agreement gate of 1.1.20 asks whether the proposers read the request the
+same way, not whether they chose the same method.
+
+- DIFFERENT now means only: different objects, definitions or conventions;
+  a different proposition (weaker, stronger or shifted); or a route that
+  does not decide the requested proposition (numerical where exact was
+  asked, a special case instead of the general one). Two distinct exact
+  routes to the same proposition count as SAME, and the merge keeps both as
+  legs without dropping the structural derivation in favour of case-by-case
+  evaluation. Measured on Tr(sigma_a sigma_b) = 2 delta_ab, where 1.1.20
+  answered DIFFERENT only because one proposal evaluated the nine traces and
+  the other derived them from the product identity.
+
 ## 1.1.20 (2026-10-13)
 
 The conjecture shortcut of 1.1.18 now keeps the cross-critique whenever the

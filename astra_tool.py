@@ -939,12 +939,17 @@ _MERGE_SYSTEM = (
 
 _AGREEMENT_GATE = (
     "\n\nEXCEPCION a 'solo la conjetura': no hubo ronda de criticas. En la PRIMERA linea "
-    "decide si las propuestas coinciden en lo esencial: los mismos objetos y "
-    "definiciones, la misma proposicion a decidir y la misma ruta decisiva (el "
-    "calculo que la prueba o la refuta). Diferencias de redaccion, de orden o de "
-    "patas corroborativas NO cuentan. Escribe exactamente 'AGREEMENT: SAME' o "
-    "'AGREEMENT: DIFFERENT - <motivo en una frase>'. Desde la segunda linea, la "
-    "conjetura final. Ante la duda, DIFFERENT.")
+    "decide si las propuestas leen igual el pedido. DIFFERENT solo si: (a) usan "
+    "objetos, definiciones o convenciones distintas (signatura, orden de "
+    "operadores, normalizacion, dominio); (b) deciden otra proposicion (mas "
+    "debil, mas fuerte o desplazada); o (c) alguna ruta no decide la proposicion "
+    "pedida (numerica donde se pidio exacta, un caso particular en vez del "
+    "general). Dos rutas exactas distintas para la MISMA proposicion son SAME: "
+    "conserva ambas como patas y no descartes la derivacion estructural (una "
+    "identidad o un paso logico general) en favor de la evaluacion caso por "
+    "caso. Diferencias de redaccion o de orden no cuentan. Escribe exactamente "
+    "'AGREEMENT: SAME' o 'AGREEMENT: DIFFERENT - <motivo en una frase>'. Desde la "
+    "segunda linea, la conjetura final. Ante la duda sobre (a), (b) o (c), DIFFERENT.")
 _AGREEMENT_LINE = re.compile(
     r"^[\s*#>`]*AGREEMENT[\s*`]*:[\s*`]*(SAME|DIFFERENT)\b[\s*`]*(?:[-:—]\s*)?(.*)$",
     re.IGNORECASE)
