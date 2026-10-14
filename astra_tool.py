@@ -937,6 +937,30 @@ _MERGE_SYSTEM = (
     "y refutacion, y admitir que una estrategia no es decidible si esa es la conclusion "
     "honesta. Devuelve SOLO la conjetura final, sin preambulo ni meta-comentario.")
 
+_AGREEMENT_GATE = (
+    "\n\nEXCEPCION a 'solo la conjetura': no hubo ronda de criticas. En la PRIMERA linea "
+    "decide si las propuestas coinciden en lo esencial: los mismos objetos y "
+    "definiciones, la misma proposicion a decidir y la misma ruta decisiva (el "
+    "calculo que la prueba o la refuta). Diferencias de redaccion, de orden o de "
+    "patas corroborativas NO cuentan. Escribe exactamente 'AGREEMENT: SAME' o "
+    "'AGREEMENT: DIFFERENT - <motivo en una frase>'. Desde la segunda linea, la "
+    "conjetura final. Ante la duda, DIFFERENT.")
+_AGREEMENT_LINE = re.compile(
+    r"^[\s*#>`]*AGREEMENT[\s*`]*:[\s*`]*(SAME|DIFFERENT)\b[\s*`]*(?:[-:—]\s*)?(.*)$",
+    re.IGNORECASE)
+
+
+def _split_agreement(text: str) -> tuple:
+    """('SAME' | 'DIFFERENT' | None, reason, conjecture body) from a gated merge."""
+    lines = str(text or "").strip().splitlines()
+    if not lines:
+        return None, "", ""
+    match = _AGREEMENT_LINE.match(lines[0])
+    if not match:
+        return None, "first line was not an AGREEMENT verdict", ""
+    return match.group(1).upper(), match.group(2).strip(), "\n".join(lines[1:]).strip()
+
+
 # Prioridad del consenso conservador: gana el status de mayor rango.
 # NON_DECIDABLE sits above CODE_ERROR: when one analyst says "broken script"
 # and another "the inputs are missing" (the validator declared it), stopping
@@ -1330,12 +1354,6 @@ async def _ensemble_conjecture(
             "Tu propia propuesta fue:\n%s\n\nAhora critica adversarialmente la(s) "
             "propuesta(s) RIVAL(es):\n\n%s" % (t_i, rivals))
 
-    critique_skipped = _request_is_posed(intuition)
-    if critique_skipped:
-        crits = []
-    else:
-        crits = await asyncio.gather(*[_crit(i) for i in range(len(surv))],
-                                     return_exceptions=True)
     synth_timeout = (
         timeout_for_phase("SYNTH")
         if timeout_for_phase
@@ -1344,14 +1362,35 @@ async def _ensemble_conjecture(
     synth = ASTRAIntelligence(provider=synth_provider, cli_models=synth_models,
                               cli_timeout=synth_timeout)
     used.append(("conjecture_merge:%s" % synth_provider, synth))
-    blocks = []
-    for i, (p, t, _a) in enumerate(surv):
-        blocks.append("=== CONJETURA %s (%s) ===\n%s" % (chr(65 + i), p, t))
-        c = _clean_text(crits[i]) if i < len(crits) else None
-        if c:
-            blocks.append("--- Critica de %s a las rivales ---\n%s" % (p, c))
-    merged = _clean_text(await synth._call_api(
-        _MERGE_SYSTEM, "Intuicion original:\n%s\n\n%s" % (intuition, "\n\n".join(blocks))))
+
+    def _merge_input(crits):
+        blocks = []
+        for i, (p, t, _a) in enumerate(surv):
+            blocks.append("=== CONJETURA %s (%s) ===\n%s" % (chr(65 + i), p, t))
+            c = _clean_text(crits[i]) if i < len(crits) else None
+            if c:
+                blocks.append("--- Critica de %s a las rivales ---\n%s" % (p, c))
+        return "Intuicion original:\n%s\n\n%s" % (intuition, "\n\n".join(blocks))
+
+    crits = []
+    merged = None
+    gate = None
+    if _request_is_posed(intuition):
+        # 1.1.20: a posed request skips the critique round only when the
+        # synthesizer finds that the proposals agree on objects, proposition
+        # and decisive route. Disagreement, or an unreadable gate line, brings
+        # the full round back, so one model still challenges the other
+        # whenever they actually differ.
+        raw = _clean_text(await synth._call_api(
+            _MERGE_SYSTEM + _AGREEMENT_GATE, _merge_input([])))
+        agreement, reason, body = _split_agreement(raw or "")
+        gate = {"agreement": agreement or "UNREADABLE", "reason": reason[:500]}
+        if agreement == "SAME" and body:
+            merged = body
+    if merged is None:
+        crits = await asyncio.gather(*[_crit(i) for i in range(len(surv))],
+                                     return_exceptions=True)
+        merged = _clean_text(await synth._call_api(_MERGE_SYSTEM, _merge_input(crits)))
     if not merged:
         # Merge fallo -> degradar a concatenacion etiquetada (el traductor Opus
         # reconcilia igual, solo sin conjetura de consenso previa).
@@ -1368,8 +1407,10 @@ async def _ensemble_conjecture(
         ],
         "synthesis_provider": synth_provider,
     }
-    if critique_skipped:
-        deliberation["critique_skipped"] = "posed_request"
+    if gate is not None:
+        deliberation["agreement_gate"] = gate
+        if not crits:
+            deliberation["critique_skipped"] = "posed_request_agreed"
     return merged, used, deliberation
 
 

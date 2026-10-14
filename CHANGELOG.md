@@ -9,6 +9,20 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.20 (2026-10-13)
+
+The conjecture shortcut of 1.1.18 now keeps the cross-critique whenever the
+proposers actually disagree.
+
+- On a posed request the synthesizer first states, on one line, whether the
+  proposals agree on objects and definitions, on the proposition and on the
+  decisive route (`AGREEMENT: SAME` or `AGREEMENT: DIFFERENT - reason`).
+  Only SAME skips the critique round; DIFFERENT, or a missing or unreadable
+  line, runs the full round and a normal merge. Agreement costs no extra
+  call; disagreement costs the gated merge on top of the old round.
+- The deliberation trace records `agreement_gate` (verdict and reason), and
+  `critique_skipped = "posed_request_agreed"` only when the round was skipped.
+
 ## 1.1.19 (2026-10-13)
 
 The progress window uses colour for what the user reads first.
