@@ -9,6 +9,26 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.22 (2026-10-14)
+
+The code author is sized to the problem, and MAX mode stops overthinking.
+
+- Measured on the hard claims of 2026-10-14: the computation itself took 7
+  to 26 s, while writing the validator took 900 to 2200 s. Sonnet, first on
+  the author ladder, ran out of its 720 s on two of them and Opus then
+  started from scratch; in MAX mode Opus at "max" used the full 1800 s
+  without producing a script.
+- The planner now ends its plan with `COMPLEXITY: simple | moderate | hard`.
+  A moderate or hard plan starts the author on `ASTRA_AUTHOR_MODELS_MODERATE`
+  / `ASTRA_AUTHOR_MODELS_HARD` (default `claude-opus-5-5@high,sonnet@high`,
+  Sonnet only as a quota fallback) with a ceiling of at least
+  `ASTRA_TRANSLATOR_TIMEOUT_MODERATE` (1200 s) / `_HARD` (1500 s), still
+  bounded by the cycle budget. Simple or unclassified plans keep the
+  configured ladder. The result carries `complexity`.
+- MAX mode pins the author (and the Claude repairer) to Opus at "high"
+  instead of "max", and clears `ASTRA_REVIEWER_FOLLOWUP_MODELS` so a MAX
+  cycle never steps the reviewer down.
+
 ## 1.1.21 (2026-10-14)
 
 The agreement gate of 1.1.20 asks whether the proposers read the request the

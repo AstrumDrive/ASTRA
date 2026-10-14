@@ -43,8 +43,8 @@ class Apply(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=False):
             self.assertTrue(apply_max_mode({"max_mode": True}))
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6.1-sol@ultra")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@max")
-            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5@max")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@high")
+            self.assertEqual(os.environ["ASTRA_TRANSLATOR_MODELS"], "claude-opus-5-5@high")
             self.assertEqual(os.environ["ASTRA_AGY_MODELS"], "gemini-3.8-flash@high")
             self.assertEqual(os.environ["ASTRA_CODEX_REASONING"], "xhigh")
             # per-call ceilings raised well above the defaults (codex 240)
@@ -75,7 +75,7 @@ class Apply(unittest.TestCase):
                                      "ASTRA_CLAUDE_MODELS": "sonnet"}, clear=False):
             apply_max_mode({"max_mode": True})
             self.assertEqual(os.environ["ASTRA_CODEX_MODELS"], "gpt-6.1-sol@ultra")
-            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@max")
+            self.assertEqual(os.environ["ASTRA_CLAUDE_MODELS"], "claude-opus-5-5@high")
 
     def test_every_declared_key_is_applied(self):
         with patch.dict(os.environ, {}, clear=False):

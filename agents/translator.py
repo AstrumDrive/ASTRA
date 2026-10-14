@@ -166,9 +166,26 @@ Return a plan of at most 450 words with exactly these numbered sections:
    with its justification against the numerical floor.
 8. RISKS: what a reviewer would reject in a naive script for this claim, and
    how the plan avoids it.
+9. COMPLEXITY: one word on the last line, exactly "COMPLEXITY: simple",
+   "COMPLEXITY: moderate" or "COMPLEXITY: hard". simple: one or two legs over
+   small exact objects, a short script. moderate: several legs, or nontrivial
+   symbolic algebra. hard: heavy symbolic work (curvature, field equations,
+   ODE or PDE analysis, perturbation theory), certified numerics, case
+   splits, or a script likely over 300 lines.
 
 Short pseudocode lines are allowed; runnable code is not. No preamble.
 """
+
+import re  # noqa: E402  (this module is prompts first, helpers after)
+
+_COMPLEXITY_LINE = re.compile(r"COMPLEXITY\W{0,6}(simple|moderate|hard)\b", re.IGNORECASE)
+
+
+def parse_complexity(plan: str) -> str | None:
+    """The planner's difficulty class (1.1.22), or None when it gave none.
+    The last occurrence wins, so a mention inside RISKS cannot shadow it."""
+    found = _COMPLEXITY_LINE.findall(str(plan or ""))
+    return found[-1].lower() if found else None
 
 PLAN_BLOCK_HEADER = (
     "VALIDATION PLAN (written by ASTRA's planner; implement it faithfully. "

@@ -1071,18 +1071,23 @@ def review_round_reserve(model_revisions: int, max_revisions: int, budget) -> in
 # synchronously; an interactive MAX cycle still gets top models + no
 # degradation + generous per-call ceilings, but bounded by the client wall.
 _MAX_MODE_ENV = {
-    # 2026-10-12: GPT-6.1 Sol at "ultra" for every Codex phase, Opus 5.5 at
-    # "max" for the code author (writing code is not where Fable earns its
-    # cost), Gemini 3.8 Flash at "high", the most agy offers. The phase
-    # ladders are pinned too: they win over the CLI-wide ones, so a .env that
-    # sets ASTRA_ANALYST_MODELS would otherwise leak into a MAX cycle.
+    # 2026-10-12: GPT-6.1 Sol at "ultra" for every Codex phase, Opus 5.5 for
+    # the code author (writing code is not where Fable earns its cost),
+    # Gemini 3.8 Flash at "high", the most agy offers. The phase ladders are
+    # pinned too: they win over the CLI-wide ones, so a .env that sets
+    # ASTRA_ANALYST_MODELS would otherwise leak into a MAX cycle.
+    # 1.1.22: the author runs at "high", not "max". On 2026-10-14 Opus at max
+    # spent the whole 1800 s ceiling thinking on a hard validator and wrote
+    # nothing; more effort buys more hidden reasoning, not better code.
+    # The follow-up reviewer ladder is cleared so MAX never steps down.
     "ASTRA_CODEX_MODELS": "gpt-6.1-sol@ultra",
     "ASTRA_CONJECTURE_MODELS": "gpt-6.1-sol@ultra",
     "ASTRA_REVIEWER_MODELS": "gpt-6.1-sol@ultra",
+    "ASTRA_REVIEWER_FOLLOWUP_MODELS": "",
     "ASTRA_ANALYST_MODELS": "gpt-6.1-sol@ultra",
     "ASTRA_SYNTH_MODELS": "",
-    "ASTRA_CLAUDE_MODELS": "claude-opus-5-5@max",
-    "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5@max",
+    "ASTRA_CLAUDE_MODELS": "claude-opus-5-5@high",
+    "ASTRA_TRANSLATOR_MODELS": "claude-opus-5-5@high",
     "ASTRA_AGY_MODELS": "gemini-3.8-flash@high",
     "ASTRA_NAVIGATOR_MODELS": "",
     "ASTRA_CODEX_REASONING": "xhigh",
@@ -1134,6 +1139,46 @@ def build_translation_input(
         + fence_conjecture(conjecture)
     )
     return "\n\n".join(parts)
+
+
+_AUTHOR_TIERS = {
+    # complexity: (models env, default ladder, timeout env, default seconds)
+    "moderate": ("ASTRA_AUTHOR_MODELS_MODERATE", "claude-opus-5-5@high,sonnet@high",
+                 "ASTRA_TRANSLATOR_TIMEOUT_MODERATE", 1200),
+    "hard": ("ASTRA_AUTHOR_MODELS_HARD", "claude-opus-5-5@high,sonnet@high",
+             "ASTRA_TRANSLATOR_TIMEOUT_HARD", 1500),
+}
+
+
+def _author_tier(plan: str, max_mode: bool = False) -> dict | None:
+    """1.1.22: the code author sized to the planner's difficulty class.
+
+    Measured 2026-10-14: on hard claims Sonnet, first on the author ladder,
+    ran out of its 720 s and Opus then started from scratch, twelve minutes
+    lost per cycle. A moderate or hard plan starts the author directly on
+    its tier ladder with a longer ceiling; a simple plan, or no class, keeps
+    the configured ladder. MAX mode keeps its pinned author and only takes
+    the longer ceiling when that is larger.
+    """
+    from agents.translator import parse_complexity
+
+    complexity = parse_complexity(plan)
+    if not complexity:
+        return None
+    tier = {"complexity": complexity}
+    spec = _AUTHOR_TIERS.get(complexity)
+    if not spec:
+        return tier
+    models_env, models_default, timeout_env, timeout_default = spec
+    if not max_mode:
+        models = (os.environ.get(models_env) or "").strip().strip("'\"")
+        tier["models"] = models or models_default
+    try:
+        raw = (os.environ.get(timeout_env) or "").strip().strip("'\"")
+        tier["timeout"] = int(raw) if raw else timeout_default
+    except ValueError:
+        tier["timeout"] = timeout_default
+    return tier
 
 
 def _max_mode_requested(req) -> bool:
@@ -1721,7 +1766,15 @@ async def _do_cycle_impl(req: dict) -> dict:
              or os.environ.get(f"ASTRA_{phase}_MODEL") or "")
         return v.strip().strip("'\"") or None
 
+    # 1.1.22: per-cycle floors set from the planner's difficulty class; they
+    # only raise a phase's configured ceiling, never lower it.
+    phase_timeout_floor = {}
+
     def _configured_phase_timeout(phase):
+        configured = _env_phase_timeout(phase)
+        return max(configured, phase_timeout_floor.get(phase, 0))
+
+    def _env_phase_timeout(phase):
         # Presupuesto por llamada especifico de la fase (p.ej. el TRADUCTOR
         # genera scripts de fisica largos: ASTRA_TRANSLATOR_TIMEOUT=480);
         # sin variable, cli_backend usa ASTRA_CLI_TIMEOUT (240).
@@ -2519,6 +2572,13 @@ async def _do_cycle_impl(req: dict) -> dict:
 
             translation_input += f"\n\n{PLAN_BLOCK_HEADER}:\n{plan.strip()}"
             checkpoint_state["validation_plan"] = plan.strip()
+            tier = _author_tier(plan, max_mode)
+            if tier:
+                checkpoint_state["complexity"] = tier["complexity"]
+                if tier.get("models"):
+                    trans.cli_models = tier["models"]
+                if tier.get("timeout"):
+                    phase_timeout_floor["TRANSLATOR"] = tier["timeout"]
         else:
             # The plan is an aid, not a gate: without it the author still has
             # the claim, the definitions and the conjecture.
@@ -3048,6 +3108,8 @@ async def _do_cycle_impl(req: dict) -> dict:
     if cli_usage:
         # 1.1.16: tokens per role (codex and claude report them; agy does not).
         out["cli_usage"] = cli_usage
+    if checkpoint_state.get("complexity"):
+        out["complexity"] = checkpoint_state["complexity"]
     if cli_accounts:
         out["cli_account_profiles"] = cli_accounts
     if quality_escalations:
