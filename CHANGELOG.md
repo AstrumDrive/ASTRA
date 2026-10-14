@@ -9,6 +9,19 @@ second with measured capability, the third with fixes. The development line
 in `ASTRA-2.0` keeps its own identity through its acceptance gate and is not
 covered by this file. Dates are the day the change reached `main`.
 
+## 1.1.19 (2026-10-13)
+
+The progress window uses colour for what the user reads first.
+
+- The current stage is yellow: the model line marked "<- now", the phase
+  in "Phase" and its entry in "Phases". The outcome and the new "Claim P"
+  line (the verdict on the original claim, `original_claim_verdict`) are
+  green when supported or validated, red when refuted or failed, yellow
+  otherwise. Causes of failure are red, a model fallback is magenta, the
+  progress bar cyan, the objective bold.
+- Colour is added only when printing to a console; the views stay plain
+  text. `NO_COLOR` or `ASTRA_PROGRESS_COLOR=0` turns it off.
+
 ## 1.1.18 (2026-10-13)
 
 The conjecture phase is shorter when the request is already well posed.

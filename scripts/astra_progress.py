@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import re
 import statistics
 import sys
 import time
@@ -317,6 +318,8 @@ def follow_view(pid: int, medians: dict, progress_dir: str = None,
         status = result.get("status") or heartbeat.get("status") or heartbeat.get("phase") or est["stage"]
         lines.append(f"Progress  : {_bar(1.0)} 100%   {state} in {_fmt_dur(est['elapsed_s'])}")
         lines.append(f"Outcome   : {status}")
+        if result.get("original_claim_verdict"):
+            lines.append(f"Claim P   : {result['original_claim_verdict']}")
         if heartbeat.get("stage") == "failed":
             lines.append(f"Failed in : {heartbeat.get('phase', '-')}")
         error = ckpt.get("error")
@@ -350,6 +353,79 @@ def follow_view(pid: int, medians: dict, progress_dir: str = None,
     return ("\n".join(lines), est["terminal"])
 
 
+# 1.1.19: colour for what the user reads first. The views stay plain text
+# (tests and logs read them); colour is added only when printing to a console.
+# NO_COLOR or ASTRA_PROGRESS_COLOR=0 turns it off.
+_C = {"yellow": "\033[1;33m", "green": "\033[1;32m", "red": "\033[1;31m",
+      "cyan": "\033[36m", "magenta": "\033[35m", "bold": "\033[1m", "dim": "\033[2m",
+      "reset": "\033[0m"}
+_GOOD = ("VALIDATED", "SUPPORTED", "PASS")
+_BAD = ("REFUTED", "FAILED", "FAIL", "KILLED", "API_ERROR", "CODE_ERROR", "ERROR")
+
+
+def _paint(text: str, colour: str) -> str:
+    return f"{_C[colour]}{text}{_C['reset']}"
+
+
+def _verdict_colour(value: str) -> str:
+    words = set(re.findall(r"[A-Z_]+", str(value).upper()))
+    if words & set(_BAD):
+        return "red"
+    if words & set(_GOOD):
+        return "green"
+    return "yellow"
+
+
+def colorize(text: str) -> str:
+    """ANSI colour for the follow view: the current stage in yellow, the
+    verdicts green or red, failures red, fallbacks magenta."""
+    out = []
+    for line in text.split("\n"):
+        label, sep, value = line.partition(": ")
+        head = label.strip()
+        if "<- now" in line:
+            line = _paint(line.replace("  <- now", ""), "yellow") + _paint("  <- now", "yellow")
+        elif sep and head == "Objective":
+            line = f"{label}{sep}{_paint(value, 'bold')}"
+        elif sep and head == "Phase":
+            current, gap, rest = value.partition("elapsed")
+            line = f"{label}{sep}{_paint(current, 'yellow')}{gap}{rest}"
+        elif sep and head == "Progress":
+            bar, gap, rest = value.partition("] ")
+            line = f"{label}{sep}{_paint(bar + gap, 'cyan')}{rest}"
+        elif sep and head in ("Outcome", "Claim P"):
+            line = f"{label}{sep}{_paint(value, _verdict_colour(value))}"
+        elif sep and head in ("Cause", "Failed in", "Stuck on", "Missing"):
+            line = f"{label}{sep}{_paint(value, 'red')}"
+        elif sep and head == "Phases":
+            marks = value.split(" | ")
+            marks = [_paint(m, "yellow") if (m.endswith("*") or m.endswith("...")) else m
+                     for m in marks]
+            line = f"{label}{sep}" + " | ".join(marks)
+        elif sep and head == "Last beat":
+            line = _paint(line, "dim")
+        if "(fallback)" in line:
+            line = line.replace("-> answered by", _C["magenta"] + "-> answered by").replace(
+                "(fallback)", "(fallback)" + _C["reset"])
+        for state, colour in (("[running]", "cyan"), ("[FINISHED]", "green"), ("[KILLED]", "red")):
+            if state in line and line.startswith(LABEL):
+                line = line.replace(state, _paint(state, colour))
+        out.append(line)
+    return "\n".join(out)
+
+
+def _use_colour() -> bool:
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    if str(os.environ.get("ASTRA_PROGRESS_COLOR", "1")).strip().strip("'\"") in ("0", "false", "no", "off"):
+        return False
+    if not getattr(sys.stdout, "isatty", lambda: False)():
+        return False
+    if os.name == "nt":
+        os.system("")   # turns on VT processing in a classic console host
+    return True
+
+
 def _set_title(text: str) -> None:
     if os.name != "nt":
         return
@@ -374,6 +450,7 @@ def follow(pid: int, linger: int, progress_dir: str = None, checkpoint_dir: str 
         medians = dict(DEFAULT_MEDIANS)
     cache = {}
     titled = False
+    colour = _use_colour()
     try:
         while True:
             try:
@@ -387,7 +464,7 @@ def follow(pid: int, linger: int, progress_dir: str = None, checkpoint_dir: str 
                     _set_title(f"{LABEL} {pid}: {objective}")
                     titled = True
             os.system("cls" if os.name == "nt" else "clear")
-            print(text)
+            print(colorize(text) if colour else text)
             if terminal:
                 if linger < 0:
                     try:
